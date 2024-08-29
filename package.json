@@ -1,0 +1,19 @@
+{
+  "name": "plataforma-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^9.8.1",
+    "cors": "^9.8.1"
+  },
+  "engines": {
+    "node": "20.5.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
