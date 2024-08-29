@@ -1,8 +1,10 @@
 // Importa a biblioteca para comunicação HTTP Posts e cria o endpoint no servidor.
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
 app.listen(port);
+app.use(cors());
 app.use(express.json());
 
 app.post('/login', (req, res) => {
