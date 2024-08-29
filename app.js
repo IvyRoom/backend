@@ -15,18 +15,19 @@ app.use(cors());
 app.use(express.json());
 app.listen(port);
 
-// Importa as bibliotecas de comunicação com o Microsoft Graph API.
-const { Client } = require('@microsoft/microsoft-graph-client');
-const { ConfidentialClientApplication } = require('@azure/msal-node');
-var accessToken;
-var Microsoft_Graph_API_Client;
 
-async function Conecta_ao_Microsoft_Graph_API() {
-    const cca = new ConfidentialClientApplication({ auth: { clientId: process.env.CLIENT_ID, authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`, clientSecret: process.env.CLIENT_SECRET } });
-    accessToken = (await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']})).accessToken;
-    Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, accessToken)}});
-    console.log("#. AccessToken do Microsoft Graph API renovado.");
-}
+// // Importa as bibliotecas de comunicação com o Microsoft Graph API.
+// const { Client } = require('@microsoft/microsoft-graph-client');
+// const { ConfidentialClientApplication } = require('@azure/msal-node');
+// var accessToken;
+// var Microsoft_Graph_API_Client;
+
+// async function Conecta_ao_Microsoft_Graph_API() {
+//     const cca = new ConfidentialClientApplication({ auth: { clientId: process.env.CLIENT_ID, authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`, clientSecret: process.env.CLIENT_SECRET } });
+//     accessToken = (await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']})).accessToken;
+//     Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, accessToken)}});
+//     console.log("#. AccessToken do Microsoft Graph API renovado.");
+// }
 
 
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +38,7 @@ async function Conecta_ao_Microsoft_Graph_API() {
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/login', async (req, res) => {
+app.post('/login', (req, res) => {
     
     // //Retorna aviso de sucesso no recebimento da mensagem à request.
     // res.status(200).send('EmailUsuário e SenhaUsuário recebidos pelo backend.');
