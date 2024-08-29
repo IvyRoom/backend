@@ -7,54 +7,60 @@
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Importa as bibliotecas para comunicação via HTTP Posts (incluindo pelo Live Server) e cria o endpoint no servidor.
+// const express = require('express');
+// const cors = require('cors');
+// const app = express();
+// const port = process.env.PORT || 3000;
+// app.listen(port);
+// app.use(cors());
+// app.use(express.json());
+
+
+// app.post('/login', (req, res) => {
+    
+//     console.log(req.body);
+//     res.send('Login received');
+
+// });
+
+// const express = require('express');
+// const app = express();
+// const port = process.env.PORT || 3000;
+
+// app.use(express.json());
+
+// app.post('/login', (req, res) => {
+//     console.log(req.body);
+//     res.send('Login received');
+// });
+
+// app.listen(port, () => {
+//     console.log(`Server running on port ${port}`);
+// });
+
 const express = require('express');
-const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
-app.use(cors());
+
+// Middleware to parse incoming JSON requests
 app.use(express.json());
-app.listen(port);
 
-
-// // Importa as bibliotecas de comunicação com o Microsoft Graph API.
-// const { Client } = require('@microsoft/microsoft-graph-client');
-// const { ConfidentialClientApplication } = require('@azure/msal-node');
-// var accessToken;
-// var Microsoft_Graph_API_Client;
-
-// async function Conecta_ao_Microsoft_Graph_API() {
-//     const cca = new ConfidentialClientApplication({ auth: { clientId: process.env.CLIENT_ID, authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`, clientSecret: process.env.CLIENT_SECRET } });
-//     accessToken = (await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']})).accessToken;
-//     Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, accessToken)}});
-//     console.log("#. AccessToken do Microsoft Graph API renovado.");
-// }
-
-
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // PROCESSA O LOGIN DO USUÁRIO
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+// Route to handle login requests
 app.post('/login', (req, res) => {
-    
-    // //Retorna aviso de sucesso no recebimento da mensagem à request.
-    // res.status(200).send('EmailUsuário e SenhaUsuário recebidos pelo backend.');
+    const { email, senha } = req.body;
 
-    // // Obtém os dados da BD - PLATAFORMA.xlsx.
-    // if (!Microsoft_Graph_API_Client) { await Conecta_ao_Microsoft_Graph_API() };
-    // const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();    
-
-    // console.log(BD_Plataforma);
-
-    console.log(req.body);
-
+    // For simplicity, let's assume the login is always successful
+    // and send back a success response with the received data.
+    res.json({
+        message: 'Login successful',
+        receivedData: { email, senha }
+    });
 });
 
-
-
+// Start the server
+app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+});
 
 
 
