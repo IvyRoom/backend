@@ -1,4 +1,14 @@
+// Importa a biblioteca para comunicação HTTP Posts e cria o endpoint no servidor.
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;
+app.listen(port);
+app.use(express.json());
 
+app.post('/login', (req, res) => {
+    console.log(req.body);
+    res.send({ message: 'Login received' });
+});
 
 
 
