@@ -39,16 +39,16 @@ async function Conecta_ao_Microsoft_Graph_API() {
 
 app.post('/login', async (req, res) => {
     
-    //Retorna aviso de sucesso no recebimento da mensagem à request.
-    res.status(200).send('EmailUsuário e SenhaUsuário recebidos pelo backend.');
+    // //Retorna aviso de sucesso no recebimento da mensagem à request.
+    // res.status(200).send('EmailUsuário e SenhaUsuário recebidos pelo backend.');
 
-    // Obtém os dados da BD - PLATAFORMA.xlsx.
-    if (!Microsoft_Graph_API_Client) { await Conecta_ao_Microsoft_Graph_API() };
-    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();    
+    // // Obtém os dados da BD - PLATAFORMA.xlsx.
+    // if (!Microsoft_Graph_API_Client) { await Conecta_ao_Microsoft_Graph_API() };
+    // const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();    
 
-    console.log(BD_Plataforma);
+    // console.log(BD_Plataforma);
 
-    //console.log(req.body);
+    console.log(req.body);
 
 });
 
