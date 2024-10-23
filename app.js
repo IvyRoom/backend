@@ -44,22 +44,23 @@ app.use(express.json());
 app.listen(port);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Importa as bibliotecas de comunicação com o Microsoft Graph API e renova o acesso (AccessToken e Client) a cada 30min.
+// Importa as bibliotecas de comunicação com o Microsoft Graph API e cria a função para renovação do acesso.
 
 const { Client } = require('@microsoft/microsoft-graph-client');
 const { ConfidentialClientApplication } = require('@azure/msal-node');
-var accessToken;
 var Microsoft_Graph_API_Client;
-
-Conecta_ao_Microsoft_Graph_API();
 
 async function Conecta_ao_Microsoft_Graph_API() {
     const cca = new ConfidentialClientApplication({ auth: { clientId: process.env.CLIENT_ID, authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`, clientSecret: process.env.CLIENT_SECRET } });
-    accessToken = (await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']})).accessToken;
-    Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, accessToken)}});
+    response = await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']});
+    Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, response.accessToken)}});
+    
+    //Chama a função novamente 5 minutos antes do Access Token expirar.
+    setTimeout(Conecta_ao_Microsoft_Graph_API, new Date(response.expiresOn) - new Date() - 5 * 60 * 1000);
 }
 
-setInterval(Conecta_ao_Microsoft_Graph_API, 1800000);
+// Faz a primeira chamada para gerar o Microsoft_Graph_API_Client;
+Conecta_ao_Microsoft_Graph_API();
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cria função que transforma datas no formato Excel em datas no formato DD/MMM/AAAA.
@@ -81,8 +82,9 @@ app.post('/login', async (req, res) => {
     ////////////////////////////////////////////////////////////////////////////////////////
     // Obtém os dados da BD - PLATAFORMA.xlsx.
 
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
+    
     ////////////////////////////////////////////////////////////////////////////////////////
     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
 
@@ -147,7 +149,7 @@ app.post('/refresh', async (req, res) => {
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // Obtém os dados da BD - PLATAFORMA.xlsx.
-
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
@@ -203,30 +205,37 @@ app.post('/updates', async (req,res) => {
 
         if (NúmeroMódulo === 1){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 2){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 3){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 4){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 5){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 6){
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
 
         } else {
 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
 
         } 
@@ -234,13 +243,13 @@ app.post('/updates', async (req,res) => {
     } else if(TipoAtualização === 'NúmeroTópicosConcluídos') {
 
         //Atualiza só o Número de Tópicos Concluídos do Prep.
-    
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
 
     } else if(TipoAtualização === 'Preparatório2_Interesse'){
 
         //Atualiza só o Interesse no Preparatório 2.
-
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
 
     }
