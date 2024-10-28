@@ -65,8 +65,8 @@ Conecta_ao_Microsoft_Graph_API();
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cria função que transforma datas no formato Excel em datas no formato DD/MMM/AAAA.
 function ConverteData(DataExcel) {
-    const date = new Date((DataExcel - 25568) * 86400 * 1000);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ de|\.|,/g, '').replace(/\s+/g, '/');
+    const date = new Date((DataExcel - 25569) * 86400 * 1000);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\bde\b|\./g, '').replace(/\s+/g, '/');
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
