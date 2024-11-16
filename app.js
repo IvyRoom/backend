@@ -21,6 +21,7 @@ dotenv.config();
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Configura a base de URL utilizada, dependendo do ambiente.
+
 const baseUrl = process.env.BASE_URL;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +34,12 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.listen(port);
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Importa a biblioteca para criação de arquivos iCalendar.
+
+const ical = require('ical-generator');
+const { ICalCalendar } = require('ical-generator');
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Importa as bibliotecas de comunicação com o Microsoft Graph API e cria a função para renovação do acesso.
@@ -61,6 +68,13 @@ function ConverteData(DataExcel) {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\bde\b|\./g, '').replace(/\s+/g, '/');
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Cria função que transforma datas no formato JavaScritp em datas no formato Excel (Horário de Brasília).
+
+function ConverteData2(DataJavaScript) {
+    return DataJavaScript.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,11 +91,94 @@ function ConverteData(DataExcel) {
 
 var Lead_NomeCompleto;
 var Lead_Email;
+var Lead_PrimeiroNome;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Serve as imagens estáticas da pasta /img.
 ////////////////////////////////////////////////////////////////////////////////////////
 app.use('/img', express.static('img'));
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa submissão do formulário de cadastro.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/landingpage/cadastro', async (req, res) => {
+    
+    var { NomeCompleto, Email } = req.body;
+    Lead_NomeCompleto = NomeCompleto;
+    Lead_Email = Email;
+    Lead_PrimeiroNome = Lead_NomeCompleto.split(" ")[0];
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Cria o evneto iCalendar, com alerta de 3 horas antes do início do evento.
+
+    const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Preparatório em Gestão Generalista', language: 'PT-BR' } });
+    const event = cal.createEvent({
+        start: new Date(Date.UTC(2024, 10, 29, 3, 0, 0)), // 29/nov/2024, 00:00 BRT
+        end: new Date(Date.UTC(2024, 10, 30, 2, 59, 0)), // 29/nov/2024, 23:59 BRT
+        summary: 'Ivy - Turma de Black Friday',
+        description: 'A turma abre 28/nov às 23:59, no link https://ivygestao.com/',
+        uid: `${new Date().getTime()}@ivyroom.com.br`,
+        stamp: new Date()
+    });
+
+    event.createAlarm({
+        type: 'display',
+        trigger: 3 * 60 * 60 * 1000,
+        description: 'Ivy: Turma de Black Friday - Abre em 3 horas.'
+    });
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Envia o e-mail de confirmação de cadastro ao lead, com o evento iCalendar anexado.
+
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+        message: {
+            subject: 'Ivy - Turma de Black Friday: Finalize seu Cadastro',
+            body: {
+                contentType: 'HTML',
+                content: `
+                    <p>Olá ${Lead_PrimeiroNome},</p>
+                    <p>Para finalizar seu cadastro na Lista de Espera da Turma de Black Friday:</p>
+                    <p>&nbsp;&nbsp;&nbsp;&nbsp;1) Entre no <a href="https://www.instagram.com/channel/AbaebGO_wVnsawoW/" target="_blank">Ivy Connecta</a>, nosso canal de comunicação oficial no Instagram.</p>
+                    <p>&nbsp;&nbsp;&nbsp;&nbsp;2) Abra o arquivo iCalendar (.ics) em anexo e clique em "Adicionar à Agenda".</p>
+                    <p>Lembrando que a turma abre 28/nov às 23:59 no link <a href="https://ivygestao.com/" target="_blank">https://ivygestao.com/</a></p>
+                    <p>Qualquer dúvida, entre em contato. Sempre à disposição.</p>
+                    <p>Atenciosamente,</p>
+                    <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                `
+            },
+            toRecipients: [{ emailAddress: { address: Lead_Email } }],
+            attachments: [
+                {
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    name: "Ivy - Turma de Black Friday.ics",
+                    contentBytes: Buffer.from(cal.toString()).toString('base64')
+                }
+            ]
+        }
+    })
+
+    .then(emailResponse => {
+          
+        ////////////////////////////////////////////////////////////////////////////////////////
+        // Adiciona o lead na BD - LEADS.
+
+        Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows').post({"values": [[ConverteData2(new Date()), Lead_Email, Lead_NomeCompleto, "BLACK FRIDAY 241129"]]});
+
+        res.status(200).send();
+    
+    })
+
+    .catch(error => {
+        
+        res.status(400).send();
+
+    });
+
+});
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
