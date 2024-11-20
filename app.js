@@ -19,13 +19,6 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-////////////////////////////////////////////////////////////////////////////////////////
-// Puxa as variáveis de ambiente.
-
-const Facebook_Pixel_ID = process.env.FACEBOOK_PIXEL_ID;
-const Facebook_Conversions_API_Token = process.env.FACEBOOK_CONVERSIONS_API_TOKEN;
-const Facebook_Graph_API_Latest_Version = process.env.FACEBOOK_GRAPH_API_LATEST_VERSION;
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Importa a biblioteca para HTTP Posts, a Cors para receber sinais inclusive do Localhost, e cria o terminal.
 
@@ -36,12 +29,6 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.listen(port);
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Importa as bibliotecas necessárias para comunicar com o Facebook Conversions API.
-
-const axios = require('axios');
-const crypto = require('crypto');
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Importa a biblioteca para criação de arquivos iCalendar.
@@ -100,9 +87,6 @@ function ConverteData2(DataJavaScript) {
 var Lead_NomeCompleto;
 var Lead_PrimeiroNome;
 var Lead_Email;
-var Lead_EndereçoIP;
-var Lead_UserAgent;
-var Lead_fbclid_Tratado;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Serve as imagens estáticas da pasta /img.
@@ -115,13 +99,10 @@ app.use('/img', express.static('img'));
 
 app.post('/landingpage/cadastro', async (req, res) => {
     
-    var { NomeCompleto, Email, EndereçoIP, UserAgent, fbclid_tratado } = req.body;
+    var { NomeCompleto, Email } = req.body;
     Lead_NomeCompleto = NomeCompleto;
     Lead_PrimeiroNome = Lead_NomeCompleto.split(" ")[0];
     Lead_Email = Email;
-    Lead_EndereçoIP = EndereçoIP;
-    Lead_UserAgent = UserAgent;
-    Lead_fbclid_Tratado = fbclid_tratado;
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // Cria o evento iCalendar, com alerta de 3 horas antes do início do evento.
@@ -185,38 +166,7 @@ app.post('/landingpage/cadastro', async (req, res) => {
 
             .then(() => {
 
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Prepara os dados do Lead para serem enviados ao "Facebook Pixel Conversion API". 
-                
-                let Lead_Dados = {
-                    em: crypto.createHash('sha256').update(Lead_Email).digest('hex'),
-                    fn: crypto.createHash('sha256').update(Lead_PrimeiroNome).digest('hex'),
-                    client_ip_address: Lead_EndereçoIP,
-                    client_user_agent: Lead_UserAgent
-                }
-                
-                if (Lead_fbclid_Tratado !== "") {
-                    data.fbc = Lead_fbclid_Tratado;
-                }
-
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Dispara o evento de "Lead" no "Facebook Pixel Conversion API". 
-                
-                axios.post(`https://graph.facebook.com/${Facebook_Graph_API_Latest_Version}/${Facebook_Pixel_ID}/events?access_token=${Facebook_Conversions_API_Token}`, {
-                    data: [
-                        {
-                            event_name: "Lead",
-                            event_time: Math.floor(new Date() / 1000),
-                            user_data: Lead_Dados                            
-                        }
-                    ]
-                })
-
-                .then(response => {
-                
-                    res.status(200).send();
-
-                });
+                res.status(200).send();
 
             });
 
