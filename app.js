@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////// IMPORTAÇÃO DE BIBLIOTECAS E CRIAÇÃO DE FUNÇÕES /////////////////////////////////////////////////////////
+/////////////////////////////////////////////// IMPORTAÇÃO DE BIBLIOTECAS, CRIAÇÃO DE FUNÇÕES E VARIÁVEIS /////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,11 +64,34 @@ function ConverteData(DataExcel) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Cria função que transforma datas no formato JavaScritp em datas no formato Excel (Horário de Brasília).
+// Cria função que transforma datas no formato JavaScript em datas no formato Excel (Horário de Brasília).
 
 function ConverteData2(DataJavaScript) {
     return DataJavaScript.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
 }
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Importa a biblioteca para criptografar variáveis para o formato SHA256.
+
+const crypto = require('crypto');
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Cria as variáveis de interface com o Meta Graph API.
+////////////////////////////////////////////////////////////////////////////////////////
+
+const Meta_Graph_API_Latest_Version = process.env.META_GRAPH_API_LATEST_VERSION;
+const Meta_Graph_API_Access_Token = process.env.META_GRAPH_API_ACCESS_TOKEN;
+const Meta_Graph_API_Instagram_Business_Account_ID = process.env.META_GRAPH_API_INSTAGRAM_BUSINESS_ACCOUNT_ID;
+const Meta_Graph_API_Facebook_Page_ID = process.env.META_GRAPH_API_FACEBOOK_PAGE_ID;
+const Meta_Graph_API_Ad_Account_ID = process.env.META_GRAPH_API_AD_ACCOUNT_ID;
+const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_CUSTOM_AUDIENCE_ID_SEGUIDORES;
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Cria as variáveis de interface com o Meta Conversions API.
+////////////////////////////////////////////////////////////////////////////////////////
+
+const Meta_Dataset_ID = process.env.META_DATASET_ID;
+const Meta_Conversions_API_Access_Token = process.env.META_CONVERSIONS_API_ACCESS_TOKEN;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,24 +102,86 @@ function ConverteData2(DataJavaScript) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 ////////////////////////////////////////////////////////////////////////////////////////
+// Serve as imagens estáticas da pasta /img.
 ////////////////////////////////////////////////////////////////////////////////////////
-// Declara as variáveis mestras.
+
+app.use('/img', express.static('img'));
+
+
 ////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Registra junto à Meta a Visualização da Página Principal.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/landingpage/meta/viewcontent', async (req, res) => {
+    
+    let { 
+    
+        Meta_Server_Event_Parameter_Event_Name, 
+        Meta_Server_Event_Parameter_Event_Time,
+        Meta_Server_Event_Parameter_Event_Source_Url,
+        Meta_Server_Event_Parameter_Opt_Out, 
+        Meta_Server_Event_Parameter_Event_ID, 
+        Meta_Server_Event_Parameter_Action_Source, 
+        Meta_Server_Event_Parameter_Data_Processing_Options,
+        Meta_Customer_Information_Parameter_Country_NotHashed,
+        Meta_Customer_Information_Parameter_External_ID_NotHashed,
+        Meta_Customer_Information_Parameter_Client_User_Agent,
+        Meta_Customer_Information_Parameter_fbc,
+        Meta_Customer_Information_Parameter_fbp
+    
+    } = req.body;
+
+    let Meta_Customer_Information_Parameter_Client_IP_Address = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    let Meta_Customer_Information_Parameter_Facebook_Page_ID = Meta_Graph_API_Facebook_Page_ID;
+
+    let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
+    let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
+
+    res.status(200).json({Meta_Dataset_ID});
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Envia os dados do visitante ao Meta Conversions API.
+    ///////////////////////////////////////////////////////////////////////////////////////
+    
+    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Dataset_ID}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            data: [
+                {
+                    event_name: Meta_Server_Event_Parameter_Event_Name,
+                    event_time: Meta_Server_Event_Parameter_Event_Time,
+                    event_source_url: Meta_Server_Event_Parameter_Event_Source_Url,
+                    opt_out: Meta_Server_Event_Parameter_Opt_Out,
+                    event_id: Meta_Server_Event_Parameter_Event_ID,
+                    action_source: Meta_Server_Event_Parameter_Action_Source,
+                    data_processing_options: Meta_Server_Event_Parameter_Data_Processing_Options,
+                    user_data: {
+                        country: Meta_Customer_Information_Parameter_Country_Hashed,
+                        external_id: Meta_Customer_Information_Parameter_External_ID_Hashed,
+                        client_ip_address: Meta_Customer_Information_Parameter_Client_IP_Address,
+                        client_user_agent: Meta_Customer_Information_Parameter_Client_User_Agent,
+                        fbc: Meta_Customer_Information_Parameter_fbc,
+                        fbp: Meta_Customer_Information_Parameter_fbp,
+                        page_id: Meta_Customer_Information_Parameter_Facebook_Page_ID
+                    }
+                }
+            ],
+            access_token: Meta_Conversions_API_Access_Token
+        })
+    })
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa submissão do formulário de cadastro.
 ////////////////////////////////////////////////////////////////////////////////////////
 
 var Lead_NomeCompleto;
 var Lead_PrimeiroNome;
 var Lead_Email;
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Serve as imagens estáticas da pasta /img.
-////////////////////////////////////////////////////////////////////////////////////////
-app.use('/img', express.static('img'));
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que processa submissão do formulário de cadastro.
-////////////////////////////////////////////////////////////////////////////////////////
 
 app.post('/landingpage/cadastro', async (req, res) => {
     
@@ -175,6 +260,81 @@ app.post('/landingpage/cadastro', async (req, res) => {
         res.status(400).send();
 
     });
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Registra junto à Meta a Geração do Lead.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/landingpage/meta/lead', async (req, res) => {
+    
+    let { 
+    
+        Meta_Server_Event_Parameter_Event_Name, 
+        Meta_Server_Event_Parameter_Event_Time,
+        Meta_Server_Event_Parameter_Event_Source_Url,
+        Meta_Server_Event_Parameter_Opt_Out, 
+        Meta_Server_Event_Parameter_Event_ID, 
+        Meta_Server_Event_Parameter_Action_Source, 
+        Meta_Server_Event_Parameter_Data_Processing_Options,
+
+        Meta_Customer_Information_Parameter_Email_NotHashed,
+        Meta_Customer_Information_Parameter_First_Name_NotHashed,
+        Meta_Customer_Information_Parameter_Last_Name_NotHashed,
+        Meta_Customer_Information_Parameter_Country_NotHashed,
+        Meta_Customer_Information_Parameter_External_ID_NotHashed,
+        Meta_Customer_Information_Parameter_Client_User_Agent,
+        Meta_Customer_Information_Parameter_fbc,
+        Meta_Customer_Information_Parameter_fbp
+    
+    } = req.body;
+
+    let Meta_Customer_Information_Parameter_Client_IP_Address = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    let Meta_Customer_Information_Parameter_Facebook_Page_ID = Meta_Graph_API_Facebook_Page_ID;
+
+    let Meta_Customer_Information_Parameter_Email_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Email_NotHashed).digest('hex');
+    let Meta_Customer_Information_Parameter_First_Name_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_First_Name_NotHashed).digest('hex');
+    let Meta_Customer_Information_Parameter_Last_Name_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Last_Name_NotHashed).digest('hex');
+    let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
+    let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
+    
+    res.status(200).json({Meta_Dataset_ID});
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Envia os dados do Lead ao Meta Conversions API.
+    ///////////////////////////////////////////////////////////////////////////////////////
+    
+    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Dataset_ID}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            data: [
+                {
+                    event_name: Meta_Server_Event_Parameter_Event_Name,
+                    event_time: Meta_Server_Event_Parameter_Event_Time,
+                    event_source_url: Meta_Server_Event_Parameter_Event_Source_Url,
+                    opt_out: Meta_Server_Event_Parameter_Opt_Out,
+                    event_id: Meta_Server_Event_Parameter_Event_ID,
+                    action_source: Meta_Server_Event_Parameter_Action_Source,
+                    data_processing_options: Meta_Server_Event_Parameter_Data_Processing_Options,
+                    user_data: {
+                        em: Meta_Customer_Information_Parameter_Email_Hashed,
+                        fn: Meta_Customer_Information_Parameter_First_Name_Hashed,
+                        ln: Meta_Customer_Information_Parameter_Last_Name_Hashed,
+                        country: Meta_Customer_Information_Parameter_Country_Hashed,
+                        external_id: Meta_Customer_Information_Parameter_External_ID_Hashed,
+                        client_ip_address: Meta_Customer_Information_Parameter_Client_IP_Address,
+                        client_user_agent: Meta_Customer_Information_Parameter_Client_User_Agent,
+                        fbc: Meta_Customer_Information_Parameter_fbc,
+                        fbp: Meta_Customer_Information_Parameter_fbp,
+                        page_id: Meta_Customer_Information_Parameter_Facebook_Page_ID
+                    }
+                }
+            ],
+            access_token: Meta_Conversions_API_Access_Token
+        })
+    })
 
 });
 
@@ -947,3 +1107,541 @@ app.post('/alunos/envioemail', async (req,res) => {
     }
 
 });
+
+
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////// META GRAPH API INTERFACE /////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint: Postagem de Reels e Stories
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// ///////////////////////////////////////////////////////////////////////////////////////
+// // Cria o Endpoint.
+// ///////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/meta/postar', async (req, res) => {
+    
+//     let { Reel_Código, Reel_Legenda, Incluir_Stories } = req.body;
+
+//     res.status(200).send('Request recebida.');
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Cria o Media Container (Reel).
+    
+//     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
+        
+//         method: 'POST',
+//         headers: {'Content-Type': 'application/json'},
+        
+//         body: JSON.stringify({
+//             media_type: 'REELS',
+//             video_url: `https://prod-11.brazilsouth.logic.azure.com/workflows/918791d7158c49109829ea4daad8b20a/triggers/manual/paths/invoke/${Reel_Código}?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TykScUL8qim1dYZJvNRlQugkQx9fMeMLl88x7aJytoo`,
+//             caption: Reel_Legenda,
+//             access_token: Meta_Graph_API_Access_Token
+//         })
+    
+//     })
+
+//     .then(response => response.json()).then(data => {
+
+//         let Reel_IG_Media_Container_ID = data.id;
+
+//         if (Reel_IG_Media_Container_ID !== null) console.log(`Reels - 1. Media Container ID ${Reel_IG_Media_Container_ID} criado.`);
+
+//         ////////////////////////////////////////////////////////////////////////////////////////
+//         // Verifica o status do Media Container (Reels) a cada 5s.
+
+//         const VerificaStatusReels = () => {
+            
+//             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_Container_ID}?fields=status_code`, {
+//                 method: 'GET',
+//                 headers: {
+//                     'Content-Type': 'application/json',
+//                     'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+//                 }
+//             })
+
+//             .then(response => response.json()).then(data => {
+
+//                 let Reel_IG_Media_Container_Status = data.status_code;
+                
+//                 if (Reel_IG_Media_Container_Status === "FINISHED") {
+
+//                     clearInterval(Reel_IG_Media_Container_Status_Verificação_ID);
+
+//                     console.log(`Reels - 2. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`)
+
+//                     ////////////////////////////////////////////////////////////////////////////////////////
+//                     // Publica o Media Container (Reels).
+                    
+//                     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
+                        
+//                         method: 'POST',
+//                         headers: {'Content-Type': 'application/json'},
+                        
+//                         body: JSON.stringify({
+//                             creation_id: Reel_IG_Media_Container_ID,
+//                             access_token: Meta_Graph_API_Access_Token
+//                         })
+                    
+//                     })
+                    
+//                     .then(response => response.json()).then(data => {
+                        
+//                         let Reel_IG_Media_ID = data.id;
+
+//                         if (Reel_IG_Media_ID !== null) console.log(`Reels - 3. Reel ID ${Reel_IG_Media_ID} publicado.`);
+
+//                         ////////////////////////////////////////////////////////////////////////////////////////
+//                         // Cria a Custom Audience (Video View 3s) para o Reel.
+//                         ////////////////////////////////////////////////////////////////////////////////////////
+
+//                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
+//                             method: 'POST',
+//                             headers: {'Content-Type': 'application/json'},
+//                             body: JSON.stringify({
+//                                 name: 'Video View 3s - ' + Reel_Código,
+//                                 description: 'Audiência criada via Meta Graph API.',
+//                                 subtype: 'ENGAGEMENT',
+//                                 retention_days: 365,
+//                                 rule: [{
+//                                     event_name: 'video_watched',
+//                                     object_id: Reel_IG_Media_ID,
+//                                     context_id: Meta_Graph_API_Facebook_Page_ID
+//                                 }],
+//                                 prefill: 'true',
+//                                 access_token: Meta_Graph_API_Access_Token
+//                             })
+//                         })
+                        
+//                         .then(response => response.json()).then(data => {
+
+//                             let Reel_Audience_ID = data.id;
+
+//                             if (Reel_Audience_ID !== null) console.log(`Reels - 4. Audiência ID ${Reel_Audience_ID} criada.`);
+
+//                             ////////////////////////////////////////////////////////////////////////////////////////
+//                             // Obtém o Número de Seguidores atualizado.
+//                             ////////////////////////////////////////////////////////////////////////////////////////
+
+//                             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+//                             .then(response => response.json()).then(async data => {
+
+//                                 let Número_Seguidores = data.followers_count;
+
+//                                 if (Número_Seguidores !== null) console.log('Reels - 5. Número de Seguidores obtido.');
+                            
+//                                 ///////////////////////////////////////////////////////////////////////////////////////
+//                                 // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
+//                                 ///////////////////////////////////////////////////////////////////////////////////////
+
+//                                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+//                                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
+                                
+//                                     .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `'${Reel_Audience_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null ]]})
+
+//                                     .then(() => {
+
+//                                         console.log('Reels - 6. BD atualizada.');
+
+//                                     });
+
+//                             })
+
+//                         })
+
+//                     })
+                
+//                 } else {
+
+//                     console.log(`Reels - 2. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`)
+
+//                 }
+
+//             })
+            
+//         };
+
+//         const Reel_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusReels, 5000);
+        
+//     })
+
+//     if (Incluir_Stories === 'Sim'){
+
+//         ////////////////////////////////////////////////////////////////////////////////////////
+//         // Cria o Media Container (Stories).
+        
+//         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
+            
+//             method: 'POST',
+//             headers: {'Content-Type': 'application/json'},
+            
+//             body: JSON.stringify({
+//                 media_type: 'STORIES',
+//                 video_url: `https://prod-11.brazilsouth.logic.azure.com/workflows/918791d7158c49109829ea4daad8b20a/triggers/manual/paths/invoke/${Reel_Código}?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TykScUL8qim1dYZJvNRlQugkQx9fMeMLl88x7aJytoo`,
+//                 access_token: Meta_Graph_API_Access_Token
+//             })
+        
+//         })
+
+//         .then(response => response.json()).then(data => {
+
+//             let Stories_IG_Media_Container_ID = data.id;
+
+//             if (Stories_IG_Media_Container_ID !== null) console.log(`Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`);
+
+//             ////////////////////////////////////////////////////////////////////////////////////////
+//             // Verifica o status do Media Container (Stories) a cada 5s.
+
+//             const VerificaStatusStories = () => {
+            
+//                 fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
+//                     method: 'GET',
+//                     headers: {
+//                         'Content-Type': 'application/json',
+//                         'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+//                     }
+//                 })
+    
+//                 .then(response => response.json()).then(data => {
+    
+//                     let Stories_IG_Media_Container_Status = data.status_code;
+                    
+//                     if (Stories_IG_Media_Container_Status === "FINISHED") {
+    
+//                         clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
+    
+//                         console.log(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`)
+
+//                         ////////////////////////////////////////////////////////////////////////////////////////
+//                         // Publica o Media Container (Stories).
+                        
+//                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
+                            
+//                             method: 'POST',
+//                             headers: {'Content-Type': 'application/json'},
+                            
+//                             body: JSON.stringify({
+//                                 creation_id: Stories_IG_Media_Container_ID,
+//                                 access_token: Meta_Graph_API_Access_Token
+//                             })
+                        
+//                         })
+                        
+//                         .then(response => response.json()).then(data => {
+                            
+//                             let Stories_IG_Media_ID = data.id;
+
+//                             if (Stories_IG_Media_ID !== null) console.log(`Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`);
+                        
+//                         })
+                    
+//                     } else {
+
+//                         console.log(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`)
+    
+//                     }
+
+//                 });
+
+//             }
+
+//             const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
+
+//         })
+
+//     }
+    
+// });
+
+// app.post('/meta/criaraudiencia', async (req, res) => {
+    
+//     let { Reel_Código, Reel_IG_Media_ID } = req.body;
+
+//     res.status(200).send('Request recebida.');
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Cria a Custom Audience (Video View 3s) para o Reel.
+//     ////////////////////////////////////////////////////////////////////////////////////////
+
+//     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
+//         method: 'POST',
+//         headers: {'Content-Type': 'application/json'},
+//         body: JSON.stringify({
+//             name: 'Video View 3s - ' + Reel_Código,
+//             description: 'Audiência criada via Meta Graph API.',
+//             subtype: 'ENGAGEMENT',
+//             retention_days: 365,
+//             rule: [{
+//                 event_name: 'video_watched',
+//                 object_id: Reel_IG_Media_ID,
+//                 context_id: Meta_Graph_API_Facebook_Page_ID
+//             }],
+//             prefill: 'true',
+//             access_token: Meta_Graph_API_Access_Token
+//         })
+//     })
+    
+//     .then(response => response.json()).then(data => {
+
+//         let Reel_Audience_ID = data.id;
+
+//         if (Reel_Audience_ID !== null) console.log(`1. Audiência ID ${Reel_Audience_ID} criada.`);
+  
+//     })
+    
+// });
+
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint: Cria Campanha de Relacionamento
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// ///////////////////////////////////////////////////////////////////////////////////////
+// // Cria o Endpoint.
+// ///////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/meta/CriaCampanhaRelacionamento', async (req, res) => {
+
+//     let { Reel_IG_Media_ID } = req.body;
+
+//     res.status(200).send();
+
+//     ///////////////////////////////////////////////////////////////////////////////////////
+//     // Registra os resultados orgânicos de 72h do Reel na BD - RESULTADOS (RELACIONAMENTO).
+//     ///////////////////////////////////////////////////////////////////////////////////////
+
+//     ///////////////////////////////////////////////////////////////////////////////////////
+//     // Obtém os resultados orgânicos do Reel.
+
+//     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=views,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+//     .then(response => response.json()).then(async data => {
+
+//         let Reel_Organic_Views = data.data.find(metric => metric.name === 'views').values[0].value;
+//         let Reel_Organic_Likes = data.data.find(metric => metric.name === 'likes').values[0].value;
+//         let Reel_Organic_Saved = data.data.find(metric => metric.name === 'saved').values[0].value;
+//         let Reel_Organic_Shares = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+//         let Reel_Organic_Interactions = Reel_Organic_Likes + Reel_Organic_Saved + Reel_Organic_Shares;
+
+//         if (Reel_Organic_Views !== null) console.log('1. Dados orgânicos do Reel obtidos.');
+
+//         ///////////////////////////////////////////////////////////////////////////////////////
+//         // Obtém os dados da BD - RESULTADOS (RELACIONAMENTO).
+
+//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//         let BD_Resultados_Relacionamento = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
+
+//         ////////////////////////////////////////////////////////////////////////////////////////////////
+//         // Obtém a linha em que o Reel_IG_Media_ID está, obtém o Reel_Código e obtém o Reel_Audience_ID.
+
+//         let Index_Verificado = 0;
+//         let Index_Reel_IG_Media_ID;
+//         let Reel_IG_Media_ID_Verificado;
+//         let Reel_Código;
+//         let Reel_Audience_ID;
+
+//         Encontra_Index_Reel_IG_Media_ID();
+
+//         function Encontra_Index_Reel_IG_Media_ID() {
+
+//             Reel_IG_Media_ID_Verificado = BD_Resultados_Relacionamento.value[Index_Verificado].values[0][1];
+
+//             if(Reel_IG_Media_ID_Verificado === Reel_IG_Media_ID) {
+
+//                 Index_Reel_IG_Media_ID = Index_Verificado;
+//                 Reel_Código =  BD_Resultados_Relacionamento.value[Index_Reel_IG_Media_ID].values[0][0];
+//                 Reel_Audience_ID = BD_Resultados_Relacionamento.value[Index_Reel_IG_Media_ID].values[0][2];
+
+//             } else {
+
+//                 Index_Verificado++;
+//                 Encontra_Index_Reel_IG_Media_ID();
+    
+//             }
+        
+//         }
+
+//         ///////////////////////////////////////////////////////////////////////////////////////
+//         // Registra os resultados orgânicos do Reel na BD - RESULTADOS (RELACIONAMENTO).
+
+//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows/itemAt(index=' + Index_Verificado + ')').update({values: [[null, null, null, null, null, Reel_Organic_Views, Reel_Organic_Interactions ]]})
+
+//         .then(response => {
+
+//             let Reel_IG_Media_ID_Confirmado = response.values[0][1];
+
+//             if (Reel_IG_Media_ID_Confirmado === Reel_IG_Media_ID) console.log('2. Dados orgânicos do Reel inseridos na BD - RESULTADOS.');
+
+//             ///////////////////////////////////////////////////////////////////////////////////////
+//             // Cria a Campanha.
+//             ///////////////////////////////////////////////////////////////////////////////////////
+
+//             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/campaigns`, {
+//                 method: 'POST',
+//                 headers: {'Content-Type': 'application/json'},
+//                 body: JSON.stringify({
+//                     name: 'RL.' + Reel_Código,
+//                     status: 'ACTIVE',
+//                     buying_type: 'AUCTION',
+//                     objective: 'OUTCOME_ENGAGEMENT',
+//                     special_ad_categories: [],
+//                     campaign_budget_optimization: false,
+//                     is_ab_test: false,
+//                     access_token: Meta_Graph_API_Access_Token
+//                 })
+//             })
+
+//             .then(response => response.json()).then(async data => {
+
+//                 let Reel_Campanha_Relacionamento_ID = data.id;
+
+//                 if (Reel_Campanha_Relacionamento_ID !== null) console.log('3. Campanha de Relacionamento criada.');
+
+//                 ///////////////////////////////////////////////////////////////////////////////////////
+//                 // Obtém o orçamento mínimo diário atualizado, em BRL,
+//                 // para setar o Orçamento do Conjunto de Anúncios.
+//                 ///////////////////////////////////////////////////////////////////////////////////////
+
+//                 fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}?fields=min_daily_budget`, {
+//                     method: 'GET',
+//                     headers: {
+//                         'Content-Type': 'application/json',
+//                         'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+//                     }
+//                 })
+    
+//                 .then(response => response.json()).then(data => {
+
+//                     let Reel_Conjunto_Anuncios_Orçamento = data.min_daily_budget;
+
+//                     if (Reel_Conjunto_Anuncios_Orçamento !== null) console.log('4. Orçamento do Conjunto de Anúncios obtido.');
+
+//                     ///////////////////////////////////////////////////////////////////////////////////////
+//                     // Cria o Conjunto de Anúncios.
+//                     ///////////////////////////////////////////////////////////////////////////////////////
+
+//                     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/adsets`, {
+//                         method: 'POST',
+//                         headers: {'Content-Type': 'application/json'},
+//                         body: JSON.stringify({
+//                             status: 'ACTIVE',
+//                             campaign_id: Reel_Campanha_Relacionamento_ID,
+//                             name: 'RL.' + Reel_Código,
+//                             destination_type: 'ON_VIDEO',
+//                             optimization_goal: 'THRUPLAY',
+//                             frequency_control_specs: [{
+//                                 event:'IMPRESSIONS',
+//                                 interval_days: 90,
+//                                 max_frequency: 1
+//                             }],
+//                             daily_budget: Reel_Conjunto_Anuncios_Orçamento,
+//                             billing_event: 'IMPRESSIONS',
+//                             bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+//                             start_time: Math.floor(Date.now() / 1000),
+//                             targeting:{
+//                                 "geo_locations": {
+//                                     "countries":["BR"]
+//                                 },
+//                                 "age_min":18,
+//                                 "age_max":65,
+//                                 "custom_audiences": [{"id": Meta_Graph_API_Custom_Audience_ID_Seguidores}],
+//                                 "excluded_custom_audiences": [{"id": Reel_Audience_ID}],
+//                                 "targeting_relaxation_types": {
+//                                     "lookalike": 0,
+//                                     "custom_audience": 0
+//                                 },
+//                                 "publisher_platforms": ["instagram"],
+//                                 "instagram_positions": ["stream","profile_reels","explore","reels", "explore_home", "profile_feed"]
+//                             },
+//                             access_token: Meta_Graph_API_Access_Token
+//                         })
+//                     })
+
+//                     .then(response => response.json()).then(async data => {
+
+//                         let Reel_Conjunto_Anuncios_Relacionamento_ID = data.id;
+
+//                         if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null) console.log('5. Conjunto de Anúncios criado.');
+
+//                         ///////////////////////////////////////////////////////////////////////////////////////
+//                         // Cria o Criativo.
+//                         ///////////////////////////////////////////////////////////////////////////////////////
+
+//                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/adcreatives`, {
+//                             method: 'POST',
+//                             headers: {'Content-Type': 'application/json'},
+//                             body: JSON.stringify({
+//                                 object_id: Meta_Graph_API_Facebook_Page_ID,
+//                                 instagram_user_id: Meta_Graph_API_Instagram_Business_Account_ID,
+//                                 source_instagram_media_id: Reel_IG_Media_ID,
+//                                 call_to_action: {
+//                                     type: 'LEARN_MORE',
+//                                     value: {
+//                                         link: 'https://ivygestao.com/'
+//                                     }
+//                                 },
+//                                 contextual_multi_ads: {
+//                                     enroll_status: 'OPT_OUT'
+//                                 },
+//                                 access_token: Meta_Graph_API_Access_Token
+//                             })
+//                         })
+
+//                         .then(response => response.json()).then(async data => {
+
+//                             let Reel_Criativo_Relacionamento_ID = data.id;
+
+//                             if (Reel_Criativo_Relacionamento_ID !== null) console.log('6. Criativo criado.');
+
+//                             ///////////////////////////////////////////////////////////////////////////////////////
+//                             // Cria o Anúncio.
+//                             ///////////////////////////////////////////////////////////////////////////////////////
+                            
+//                             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
+//                                 method: 'POST',
+//                                 headers: {'Content-Type': 'application/json'},
+//                                 body: JSON.stringify({
+//                                     name: 'RL.' + Reel_Código,
+//                                     adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
+//                                     status: 'ACTIVE',
+//                                     creative: {creative_id: Reel_Criativo_Relacionamento_ID},
+//                                     access_token: Meta_Graph_API_Access_Token
+//                                 })
+//                             })
+
+//                             .then(response => response.json()).then(async data => {
+
+//                                 let Reel_Anúncio_Relacionamento_ID = data.id;
+
+//                                 if (Reel_Anúncio_Relacionamento_ID !== null) console.log('7. Anúncio criado.');
+
+//                             });
+
+//                         });
+
+//                     });
+
+//                 });
+
+//             });
+
+//         });
+
+//     })
+
+// })
