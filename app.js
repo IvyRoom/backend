@@ -67,7 +67,7 @@ function ConverteData(DataExcel) {
 // Cria função que transforma datas no formato JavaScript em datas no formato Excel (Horário de Brasília).
 
 function ConverteData2(DataJavaScript) {
-    return DataJavaScript.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+    return DataJavaScript.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(',', '');
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +139,7 @@ app.post('/landingpage/meta/viewcontent', async (req, res) => {
     let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
     let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
 
-    res.status(200).json({Meta_Dataset_ID});
+    res.status(200).json();
 
     ///////////////////////////////////////////////////////////////////////////////////////
     // Envia os dados do visitante ao Meta Conversions API.
@@ -172,6 +172,14 @@ app.post('/landingpage/meta/viewcontent', async (req, res) => {
             access_token: Meta_Conversions_API_Access_Token
         })
     })
+
+    .then(response => {
+        console.log(response.status);
+    })
+    
+    .catch(error => {
+        console.error(error);
+    });
 
 });
 
@@ -299,7 +307,7 @@ app.post('/landingpage/meta/lead', async (req, res) => {
     let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
     let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
     
-    res.status(200).json({Meta_Dataset_ID});
+    res.status(200).json();
 
     ///////////////////////////////////////////////////////////////////////////////////////
     // Envia os dados do Lead ao Meta Conversions API.
@@ -335,6 +343,14 @@ app.post('/landingpage/meta/lead', async (req, res) => {
             access_token: Meta_Conversions_API_Access_Token
         })
     })
+
+    .then(response => {
+        console.log(response.status);
+    })
+    
+    .catch(error => {
+        console.error(error);
+    });
 
 });
 
