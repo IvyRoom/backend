@@ -926,7 +926,7 @@ var Aluno_Email;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mail em escala para os leads na BD - ALUNOS.
+// Envia e-mails individuais (em escala) para os alunos na BD - ALUNOS.
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -945,8 +945,10 @@ app.post('/alunos/envioemail', async (req,res) => {
 
     const BD_Alunos_Última_Linha = BD_Alunos_Número_Linhas - 1;
     
-    // Linha Atual inicial, com e-mail: 204.
-    for (let LinhaAtual = 204; LinhaAtual <= BD_Alunos_Última_Linha; LinhaAtual++) {
+    // Primeira linha Black Friday: 204.
+    // Última linha Black Friday: 237.
+
+    for (let LinhaAtual = 206; LinhaAtual <= 237; LinhaAtual++) {
         
 //         ////////////////////////////////////////////////////////////////////////////////////////
 //         // Cria o evento iCalendar, com alerta de 3 horas antes do início do evento.
@@ -980,6 +982,9 @@ app.post('/alunos/envioemail', async (req,res) => {
         
         Aluno_Email = BD_Alunos.value[LinhaAtual].values[0][2];
         Aluno_PrimeiroNome = BD_Alunos.value[LinhaAtual].values[0][1].split(" ")[0];
+
+        Aluno_Login = BD_Alunos.value[LinhaAtual].values[0][12];
+        Aluno_Senha = BD_Alunos.value[LinhaAtual].values[0][13];
 
         if (Aluno_Email === "-") {
 
@@ -1098,17 +1103,38 @@ app.post('/alunos/envioemail', async (req,res) => {
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
+            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+            //     message: {
+            //         subject: 'Ivy - É hoje! Link de Acesso: Atendimento ao Vivo #1',
+            //         body: {
+            //             contentType: 'HTML',
+            //             content: `
+            //                 <p>Boa tarde ${Aluno_PrimeiroNome},</p>
+            //                 <p>Lembramos que <b>hoje</b>, pontualmente às <b>18h</b>, acontece o <b>primeiro atendimento ao vivo</b> para os participantes da Turma de Black Friday do Preparatório, via Microsoft Teams.</p>
+            //                 <p>Neste encontro, o Lucas já iniciará algumas explicações importantes sobre Método Gerencial, com conhecimentos complementares ao conteúdo da plataforma. E estará à disposição para tirar dúvidas iniciais sobre o tema.</p>
+            //                 <p>Acesse o encontro por meio <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_ZGUxZjMwYjktYTU3Ny00Yzc5LTkzYWYtOWU4ZGQ5NDYzM2Y0%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d" target="_blank">deste link</a>.</p>
+            //                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+            //                 <p>Atenciosamente,</p>
+            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+            //             `
+            //         },
+            //         toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+            //     }
+                
+            // })
+
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
                 message: {
-                    subject: 'Ivy - É hoje! Link de Acesso: Atendimento ao Vivo #1',
+                    subject: 'Encontro Especial de Black Friday - Reagendamento',
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-                            <p>Lembramos que <b>hoje</b>, pontualmente às <b>18h</b>, acontece o <b>primeiro atendimento ao vivo</b> para os participantes da Turma de Black Friday do Preparatório, via Microsoft Teams.</p>
-                            <p>Neste encontro, o Lucas já iniciará algumas explicações importantes sobre Método Gerencial, com conhecimentos complementares ao conteúdo da plataforma. E estará à disposição para tirar dúvidas iniciais sobre o tema.</p>
-                            <p>Acesse o encontro por meio <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_ZGUxZjMwYjktYTU3Ny00Yzc5LTkzYWYtOWU4ZGQ5NDYzM2Y0%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d" target="_blank">deste link</a>.</p>
-                            <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                            <p>Bom dia ${Aluno_PrimeiroNome},</p>
+                            <p>Quem escreve é Lucas Machado, fundador da Ivy. Tudo bem?</p>
+                            <p>Pelo fato de que menos de 50% dos alunos da Turma de Black Friday já finalizaram o Preparatório, iremos reagendar o Encontro Especial de Black Friday que aconteceria amanhã (sábado, 08/fev às 09:00).</p>
+                            <p>Vamos monitorar o progresso da turma na plataforma e reagendaremos o encontro no momento oportuno. Avisaremos vocês por e-mail.</p>
+                            <p>P.S. Em instantes sairão os invites para as próximas Office Hours (encontros ao vivo mensais que fazem parte da entrega padrão do serviço).</p>
+                            <p>Qualquer dúvida ou insegurança, à disposição.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
@@ -1134,301 +1160,400 @@ app.post('/alunos/envioemail', async (req,res) => {
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint: Postagem de Reels e Stories
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Postagem de Reels e Stories
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 
-// ///////////////////////////////////////////////////////////////////////////////////////
-// // Cria o Endpoint.
-// ///////////////////////////////////////////////////////////////////////////////////////
+app.post('/meta/postar', async (req, res) => {
 
-// app.post('/meta/postar', async (req, res) => {
-    
-//     let { Reel_Código, Reel_Legenda, Incluir_Stories } = req.body;
+    let { Reel_Código, Reel_Legenda, Incluir_Stories } = req.body;
 
-//     res.status(200).send('Request recebida.');
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Reels: Início do processo de postagem.
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
 
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Cria o Media Container (Reel).
-    
-//     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
+    res.status(200).json({ message: "Reels - 1. Request recebida." });
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Cria o Media Container (Reel).
+
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    let Reel_Video_URL = (await Microsoft_Graph_API_Client.api(`/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/root:/SISTEMA DE GESTÃO/1. VENDA/2. POSTAR REELS/PUBLICAÇÕES/${Reel_Código}/PUBLICAÇÃO.mp4`).get())['@microsoft.graph.downloadUrl'];
+
+    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
         
-//         method: 'POST',
-//         headers: {'Content-Type': 'application/json'},
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
         
-//         body: JSON.stringify({
-//             media_type: 'REELS',
-//             video_url: `https://prod-11.brazilsouth.logic.azure.com/workflows/918791d7158c49109829ea4daad8b20a/triggers/manual/paths/invoke/${Reel_Código}?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TykScUL8qim1dYZJvNRlQugkQx9fMeMLl88x7aJytoo`,
-//             caption: Reel_Legenda,
-//             access_token: Meta_Graph_API_Access_Token
-//         })
+        body: JSON.stringify({
+            media_type: 'REELS',
+            video_url: Reel_Video_URL,
+            caption: Reel_Legenda,
+            access_token: Meta_Graph_API_Access_Token
+        })
     
-//     })
+    })
 
-//     .then(response => response.json()).then(data => {
+    .then(response => response.json()).then(data => {
 
-//         let Reel_IG_Media_Container_ID = data.id;
+        let Reel_IG_Media_Container_ID = data.id;
 
-//         if (Reel_IG_Media_Container_ID !== null) console.log(`Reels - 1. Media Container ID ${Reel_IG_Media_Container_ID} criado.`);
+        if (Reel_IG_Media_Container_ID !== null) EnviaAtualização(`Reels - 2. Media Container ID ${Reel_IG_Media_Container_ID} criado.`);
 
-//         ////////////////////////////////////////////////////////////////////////////////////////
-//         // Verifica o status do Media Container (Reels) a cada 5s.
+        ////////////////////////////////////////////////////////////////////////////////////////
+        // Verifica o status do Media Container (Reels) a cada 5s.
 
-//         const VerificaStatusReels = () => {
+        const VerificaStatusReels = () => {
             
-//             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_Container_ID}?fields=status_code`, {
-//                 method: 'GET',
-//                 headers: {
-//                     'Content-Type': 'application/json',
-//                     'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-//                 }
-//             })
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_Container_ID}?fields=status_code`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+                }
+            })
 
-//             .then(response => response.json()).then(data => {
+            .then(response => response.json()).then(data => {
 
-//                 let Reel_IG_Media_Container_Status = data.status_code;
+                let Reel_IG_Media_Container_Status = data.status_code;
                 
-//                 if (Reel_IG_Media_Container_Status === "FINISHED") {
+                if (Reel_IG_Media_Container_Status === "FINISHED") {
 
-//                     clearInterval(Reel_IG_Media_Container_Status_Verificação_ID);
+                    clearInterval(Reel_IG_Media_Container_Status_Verificação_ID);
 
-//                     console.log(`Reels - 2. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`)
+                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`);
 
-//                     ////////////////////////////////////////////////////////////////////////////////////////
-//                     // Publica o Media Container (Reels).
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // Publica o Media Container (Reels).
                     
-//                     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
+                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
                         
-//                         method: 'POST',
-//                         headers: {'Content-Type': 'application/json'},
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
                         
-//                         body: JSON.stringify({
-//                             creation_id: Reel_IG_Media_Container_ID,
-//                             access_token: Meta_Graph_API_Access_Token
-//                         })
+                        body: JSON.stringify({
+                            creation_id: Reel_IG_Media_Container_ID,
+                            access_token: Meta_Graph_API_Access_Token
+                        })
                     
-//                     })
+                    })
                     
-//                     .then(response => response.json()).then(data => {
+                    .then(response => response.json()).then(data => {
                         
-//                         let Reel_IG_Media_ID = data.id;
+                        let Reel_IG_Media_ID = data.id;
 
-//                         if (Reel_IG_Media_ID !== null) console.log(`Reels - 3. Reel ID ${Reel_IG_Media_ID} publicado.`);
+                        if (Reel_IG_Media_ID !== null) EnviaAtualização(`Reels - 4. Reel ID ${Reel_IG_Media_ID} publicado.`);
 
-//                         ////////////////////////////////////////////////////////////////////////////////////////
-//                         // Cria a Custom Audience (Video View 3s) para o Reel.
-//                         ////////////////////////////////////////////////////////////////////////////////////////
+                        ////////////////////////////////////////////////////////////////////////////////////////
+                        // Cria a Custom Audience (Video View 3s) para o Reel.
+                        ////////////////////////////////////////////////////////////////////////////////////////
 
-//                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
-//                             method: 'POST',
-//                             headers: {'Content-Type': 'application/json'},
-//                             body: JSON.stringify({
-//                                 name: 'Video View 3s - ' + Reel_Código,
-//                                 description: 'Audiência criada via Meta Graph API.',
-//                                 subtype: 'ENGAGEMENT',
-//                                 retention_days: 365,
-//                                 rule: [{
-//                                     event_name: 'video_watched',
-//                                     object_id: Reel_IG_Media_ID,
-//                                     context_id: Meta_Graph_API_Facebook_Page_ID
-//                                 }],
-//                                 prefill: 'true',
-//                                 access_token: Meta_Graph_API_Access_Token
-//                             })
-//                         })
+                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                name: 'Video View 3s - ' + Reel_Código,
+                                description: 'Audiência criada via Meta Graph API.',
+                                subtype: 'ENGAGEMENT',
+                                retention_days: 365,
+                                rule: [{
+                                    event_name: 'video_watched',
+                                    object_id: Reel_IG_Media_ID,
+                                    context_id: Meta_Graph_API_Facebook_Page_ID
+                                }],
+                                prefill: 'true',
+                                access_token: Meta_Graph_API_Access_Token
+                            })
+                        })
                         
-//                         .then(response => response.json()).then(data => {
+                        .then(response => response.json()).then(data => {
 
-//                             let Reel_Audience_ID = data.id;
+                            let Reel_Audience_ID = data.id;
 
-//                             if (Reel_Audience_ID !== null) console.log(`Reels - 4. Audiência ID ${Reel_Audience_ID} criada.`);
+                            if (Reel_Audience_ID !== null) EnviaAtualização(`Reels - 5. Audiência ID ${Reel_Audience_ID} criada.`);
 
-//                             ////////////////////////////////////////////////////////////////////////////////////////
-//                             // Obtém o Número de Seguidores atualizado.
-//                             ////////////////////////////////////////////////////////////////////////////////////////
+                            ////////////////////////////////////////////////////////////////////////////////////////
+                            // Obtém o Número de Seguidores atualizado.
+                            ////////////////////////////////////////////////////////////////////////////////////////
 
-//                             fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
 
-//                             .then(response => response.json()).then(async data => {
+                            .then(response => response.json()).then(async data => {
 
-//                                 let Número_Seguidores = data.followers_count;
+                                let Número_Seguidores = data.followers_count;
 
-//                                 if (Número_Seguidores !== null) console.log('Reels - 5. Número de Seguidores obtido.');
+                                if (Número_Seguidores !== null) EnviaAtualização(`Reels - 6. Número de Seguidores obtido.`);
                             
-//                                 ///////////////////////////////////////////////////////////////////////////////////////
-//                                 // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
-//                                 ///////////////////////////////////////////////////////////////////////////////////////
+                                ///////////////////////////////////////////////////////////////////////////////////////
+                                // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
+                                ///////////////////////////////////////////////////////////////////////////////////////
 
-//                                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+                                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-//                                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
+                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
                                 
-//                                     .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `'${Reel_Audience_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null ]]})
+                                .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `'${Reel_Audience_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null ]]})
+                                
+                                .then(async response => {
 
-//                                     .then(() => {
+                                    EnviaAtualização(`Reels - 7. BD - RESULTADOS atualizada.`);
 
-//                                         console.log('Reels - 6. BD atualizada.');
+                                    ////////////////////////////////////////////////////////////////////////////////////////////////////
+                                    // Programa o registro dos Resultados Orgânicos de Contas Alcançadas a 5% do Número de Seguidores.
+                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+                                    
+                                    let Número_Verificação_Alcance_Orgânico = 1;
 
-//                                     });
+                                    Registra_Resultados_Orgânicos_5_Porcento();
 
-//                             })
+                                    function Registra_Resultados_Orgânicos_5_Porcento () {
 
-//                         })
+                                        if (Número_Verificação_Alcance_Orgânico === 1) EnviaAtualização(`Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`);
 
-//                     })
+                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+                                        .then(response => response.json()).then(async data => {
+
+                                            let Reel_Organic_Reach_5_Porcento = data.data.find(metric => metric.name === 'reach').values[0].value;
+                                            let Critério_Registro_Alcance = Math.ceil(Número_Seguidores * 0.05);
+                                            
+                                            if (Reel_Organic_Reach_5_Porcento >= Critério_Registro_Alcance) {
+                                                
+                                                let Reel_Organic_Likes_5_Porcento = data.data.find(metric => metric.name === 'likes').values[0].value;
+                                                let Reel_Organic_Saved_5_Porcento = data.data.find(metric => metric.name === 'saved').values[0].value;
+                                                let Reel_Organic_Shares_5_Porcento = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+                                                let Reel_Organic_Interactions_5_Porcento = Reel_Organic_Likes_5_Porcento + Reel_Organic_Saved_5_Porcento + Reel_Organic_Shares_5_Porcento;
+
+                                                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_5_Porcento, Reel_Organic_Interactions_5_Porcento, null, null ]]})
+                                            
+                                            } else {
+
+                                                Número_Verificação_Alcance_Orgânico++;
+                                                setTimeout(Registra_Resultados_Orgânicos_5_Porcento, 300000);
+
+                                            }
+
+                                        });
+
+                                    }
+
+                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+                                    // Programa o registro dos Resultados Orgânicos de 72h.
+                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                                    let Index_Reel_IG_Media_ID = response.index;
+
+                                    let Timeout_ID = setTimeout(() => Registra_Resultados_Orgânicos_72h(), 259200000);
+
+                                    if (Timeout_ID !== null) EnviaAtualização(`Reels - 9. Registro Orgânico de 72h programado.`);
+
+                                    function Registra_Resultados_Orgânicos_72h() {
+
+                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+                                        .then(response => response.json()).then(async data => {
+
+                                            let Reel_Organic_Reach_72h = data.data.find(metric => metric.name === 'reach').values[0].value;
+                                            let Reel_Organic_Likes_72h = data.data.find(metric => metric.name === 'likes').values[0].value;
+                                            let Reel_Organic_Saved_72h = data.data.find(metric => metric.name === 'saved').values[0].value;
+                                            let Reel_Organic_Shares_72h = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+                                            let Reel_Organic_Interactions_72h = Reel_Organic_Likes_72h + Reel_Organic_Saved_72h + Reel_Organic_Shares_72h;
+
+                                            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_72h, Reel_Organic_Interactions_72h ]]});
+
+                                        })
+
+                                    }
+
+                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+                                    // Cria o evento na agenda (calendário) para criação da campanha de RL (72h depois).
+                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                                    let Horário_Início_Criação_Campanha_RL = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
+                                    let Horário_Término_Criação_Campanha_RL = new Date(Horário_Início_Criação_Campanha_RL.getTime() + 60 * 60 * 1000);
+
+                                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
+                                        
+                                        subject: "CAMPANHA RL - " + Reel_Código,
+                                        
+                                        start: {
+                                            "dateTime": Horário_Início_Criação_Campanha_RL,
+                                            "timeZone": "UTC"
+                                        },
+                                        
+                                        end: {
+                                            "dateTime": Horário_Término_Criação_Campanha_RL,
+                                            "timeZone": "UTC"
+                                        }
+                                        
+                                    })
+
+                                    .then(async () => {
+                                        
+                                        EnviaAtualização(`Reels - 10. Criação da campanha agendada.`);
+
+                                        ////////////////////////////////////////////////////////////////////////////////////////
+                                        ////////////////////////////////////////////////////////////////////////////////////////
+                                        // Stories: Início do processo de postagem.
+                                        ////////////////////////////////////////////////////////////////////////////////////////
+                                        ////////////////////////////////////////////////////////////////////////////////////////
+
+                                        if (Incluir_Stories === true) {
+
+                                            ////////////////////////////////////////////////////////////////////////////////////////
+                                            // Cria o Media Container (Stories).
+                                            
+                                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
+                                                
+                                                method: 'POST',
+                                                headers: {'Content-Type': 'application/json'},
+                                                
+                                                body: JSON.stringify({
+                                                    media_type: 'STORIES',
+                                                    video_url: Reel_Video_URL,
+                                                    access_token: Meta_Graph_API_Access_Token
+                                                })
+                                            
+                                            })
+
+                                            .then(response => response.json()).then(data => {
+
+                                                let Stories_IG_Media_Container_ID = data.id;
+
+                                                if (Stories_IG_Media_Container_ID !== null) EnviaAtualização(`Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`);
+
+                                                ////////////////////////////////////////////////////////////////////////////////////////
+                                                // Verifica o status do Media Container (Stories) a cada 5s.
+
+                                                const VerificaStatusStories = () => {
+                                                
+                                                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
+                                                        method: 'GET',
+                                                        headers: {
+                                                            'Content-Type': 'application/json',
+                                                            'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+                                                        }
+                                                    })
+                                        
+                                                    .then(response => response.json()).then(data => {
+                                        
+                                                        let Stories_IG_Media_Container_Status = data.status_code;
+                                                        
+                                                        if (Stories_IG_Media_Container_Status === "FINISHED") {
+                                        
+                                                            clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
+
+                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`);
+
+                                                            ////////////////////////////////////////////////////////////////////////////////////////
+                                                            // Publica o Media Container (Stories).
+                                                            
+                                                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
+                                                                
+                                                                method: 'POST',
+                                                                headers: {'Content-Type': 'application/json'},
+                                                                
+                                                                body: JSON.stringify({
+                                                                    creation_id: Stories_IG_Media_Container_ID,
+                                                                    access_token: Meta_Graph_API_Access_Token
+                                                                })
+                                                            
+                                                            })
+                                                            
+                                                            .then(response => response.json()).then(data => {
+                                                                
+                                                                let Stories_IG_Media_ID = data.id;
+
+                                                                if (Stories_IG_Media_ID !== null) EnviaAtualização(`Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`);
+                                                            
+                                                            })
+                                                        
+                                                        } else {
+
+                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`);
+                                        
+                                                        }
+
+                                                    });
+
+                                                }
+
+                                                const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
+
+                                            })
+
+                                        }
+                                        
+                                    });
+
+                                });
+
+                            });
+
+                        });
+
+                    });
                 
-//                 } else {
+                } else {
 
-//                     console.log(`Reels - 2. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`)
+                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`);
 
-//                 }
+                }
 
-//             })
+            })
             
-//         };
+        };
 
-//         const Reel_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusReels, 5000);
+        const Reel_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusReels, 5000);
         
-//     })
-
-//     if (Incluir_Stories === 'Sim'){
-
-//         ////////////////////////////////////////////////////////////////////////////////////////
-//         // Cria o Media Container (Stories).
-        
-//         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
-            
-//             method: 'POST',
-//             headers: {'Content-Type': 'application/json'},
-            
-//             body: JSON.stringify({
-//                 media_type: 'STORIES',
-//                 video_url: `https://prod-11.brazilsouth.logic.azure.com/workflows/918791d7158c49109829ea4daad8b20a/triggers/manual/paths/invoke/${Reel_Código}?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TykScUL8qim1dYZJvNRlQugkQx9fMeMLl88x7aJytoo`,
-//                 access_token: Meta_Graph_API_Access_Token
-//             })
-        
-//         })
-
-//         .then(response => response.json()).then(data => {
-
-//             let Stories_IG_Media_Container_ID = data.id;
-
-//             if (Stories_IG_Media_Container_ID !== null) console.log(`Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`);
-
-//             ////////////////////////////////////////////////////////////////////////////////////////
-//             // Verifica o status do Media Container (Stories) a cada 5s.
-
-//             const VerificaStatusStories = () => {
-            
-//                 fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
-//                     method: 'GET',
-//                     headers: {
-//                         'Content-Type': 'application/json',
-//                         'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-//                     }
-//                 })
+    })
     
-//                 .then(response => response.json()).then(data => {
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint e Função: Envio de Atualizações sobre Postagem de Reels e Stories
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+let client = null;
+
+app.get('/meta/postar/atualizacoes', (req, res) => {
     
-//                     let Stories_IG_Media_Container_Status = data.status_code;
-                    
-//                     if (Stories_IG_Media_Container_Status === "FINISHED") {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    client = res;
+
+    req.on('close', () => { client = null })
+
+});
+
+function EnviaAtualização(MensagemAtualização) {
     
-//                         clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
-    
-//                         console.log(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`)
+    if (client) { client.write(`data: ${MensagemAtualização}\n\n`) }
 
-//                         ////////////////////////////////////////////////////////////////////////////////////////
-//                         // Publica o Media Container (Stories).
-                        
-//                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
-                            
-//                             method: 'POST',
-//                             headers: {'Content-Type': 'application/json'},
-                            
-//                             body: JSON.stringify({
-//                                 creation_id: Stories_IG_Media_Container_ID,
-//                                 access_token: Meta_Graph_API_Access_Token
-//                             })
-                        
-//                         })
-                        
-//                         .then(response => response.json()).then(data => {
-                            
-//                             let Stories_IG_Media_ID = data.id;
-
-//                             if (Stories_IG_Media_ID !== null) console.log(`Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`);
-                        
-//                         })
-                    
-//                     } else {
-
-//                         console.log(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`)
-    
-//                     }
-
-//                 });
-
-//             }
-
-//             const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
-
-//         })
-
-//     }
-    
-// });
-
-// app.post('/meta/criaraudiencia', async (req, res) => {
-    
-//     let { Reel_Código, Reel_IG_Media_ID } = req.body;
-
-//     res.status(200).send('Request recebida.');
-
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Cria a Custom Audience (Video View 3s) para o Reel.
-//     ////////////////////////////////////////////////////////////////////////////////////////
-
-//     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
-//         method: 'POST',
-//         headers: {'Content-Type': 'application/json'},
-//         body: JSON.stringify({
-//             name: 'Video View 3s - ' + Reel_Código,
-//             description: 'Audiência criada via Meta Graph API.',
-//             subtype: 'ENGAGEMENT',
-//             retention_days: 365,
-//             rule: [{
-//                 event_name: 'video_watched',
-//                 object_id: Reel_IG_Media_ID,
-//                 context_id: Meta_Graph_API_Facebook_Page_ID
-//             }],
-//             prefill: 'true',
-//             access_token: Meta_Graph_API_Access_Token
-//         })
-//     })
-    
-//     .then(response => response.json()).then(data => {
-
-//         let Reel_Audience_ID = data.id;
-
-//         if (Reel_Audience_ID !== null) console.log(`1. Audiência ID ${Reel_Audience_ID} criada.`);
-  
-//     })
-    
-// });
-
+};
 
 // ////////////////////////////////////////////////////////////////////////////////////////
 // ////////////////////////////////////////////////////////////////////////////////////////
 // // Endpoint: Cria Campanha de Relacionamento
 // ////////////////////////////////////////////////////////////////////////////////////////
 // ////////////////////////////////////////////////////////////////////////////////////////
-
-// ///////////////////////////////////////////////////////////////////////////////////////
-// // Cria o Endpoint.
-// ///////////////////////////////////////////////////////////////////////////////////////
 
 // app.post('/meta/CriaCampanhaRelacionamento', async (req, res) => {
 
@@ -1460,7 +1585,7 @@ app.post('/alunos/envioemail', async (req,res) => {
 //         // Obtém os dados da BD - RESULTADOS (RELACIONAMENTO).
 
 //         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//         let BD_Resultados_Relacionamento = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
+//         let BD_Resultados_Relacionamento = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
 
 //         ////////////////////////////////////////////////////////////////////////////////////////////////
 //         // Obtém a linha em que o Reel_IG_Media_ID está, obtém o Reel_Código e obtém o Reel_Audience_ID.
@@ -1495,7 +1620,8 @@ app.post('/alunos/envioemail', async (req,res) => {
 //         ///////////////////////////////////////////////////////////////////////////////////////
 //         // Registra os resultados orgânicos do Reel na BD - RESULTADOS (RELACIONAMENTO).
 
-//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYFZDLQQ656SNGZ5TYL7G4I5EHL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows/itemAt(index=' + Index_Verificado + ')').update({values: [[null, null, null, null, null, Reel_Organic_Views, Reel_Organic_Interactions ]]})
+//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows/itemAt(index=' + Index_Verificado + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Views, Reel_Organic_Interactions ]]})
 
 //         .then(response => {
 
