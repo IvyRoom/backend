@@ -1203,7 +1203,7 @@ app.post('/meta/postar', async (req, res) => {
 
         let Reel_IG_Media_Container_ID = data.id;
 
-        if (Reel_IG_Media_Container_ID !== null) EnviaAtualização(`Reels - 2. Media Container ID ${Reel_IG_Media_Container_ID} criado.`);
+        if (Reel_IG_Media_Container_ID !== null) EnviaAtualização(`Reels - 2. Media Container ID ${Reel_IG_Media_Container_ID} criado.`, "postar");
 
         ////////////////////////////////////////////////////////////////////////////////////////
         // Verifica o status do Media Container (Reels) a cada 5s.
@@ -1226,7 +1226,7 @@ app.post('/meta/postar', async (req, res) => {
 
                     clearInterval(Reel_IG_Media_Container_Status_Verificação_ID);
 
-                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`);
+                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`, "postar");
 
                     ////////////////////////////////////////////////////////////////////////////////////////
                     // Publica o Media Container (Reels).
@@ -1247,7 +1247,7 @@ app.post('/meta/postar', async (req, res) => {
                         
                         let Reel_IG_Media_ID = data.id;
 
-                        if (Reel_IG_Media_ID !== null) EnviaAtualização(`Reels - 4. Reel ID ${Reel_IG_Media_ID} publicado.`);
+                        if (Reel_IG_Media_ID !== null) EnviaAtualização(`Reels - 4. Reel ID ${Reel_IG_Media_ID} publicado.`, "postar");
 
                         ////////////////////////////////////////////////////////////////////////////////////////
                         // Cria a Custom Audience (Video View 3s) para o Reel.
@@ -1275,7 +1275,7 @@ app.post('/meta/postar', async (req, res) => {
 
                             let Reel_Audience_ID = data.id;
 
-                            if (Reel_Audience_ID !== null) EnviaAtualização(`Reels - 5. Audiência ID ${Reel_Audience_ID} criada.`);
+                            if (Reel_Audience_ID !== null) EnviaAtualização(`Reels - 5. Audiência ID ${Reel_Audience_ID} criada.`, "postar");
 
                             ////////////////////////////////////////////////////////////////////////////////////////
                             // Obtém o Número de Seguidores atualizado.
@@ -1287,7 +1287,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                 let Número_Seguidores = data.followers_count;
 
-                                if (Número_Seguidores !== null) EnviaAtualização(`Reels - 6. Número de Seguidores obtido.`);
+                                if (Número_Seguidores !== null) EnviaAtualização(`Reels - 6. Número de Seguidores obtido.`, "postar");
                             
                                 ///////////////////////////////////////////////////////////////////////////////////////
                                 // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
@@ -1301,7 +1301,7 @@ app.post('/meta/postar', async (req, res) => {
                                 
                                 .then(async response => {
 
-                                    EnviaAtualização(`Reels - 7. BD - RESULTADOS atualizada.`);
+                                    EnviaAtualização(`Reels - 7. BD - RESULTADOS atualizada.`, "postar");
 
                                     ////////////////////////////////////////////////////////////////////////////////////////////////////
                                     // Programa o registro dos Resultados Orgânicos de Contas Alcançadas a 5% do Número de Seguidores.
@@ -1313,7 +1313,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                     function Registra_Resultados_Orgânicos_5_Porcento () {
 
-                                        if (Número_Verificação_Alcance_Orgânico === 1) EnviaAtualização(`Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`);
+                                        if (Número_Verificação_Alcance_Orgânico === 1) EnviaAtualização(`Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`, "postar");
 
                                         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
 
@@ -1353,7 +1353,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                     let Timeout_ID = setTimeout(() => Registra_Resultados_Orgânicos_72h(), 259200000);
 
-                                    if (Timeout_ID !== null) EnviaAtualização(`Reels - 9. Registro Orgânico de 72h programado.`);
+                                    if (Timeout_ID !== null) EnviaAtualização(`Reels - 9. Registro Orgânico de 72h programado.`, "postar");
 
                                     function Registra_Resultados_Orgânicos_72h() {
 
@@ -1403,7 +1403,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                     .then(async () => {
                                         
-                                        EnviaAtualização(`Reels - 10. Criação da campanha agendada.`);
+                                        EnviaAtualização(`Reels - 10. Criação da campanha agendada.`, "postar");
 
                                         ////////////////////////////////////////////////////////////////////////////////////////
                                         ////////////////////////////////////////////////////////////////////////////////////////
@@ -1433,7 +1433,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                                 let Stories_IG_Media_Container_ID = data.id;
 
-                                                if (Stories_IG_Media_Container_ID !== null) EnviaAtualização(`Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`);
+                                                if (Stories_IG_Media_Container_ID !== null) EnviaAtualização(`Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`, "postar");
 
                                                 ////////////////////////////////////////////////////////////////////////////////////////
                                                 // Verifica o status do Media Container (Stories) a cada 5s.
@@ -1456,7 +1456,7 @@ app.post('/meta/postar', async (req, res) => {
                                         
                                                             clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
 
-                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`);
+                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, "postar");
 
                                                             ////////////////////////////////////////////////////////////////////////////////////////
                                                             // Publica o Media Container (Stories).
@@ -1477,13 +1477,13 @@ app.post('/meta/postar', async (req, res) => {
                                                                 
                                                                 let Stories_IG_Media_ID = data.id;
 
-                                                                if (Stories_IG_Media_ID !== null) EnviaAtualização(`Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`);
+                                                                if (Stories_IG_Media_ID !== null) EnviaAtualização(`Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`, "postar");
                                                             
                                                             })
                                                         
                                                         } else {
 
-                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`);
+                                                            EnviaAtualização(`Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, "postar");
                                         
                                                         }
 
@@ -1509,7 +1509,7 @@ app.post('/meta/postar', async (req, res) => {
                 
                 } else {
 
-                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`);
+                    EnviaAtualização(`Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`, "postar");
 
                 }
 
@@ -1562,7 +1562,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
             Reel_IG_Media_ID =  BD_Resultados_RL.value[Index_Verificado].values[0][1];
             Reel_Audience_ID = BD_Resultados_RL.value[Index_Verificado].values[0][2];
 
-            EnviaAtualização(`2. Reel_IG_Media_ID e Reel_Audience_ID encontrados.`);
+            EnviaAtualização(`2. Reel_IG_Media_ID e Reel_Audience_ID encontrados.`, "CriaCampanhaRL");
         
         } else {
 
@@ -1596,7 +1596,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
         let Reel_Campanha_Relacionamento_ID = data.id;
 
-        if (Reel_Campanha_Relacionamento_ID !== null) EnviaAtualização(`3. Campanha de RL criada.`);
+        if (Reel_Campanha_Relacionamento_ID !== null) EnviaAtualização(`3. Campanha de RL criada.`, "CriaCampanhaRL");
 
         ///////////////////////////////////////////////////////////////////////////////////////
         // Obtém o orçamento mínimo diário atualizado, em BRL,
@@ -1615,7 +1615,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
             let Reel_Conjunto_Anuncios_Orçamento = data.min_daily_budget;
 
-            if (Reel_Conjunto_Anuncios_Orçamento !== null) EnviaAtualização(`4. Orçamento do Conjunto de Anúncios obtido.`);
+            if (Reel_Conjunto_Anuncios_Orçamento !== null) EnviaAtualização(`4. Orçamento do Conjunto de Anúncios obtido.`, "CriaCampanhaRL");
 
             ///////////////////////////////////////////////////////////////////////////////////////
             // Cria o Conjunto de Anúncios.
@@ -1662,7 +1662,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                 let Reel_Conjunto_Anuncios_Relacionamento_ID = data.id;
 
-                if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null) EnviaAtualização(`5. Conjunto de Anúncios criado.`);
+                if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null) EnviaAtualização(`5. Conjunto de Anúncios criado.`, "CriaCampanhaRL");
 
                 ///////////////////////////////////////////////////////////////////////////////////////
                 // Cria o Criativo.
@@ -1692,7 +1692,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                     let Reel_Criativo_Relacionamento_ID = data.id;
 
-                    if (Reel_Criativo_Relacionamento_ID !== null) EnviaAtualização('6. Criativo criado.');
+                    if (Reel_Criativo_Relacionamento_ID !== null) EnviaAtualização('6. Criativo criado.', "CriaCampanhaRL");
 
                     ///////////////////////////////////////////////////////////////////////////////////////
                     // Cria o Anúncio.
@@ -1714,7 +1714,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                         let Reel_Anúncio_Relacionamento_ID = data.id;
 
-                        if (Reel_Anúncio_Relacionamento_ID !== null) EnviaAtualização('7. Anúncio criado.');
+                        if (Reel_Anúncio_Relacionamento_ID !== null) EnviaAtualização('7. Anúncio criado.', "CriaCampanhaRL");
 
                     });
 
@@ -1748,8 +1748,8 @@ app.get('/meta/retornar_atualizacoes', (req, res) => {
 
 });
 
-function EnviaAtualização(MensagemAtualização) {
-    
-    if (client) { client.write(`data: ${MensagemAtualização}\n\n`) }
-
-};
+function EnviaAtualização(Mensagem, Origem) {
+    if (client) {
+        client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
+    }
+}
