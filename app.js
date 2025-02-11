@@ -1745,6 +1745,7 @@ app.get('/meta/atualizacoes', (req, res) => {
     res.setHeader('Content-Encoding', 'none');
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("X-Accel-Buffering", "no");
 
     client = res;
 
