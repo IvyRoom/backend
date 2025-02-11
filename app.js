@@ -1767,8 +1767,6 @@ function EnviaAtualização(Mensagem, Origem) {
         console.log("Mensagem enviada.");
 
         client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
-
-        client.flush();
     
     }
 
