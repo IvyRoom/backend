@@ -1729,132 +1729,149 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 });
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint e Função: Envio de Atualizações ao Frontend.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint e Função: Envio de Atualizações ao Frontend.
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
 
-let client = null;
+// let client = null;
 
-app.get('/meta/atualizacoes', (req, res) => {
+// app.get('/meta/atualizacoes', (req, res) => {
     
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Content-Encoding', 'none');
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("X-Accel-Buffering", "no");
+//     res.setHeader('Content-Type', 'text/event-stream');
+//     res.setHeader('Cache-Control', 'no-cache');
+//     res.setHeader('Connection', 'keep-alive');
+//     res.setHeader('Content-Encoding', 'none');
+//     res.setHeader("Access-Control-Allow-Origin", "*");
+//     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+//     res.setHeader("X-Accel-Buffering", "no");
 
-    client = res;
+//     client = res;
 
-    console.log("Cliente conectado.")
+//     console.log("Cliente conectado.")
 
-    client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
-
-
-
-    const keepAliveInterval = setInterval(() => {
-        if (client) {
-            client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
-        } else {
-            clearInterval(keepAliveInterval);
-        }
-    }, 25000);
+//     client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
 
 
 
-    req.on('close', () => { 
+//     const keepAliveInterval = setInterval(() => {
+//         if (client) {
+//             client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
+//         } else {
+//             clearInterval(keepAliveInterval);
+//         }
+//     }, 25000);
+
+
+
+//     req.on('close', () => { 
         
-        client = null;
+//         client = null;
 
-        console.log("Cliente desconectado.");
+//         console.log("Cliente desconectado.");
 
-        clearInterval(keepAliveInterval);
+//         clearInterval(keepAliveInterval);
     
-    })
+//     })
 
-});
+// });
 
-function EnviaAtualização(Mensagem, Origem) {
+// function EnviaAtualização(Mensagem, Origem) {
     
-    if (client) {
+//     if (client) {
         
-        try {
+//         try {
             
-            console.log("Mensagem enviada (antes):", Mensagem);
+//             console.log("Mensagem enviada (antes):", Mensagem);
             
-            client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
+//             client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
 
-            console.log("Mensagem enviada (depois):", Mensagem);
+//             console.log("Mensagem enviada (depois):", Mensagem);
         
-        } catch (error) {
+//         } catch (error) {
         
-            console.error("Erro ao enviar mensagem:", error);
+//             console.error("Erro ao enviar mensagem:", error);
         
-        }
+//         }
     
-    } else {
+//     } else {
     
-        console.log("Nenhum cliente conectado. Mensagem não enviada.");
+//         console.log("Nenhum cliente conectado. Mensagem não enviada.");
     
-    }
+//     }
 
-}
+// }
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint Temporário - Auxiliar Retorno 1
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint Temporário - Auxiliar Retorno 1
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/meta/temp1', async (req, res) => {
+// app.post('/meta/temp1', async (req, res) => {
 
-    res.status(200).json({ message: "Request recebida." });
+//     res.status(200).json({ message: "Request recebida." });
 
-    let auxiliar = 1;
+//     let auxiliar = 1;
 
-    setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
+//     setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
 
-    function FunçãoAuxiliar(auxiliar){
+//     function FunçãoAuxiliar(auxiliar){
 
-        if(auxiliar <= 5) {
+//         if(auxiliar <= 5) {
 
-            EnviaAtualização('Teste ' + auxiliar, "temp1");
-            auxiliar++;
-            FunçãoAuxiliar(auxiliar);
+//             EnviaAtualização('Teste ' + auxiliar, "temp1");
+//             auxiliar++;
+//             FunçãoAuxiliar(auxiliar);
 
-        }
+//         }
 
-    }
+//     }
+
+// });
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint Temporário - Auxiliar Retorno 2
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/meta/temp2', async (req, res) => {
+
+//     res.status(200).json({ message: "Request recebida." });
+
+//     let auxiliar = 1;
+
+//     setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
+
+//     function FunçãoAuxiliar(auxiliar){
+
+//         if(auxiliar <= 5) {
+
+//             EnviaAtualização('Teste ' + auxiliar, "temp2");
+//             auxiliar++;
+//             FunçãoAuxiliar(auxiliar);
+
+//         }
+
+//     }
+
+// });
+
+
+
+
+const http = require('http');
+const WebSocket = require('ws');
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+
+    console.log("✅ WebSocket Connected");
+    ws.send("🎉 Welcome to WebSocket Server!");
 
 });
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint Temporário - Auxiliar Retorno 2
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/meta/temp2', async (req, res) => {
-
-    res.status(200).json({ message: "Request recebida." });
-
-    let auxiliar = 1;
-
-    setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
-
-    function FunçãoAuxiliar(auxiliar){
-
-        if(auxiliar <= 5) {
-
-            EnviaAtualização('Teste ' + auxiliar, "temp2");
-            auxiliar++;
-            FunçãoAuxiliar(auxiliar);
-
-        }
-
-    }
-
-});
+server.listen(port, '0.0.0.0');
