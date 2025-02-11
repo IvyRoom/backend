@@ -1745,13 +1745,25 @@ app.get('/meta/atualizacoes', (req, res) => {
 
     client = res;
 
-    req.on('close', () => { client = null })
+    console.log("Cliente conectado.")
+
+    req.on('close', () => { 
+        
+        client = null;
+
+        console.log("Cliente desconectado.")
+    
+    })
 
 });
 
 function EnviaAtualização(Mensagem, Origem) {
     if (client) {
+
+        console.log("Mensagem enviada.");
+
         client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
+    
     }
 }
 
