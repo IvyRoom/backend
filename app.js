@@ -1751,11 +1751,27 @@ app.get('/meta/atualizacoes', (req, res) => {
 
     console.log("Cliente conectado.")
 
+    client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
+
+
+
+    const keepAliveInterval = setInterval(() => {
+        if (client) {
+            client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
+        } else {
+            clearInterval(keepAliveInterval);
+        }
+    }, 25000);
+
+
+
     req.on('close', () => { 
         
         client = null;
 
-        console.log("Cliente desconectado.")
+        console.log("Cliente desconectado.");
+
+        clearInterval(keepAliveInterval);
     
     })
 
@@ -1764,10 +1780,24 @@ app.get('/meta/atualizacoes', (req, res) => {
 function EnviaAtualização(Mensagem, Origem) {
     
     if (client) {
+        
+        try {
+            
+            console.log("Mensagem enviada (antes):", Mensagem);
+            
+            client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
 
-        console.log("Mensagem enviada.");
-
-        client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
+            console.log("Mensagem enviada (depois):", Mensagem);
+        
+        } catch (error) {
+        
+            console.error("Erro ao enviar mensagem:", error);
+        
+        }
+    
+    } else {
+    
+        console.log("Nenhum cliente conectado. Mensagem não enviada.");
     
     }
 
