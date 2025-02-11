@@ -1862,16 +1862,16 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 
 
-const http = require('http');
-const WebSocket = require('ws');
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// const http = require('http');
+// const WebSocket = require('ws');
+// const server = http.createServer(app);
+// const wss = new WebSocket.Server({ server });
 
-wss.on('connection', (ws) => {
+// wss.on('connection', (ws) => {
 
-    console.log("✅ WebSocket Connected");
-    ws.send("🎉 Welcome to WebSocket Server!");
+//     console.log("✅ WebSocket Connected");
+//     ws.send("🎉 Welcome to WebSocket Server!");
 
-});
+// });
 
-server.listen(port, '0.0.0.0');
+// server.listen(port, '0.0.0.0');
