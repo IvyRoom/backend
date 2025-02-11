@@ -1230,6 +1230,7 @@ app.post('/meta/postar', async (req, res) => {
 
                     ////////////////////////////////////////////////////////////////////////////////////////
                     // Publica o Media Container (Reels).
+                    ////////////////////////////////////////////////////////////////////////////////////////
                     
                     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
                         
@@ -1736,7 +1737,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 let client = null;
 
-app.get('/meta/retornar_atualizacoes', (req, res) => {
+app.get('/meta/atualizacoes', (req, res) => {
     
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -1753,3 +1754,59 @@ function EnviaAtualização(Mensagem, Origem) {
         client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint Temporário - Auxiliar Retorno 1
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/meta/temp1', async (req, res) => {
+
+    res.status(200).json({ message: "Request recebida." });
+
+    let auxiliar = 1;
+
+    setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
+
+    function FunçãoAuxiliar(auxiliar){
+
+        if(auxiliar <= 5) {
+
+            EnviaAtualização('Teste ' + auxiliar, "temp1");
+            auxiliar++;
+            FunçãoAuxiliar(auxiliar);
+
+        }
+
+    }
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint Temporário - Auxiliar Retorno 2
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/meta/temp2', async (req, res) => {
+
+    res.status(200).json({ message: "Request recebida." });
+
+    let auxiliar = 1;
+
+    setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
+
+    function FunçãoAuxiliar(auxiliar){
+
+        if(auxiliar <= 5) {
+
+            EnviaAtualização('Teste ' + auxiliar, "temp2");
+            auxiliar++;
+            FunçãoAuxiliar(auxiliar);
+
+        }
+
+    }
+
+});
