@@ -1729,31 +1729,35 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
                     if (Reel_Criativo_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '6. Criativo criado.', origin: "CriaCampanhaRL" }));
 
                     ///////////////////////////////////////////////////////////////////////////////////////
-                    // Cria o Anúncio.
+                    // Cria o Anúncio (após 1s, para garantir a existência / carregamento do Criativo).
                     ///////////////////////////////////////////////////////////////////////////////////////
-                    
-                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            name: 'RL.' + Reel_Código,
-                            adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
-                            status: 'ACTIVE',
-                            creative: {creative_id: Reel_Criativo_Relacionamento_ID},
-                            access_token: Meta_Graph_API_Access_Token
+
+                    setTimeout(() => {
+                        
+                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                name: 'RL.' + Reel_Código,
+                                adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
+                                status: 'ACTIVE',
+                                creative: {creative_id: Reel_Criativo_Relacionamento_ID},
+                                access_token: Meta_Graph_API_Access_Token
+                            })
                         })
-                    })
 
-                    .then(response => response.json()).then(async data => {
+                        .then(response => response.json()).then(async data => {
 
-                        let Reel_Anúncio_Relacionamento_ID = data.id;
+                            let Reel_Anúncio_Relacionamento_ID = data.id;
 
-                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '7. Anúncio criado.', origin: "CriaCampanhaRL" }));
+                            if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '7. Anúncio criado.', origin: "CriaCampanhaRL" }));
 
-                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '--- Fim ---', origin: "CriaCampanhaRL" }));
+                            if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '--- Fim ---', origin: "CriaCampanhaRL" }));
 
-                    });
+                        });
 
+                    }, 1000);
+                    
                 });
 
             });
