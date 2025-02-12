@@ -1180,6 +1180,128 @@ app.post('/alunos/envioemail', async (req,res) => {
 
 });
 
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Envia convites para as Office Hours.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/alunos/conviteOHs', async (req,res) => {
+
+    let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
+    
+    res.status(200).json({ message: "1. Request recebida." });
+
+    let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
+
+    let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - OFFICE HOURS.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+    if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "ConviteOHs" }));
+    
+    const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
+
+    let Número_Invite_Enviado = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
+    // Então envia um invite a cada 2s.
+    
+    async function Envia_Invites_Office_Hours() {
+
+        for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Puxa as variáveis do aluno da BD - OFFICE HOURS.
+    
+            Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
+            Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
+    
+            if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
+    
+                Número_Invite_Enviado++;
+    
+                if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteOHs" }));
+    
+                if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteOHs" }));
+    
+                ///////////////////////////////////////////////////////////////////////////////////////////////////
+                // Cria o evento iCalendar para as Office Hours, com alerta de 1 hora antes do início do encontro.
+    
+                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Office Hours', language: 'PT-BR' } });
+                const event = cal.createEvent({
+                    start: new Date(Date.UTC(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours, 21, 30, 0)), // 18:30 BRT
+                    end: new Date(Date.UTC(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours, 23, 0, 0)), // 20:00 BRT
+                    summary: 'Office Hours',
+                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
+                    uid: `${new Date().getTime()}@ivyroom.com.br`,
+                    stamp: new Date()
+                });
+    
+                event.createAlarm({
+                    type: 'display',
+                    trigger: 1 * 60 * 60 * 1000,
+                    description: 'Office Hours (Ivy) - Inicia em 1 hora.'
+                });
+    
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
+    
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+    
+                    message: {
+                        subject: 'Ivy - Convite: Office Hours (Atendimento ao Vivo)',
+                        body: {
+                            contentType: 'HTML',
+                            content: `
+                                <p>Olá ${Aluno_PrimeiroNome},</p>
+                                <p>Informamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
+                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
+                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                                <p>Atenciosamente,</p>
+                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            `
+                        },
+                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
+                        attachments: [
+                            {
+                                "@odata.type": "#microsoft.graph.fileAttachment",
+                                name: "Ivy - Office Hours.ics",
+                                contentBytes: Buffer.from(cal.toString()).toString('base64')
+                            }
+                        ]
+                    }
+                
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+    
+            } else {
+
+                await new Promise(resolve => setTimeout(resolve, 0));
+
+                if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteOHs" }));
+
+            }
+    
+        }
+
+    }
+
+    setTimeout(Envia_Invites_Office_Hours, 1000);
+
+});
+
 
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1767,9 +1889,3 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
     });
 
 });
-
-
-
-
-
-
