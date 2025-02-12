@@ -20,15 +20,45 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Importa a biblioteca para HTTP Posts, a Cors para receber sinais inclusive do Localhost, e cria o terminal.
+// Cria a aplicação necessária para receber HTTP Requests (Express).
+// Configura a aplicação para receber as requests de diferentes origens, inclusive do Localhost (Cors).
 
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
-app.listen(port);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Importa o módulo necessário para criar servidores HTTP (HTTP).
+// Importa a biblioteca para comunicação bidirecional entre o backend e o frontend (WebSocket).
+// Cria o servidor capaz de processar HTTP Requests (Express) e de criar a conexão bidirecional (WebSocket).
+// Cria os clientes (frontends) que acessam a conexão bidirecional e estabelece a conexão.
+
+const http = require('http');
+const WebSocket = require('ws');
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+const port = process.env.PORT || 3000;
+server.listen(port);
+
+let client = null;
+
+wss.on('connection', (ws) => {
+    
+    console.log("WebSocket Connected");
+    
+    client = ws;
+
+    ws.on('close', () => {
+        
+        client = null;
+    
+        console.log("WebSocket Disconnected");
+
+    });
+
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Importa a biblioteca para criação de arquivos iCalendar.
@@ -1805,6 +1835,80 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 // ////////////////////////////////////////////////////////////////////////////////////////
 // ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint e Função: Envio de Atualizações ao Frontend.
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// let client = null;
+
+// app.get('/meta/atualizacoes', (req, res) => {
+    
+//     res.setHeader('Content-Type', 'text/event-stream');
+//     res.setHeader('Cache-Control', 'no-cache');
+//     res.setHeader('Connection', 'keep-alive');
+//     res.setHeader('Content-Encoding', 'none');
+//     res.setHeader("Access-Control-Allow-Origin", "*");
+//     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+//     res.setHeader("X-Accel-Buffering", "no");
+
+//     client = res;
+
+//     console.log("Cliente conectado.")
+
+//     client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
+
+
+
+//     const keepAliveInterval = setInterval(() => {
+//         if (client) {
+//             client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
+//         } else {
+//             clearInterval(keepAliveInterval);
+//         }
+//     }, 25000);
+
+
+
+//     req.on('close', () => { 
+        
+//         client = null;
+
+//         console.log("Cliente desconectado.");
+
+//         clearInterval(keepAliveInterval);
+    
+//     })
+
+// });
+
+// function EnviaAtualização(Mensagem, Origem) {
+    
+//     if (client) {
+        
+//         try {
+            
+//             console.log("Mensagem enviada (antes):", Mensagem);
+            
+//             client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
+
+//             console.log("Mensagem enviada (depois):", Mensagem);
+        
+//         } catch (error) {
+        
+//             console.error("Erro ao enviar mensagem:", error);
+        
+//         }
+    
+//     } else {
+    
+//         console.log("Nenhum cliente conectado. Mensagem não enviada.");
+    
+//     }
+
+// }
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
 // // Endpoint Temporário - Auxiliar Retorno 1
 // ////////////////////////////////////////////////////////////////////////////////////////
 // ////////////////////////////////////////////////////////////////////////////////////////
@@ -1821,7 +1925,9 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 //         if(auxiliar <= 5) {
 
-//             EnviaAtualização('Teste ' + auxiliar, "temp1");
+//             ws.send('Teste ' + auxiliar, "temp1");
+
+//             // EnviaAtualização('Teste ' + auxiliar, "temp1");
 //             auxiliar++;
 //             FunçãoAuxiliar(auxiliar);
 
@@ -1860,8 +1966,6 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 // });
 
 
-
-
 // const http = require('http');
 // const WebSocket = require('ws');
 // const server = http.createServer(app);
@@ -1874,4 +1978,27 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 // });
 
-// server.listen(port, '0.0.0.0');
+// server.listen(port);
+
+
+// app.post('/meta/temp3', async (req, res) => {
+
+//     console.log("Success!");
+
+// })
+
+
+
+app.post('/meta/temp3', async (req, res) => {
+
+    res.status(200).json({ message: "Request recebida." });
+
+    if (client) client.send(JSON.stringify({ message: "Teste", origin: "temp3" }));
+
+})
+
+
+
+
+
+
