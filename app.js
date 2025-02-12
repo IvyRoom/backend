@@ -1593,7 +1593,8 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
             Reel_IG_Media_ID =  BD_Resultados_RL.value[Index_Verificado].values[0][1];
             Reel_Audience_ID = BD_Resultados_RL.value[Index_Verificado].values[0][2];
 
-            EnviaAtualização(`2. Reel_IG_Media_ID e Reel_Audience_ID encontrados.`, "CriaCampanhaRL");
+
+            if(client) client.send(JSON.stringify({ message: `2. Reel_IG_Media_ID e Reel_Audience_ID encontrados.`, origin: "CriaCampanhaRL" }));
         
         } else {
 
@@ -1627,7 +1628,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
         let Reel_Campanha_Relacionamento_ID = data.id;
 
-        if (Reel_Campanha_Relacionamento_ID !== null) EnviaAtualização(`3. Campanha de RL criada.`, "CriaCampanhaRL");
+        if(Reel_Campanha_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `3. Campanha de RL criada.`, origin: "CriaCampanhaRL" }));
 
         ///////////////////////////////////////////////////////////////////////////////////////
         // Obtém o orçamento mínimo diário atualizado, em BRL,
@@ -1646,7 +1647,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
             let Reel_Conjunto_Anuncios_Orçamento = data.min_daily_budget;
 
-            if (Reel_Conjunto_Anuncios_Orçamento !== null) EnviaAtualização(`4. Orçamento do Conjunto de Anúncios obtido.`, "CriaCampanhaRL");
+            if(Reel_Conjunto_Anuncios_Orçamento !== null && client) client.send(JSON.stringify({ message: `4. Orçamento do Conjunto de Anúncios obtido.`, origin: "CriaCampanhaRL" }));
 
             ///////////////////////////////////////////////////////////////////////////////////////
             // Cria o Conjunto de Anúncios.
@@ -1693,7 +1694,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                 let Reel_Conjunto_Anuncios_Relacionamento_ID = data.id;
 
-                if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null) EnviaAtualização(`5. Conjunto de Anúncios criado.`, "CriaCampanhaRL");
+                if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `5. Conjunto de Anúncios criado.`, origin: "CriaCampanhaRL" }));
 
                 ///////////////////////////////////////////////////////////////////////////////////////
                 // Cria o Criativo.
@@ -1723,7 +1724,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                     let Reel_Criativo_Relacionamento_ID = data.id;
 
-                    if (Reel_Criativo_Relacionamento_ID !== null) EnviaAtualização('6. Criativo criado.', "CriaCampanhaRL");
+                    if (Reel_Criativo_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '6. Criativo criado.', origin: "CriaCampanhaRL" }));
 
                     ///////////////////////////////////////////////////////////////////////////////////////
                     // Cria o Anúncio.
@@ -1745,7 +1746,7 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                         let Reel_Anúncio_Relacionamento_ID = data.id;
 
-                        if (Reel_Anúncio_Relacionamento_ID !== null) EnviaAtualização('7. Anúncio criado.', "CriaCampanhaRL");
+                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '7. Anúncio criado.', origin: "CriaCampanhaRL" }));
 
                     });
 
@@ -1758,244 +1759,6 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
     });
 
 });
-
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint e Função: Envio de Atualizações ao Frontend.
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// let client = null;
-
-// app.get('/meta/atualizacoes', (req, res) => {
-    
-//     res.setHeader('Content-Type', 'text/event-stream');
-//     res.setHeader('Cache-Control', 'no-cache');
-//     res.setHeader('Connection', 'keep-alive');
-//     res.setHeader('Content-Encoding', 'none');
-//     res.setHeader("Access-Control-Allow-Origin", "*");
-//     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-//     res.setHeader("X-Accel-Buffering", "no");
-
-//     client = res;
-
-//     console.log("Cliente conectado.")
-
-//     client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
-
-
-
-//     const keepAliveInterval = setInterval(() => {
-//         if (client) {
-//             client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
-//         } else {
-//             clearInterval(keepAliveInterval);
-//         }
-//     }, 25000);
-
-
-
-//     req.on('close', () => { 
-        
-//         client = null;
-
-//         console.log("Cliente desconectado.");
-
-//         clearInterval(keepAliveInterval);
-    
-//     })
-
-// });
-
-// function EnviaAtualização(Mensagem, Origem) {
-    
-//     if (client) {
-        
-//         try {
-            
-//             console.log("Mensagem enviada (antes):", Mensagem);
-            
-//             client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
-
-//             console.log("Mensagem enviada (depois):", Mensagem);
-        
-//         } catch (error) {
-        
-//             console.error("Erro ao enviar mensagem:", error);
-        
-//         }
-    
-//     } else {
-    
-//         console.log("Nenhum cliente conectado. Mensagem não enviada.");
-    
-//     }
-
-// }
-
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint e Função: Envio de Atualizações ao Frontend.
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// let client = null;
-
-// app.get('/meta/atualizacoes', (req, res) => {
-    
-//     res.setHeader('Content-Type', 'text/event-stream');
-//     res.setHeader('Cache-Control', 'no-cache');
-//     res.setHeader('Connection', 'keep-alive');
-//     res.setHeader('Content-Encoding', 'none');
-//     res.setHeader("Access-Control-Allow-Origin", "*");
-//     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-//     res.setHeader("X-Accel-Buffering", "no");
-
-//     client = res;
-
-//     console.log("Cliente conectado.")
-
-//     client.write(`data: ${JSON.stringify({ mensagem: "Conexão estabelecida!", origem: "temp1" })}\n\n`);
-
-
-
-//     const keepAliveInterval = setInterval(() => {
-//         if (client) {
-//             client.write(`data: ${JSON.stringify({ mensagem: "keep-alive", origem: "temp1" })}\n\n`);
-//         } else {
-//             clearInterval(keepAliveInterval);
-//         }
-//     }, 25000);
-
-
-
-//     req.on('close', () => { 
-        
-//         client = null;
-
-//         console.log("Cliente desconectado.");
-
-//         clearInterval(keepAliveInterval);
-    
-//     })
-
-// });
-
-// function EnviaAtualização(Mensagem, Origem) {
-    
-//     if (client) {
-        
-//         try {
-            
-//             console.log("Mensagem enviada (antes):", Mensagem);
-            
-//             client.write(`data: ${JSON.stringify({ mensagem: Mensagem, origem: Origem })}\n\n`);
-
-//             console.log("Mensagem enviada (depois):", Mensagem);
-        
-//         } catch (error) {
-        
-//             console.error("Erro ao enviar mensagem:", error);
-        
-//         }
-    
-//     } else {
-    
-//         console.log("Nenhum cliente conectado. Mensagem não enviada.");
-    
-//     }
-
-// }
-
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint Temporário - Auxiliar Retorno 1
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/meta/temp1', async (req, res) => {
-
-//     res.status(200).json({ message: "Request recebida." });
-
-//     let auxiliar = 1;
-
-//     setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
-
-//     function FunçãoAuxiliar(auxiliar){
-
-//         if(auxiliar <= 5) {
-
-//             ws.send('Teste ' + auxiliar, "temp1");
-
-//             // EnviaAtualização('Teste ' + auxiliar, "temp1");
-//             auxiliar++;
-//             FunçãoAuxiliar(auxiliar);
-
-//         }
-
-//     }
-
-// });
-
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint Temporário - Auxiliar Retorno 2
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/meta/temp2', async (req, res) => {
-
-//     res.status(200).json({ message: "Request recebida." });
-
-//     let auxiliar = 1;
-
-//     setTimeout(() => FunçãoAuxiliar(auxiliar), 0);
-
-//     function FunçãoAuxiliar(auxiliar){
-
-//         if(auxiliar <= 5) {
-
-//             EnviaAtualização('Teste ' + auxiliar, "temp2");
-//             auxiliar++;
-//             FunçãoAuxiliar(auxiliar);
-
-//         }
-
-//     }
-
-// });
-
-
-// const http = require('http');
-// const WebSocket = require('ws');
-// const server = http.createServer(app);
-// const wss = new WebSocket.Server({ server });
-
-// wss.on('connection', (ws) => {
-
-//     console.log("✅ WebSocket Connected");
-//     ws.send("🎉 Welcome to WebSocket Server!");
-
-// });
-
-// server.listen(port);
-
-
-// app.post('/meta/temp3', async (req, res) => {
-
-//     console.log("Success!");
-
-// })
-
-
-
-app.post('/meta/temp3', async (req, res) => {
-
-    res.status(200).json({ message: "Request recebida." });
-
-    if (client) client.send(JSON.stringify({ message: "Teste", origin: "temp3" }));
-
-})
 
 
 
