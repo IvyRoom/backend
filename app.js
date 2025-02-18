@@ -105,6 +105,13 @@ function ConverteData2(DataJavaScript) {
     return DataJavaScript.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(',', '');
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Cria função que transforma datas no formato JavaScript em datas no formato DD/MM/AAAA hh:mm.
+
+function ConverteData3(DataJavaScript) {
+    return DataJavaScript.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Importa a biblioteca para criptografar variáveis para o formato SHA256.
 
@@ -127,6 +134,13 @@ const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_
 
 const Meta_Dataset_ID = process.env.META_DATASET_ID;
 const Meta_Conversions_API_Access_Token = process.env.META_CONVERSIONS_API_ACCESS_TOKEN;
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Cria as variáveis de interface com o API da Pagar.Me.
+////////////////////////////////////////////////////////////////////////////////////////
+
+const PagarMe_API_Latest_Version = process.env.PAGARME_API_LATEST_VERSION;
+const PagarMe_SecretKey_Base64_Encoded = process.env.PAGARME_SECRETKEY_BASE64_ENCODED;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -389,6 +403,980 @@ app.post('/landingpage/meta/lead', async (req, res) => {
 
 });
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////// PROCESSAMENTO DO CHECKOUT /////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Processar Pagamentos.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/checkout/processarpagamento', async (req, res) => {
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Obtém as variáveis enviadas pelo frontend.
+
+    let { 
+        
+        Nome_Produto,
+        Código_do_Produto,
+
+        NomeCompleto,
+        Email_do_Cliente,
+        Campo_de_Preenchimento_CPF,
+        Campo_de_Preenchimento_CPF_Dígitos,
+        Campo_de_Preenchimento_DDD,
+        Campo_de_Preenchimento_Celular,
+        Campo_de_Preenchimento_Celular_Dígitos,
+
+        Endereço_Rua,
+        Endereço_Número,
+        Endereço_Complemento,
+        Endereço_Bairro,
+        Endereço_Cidade,
+        Endereço_Estado,
+        Endereço_CEP,
+        Endereço_CEP_Dígitos,
+
+        Tipo_de_Pagamento_Escolhido,
+        
+        Número_do_Cartão,
+        Número_do_Cartão_Dígitos,
+        Nome_do_Titular_do_Cartão_CaracteresOriginais,
+        Nome_do_Titular_do_Cartão_CaracteresAjustados,
+        Campo_de_Preenchimento_Mês_Cartão,
+        Campo_de_Preenchimento_Ano_Cartão,
+        Campo_de_Preenchimento_CVV_Cartão,
+        Número_de_Parcelas_Cartão_do_UM_CARTAO,
+        Valor_Total_da_Compra_com_Juros_UM_CARTAO,
+        Valor_Total_da_Compra_com_Juros_UM_CARTAO_Dígitos,
+
+        Valor_Total_da_Compra_no_PIX,
+        Valor_Total_da_Compra_no_PIX_Dígitos,
+
+        Valor_Total_da_Compra_no_BOLETO,
+        Valor_Total_da_Compra_no_BOLETO_Dígitos,
+
+        Valor_Total_da_Compra_no_PIX_CARTÃO,
+        Valor_no_PIX_do_PIX_CARTÃO,
+        Valor_no_PIX_do_PIX_CARTÃO_Dígitos,
+        Valor_com_Juros_no_Cartão_do_PIX_CARTÃO,
+        Valor_com_Juros_no_Cartão_do_PIX_CARTÃO_Dígitos,
+        Número_do_Cartão_do_PIX_CARTÃO,
+        Número_do_Cartão_do_PIX_CARTÃO_Dígitos,
+        Nome_do_Titular_do_Cartão_do_PIX_CARTÃO_CaracteresOriginais,
+        Nome_do_Titular_do_Cartão_do_PIX_CARTÃO_CaracteresAjustados,
+        Campo_de_Preenchimento_Mês_Cartão_do_PIX_CARTÃO,
+        Campo_de_Preenchimento_Ano_Cartão_do_PIX_CARTÃO,
+        Campo_de_Preenchimento_CVV_Cartão_do_PIX_CARTÃO,
+        Número_de_Parcelas_Cartão_do_PIX_CARTÃO
+    
+    } = req.body;
+
+    let PrimeiroNome = NomeCompleto.split(" ")[0];
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // MODALIDADE DE PAGAMENTO: UM_CARTAO
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Insere o pedido na BD - PEDIDOS.
+
+    if (Tipo_de_Pagamento_Escolhido === "UM_CARTAO") {
+
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        
+        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_com_Juros_UM_CARTAO, Valor_Total_da_Compra_com_Juros_UM_CARTAO,  Número_do_Cartão, Nome_do_Titular_do_Cartão_CaracteresOriginais, Campo_de_Preenchimento_Mês_Cartão, Campo_de_Preenchimento_Ano_Cartão, Campo_de_Preenchimento_CVV_Cartão, Número_de_Parcelas_Cartão_do_UM_CARTAO, "-", "-", "-", "-", "-", "-", "-", "-" ]]})  
+
+        .then(async (response) => {
+
+            res.status(200).send();
+
+            let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                message: {
+                    subject: 'Novo Pedido Gerado no Checkout',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p><b>Aluno:</b> ${NomeCompleto}</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Processa cobrança junto à Pagar.Me.
+
+            fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({
+                    items: [{
+                        amount: Valor_Total_da_Compra_com_Juros_UM_CARTAO_Dígitos, 
+                        description: Nome_Produto, 
+                        quantity: 1,
+                        code: Código_do_Produto
+                    }],
+                    customer: {
+                        name: NomeCompleto,
+                        type: 'individual', 
+                        email: Email_do_Cliente,
+                        document: Campo_de_Preenchimento_CPF_Dígitos,
+                        document_type: 'CPF',
+                        country_code: 55,
+                        area_code: Campo_de_Preenchimento_DDD,
+                        number: Campo_de_Preenchimento_Celular_Dígitos
+                    },
+                    shipping: {
+                        amount: 0,
+                        description: Nome_Produto,
+                        recipient_name: NomeCompleto,
+                        address: {
+                            line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
+                            line_2: Endereço_Complemento,
+                            zip_code: Endereço_CEP_Dígitos,
+                            city: Endereço_Cidade,
+                            state: Endereço_Estado,
+                            country: 'BR'
+                        }
+                    },
+                    payments: [{
+                        payment_method: 'credit_card',
+                        credit_card: {
+                            recurrence: false,
+                            installments: Número_de_Parcelas_Cartão_do_UM_CARTAO,
+                            statement_descriptor: Código_do_Produto,
+                            card: {
+                                number: Número_do_Cartão_Dígitos,
+                                holder_name: Nome_do_Titular_do_Cartão_CaracteresAjustados,
+                                exp_month: Campo_de_Preenchimento_Mês_Cartão,
+                                exp_year: Campo_de_Preenchimento_Ano_Cartão,
+                                cvv: Campo_de_Preenchimento_CVV_Cartão
+                            }
+                        }
+                    }]
+                })
+            })
+
+            .then(response => response.json()).then(async json => {
+
+                let Retorno_Processamento_Cobrança_PagarMe = JSON.stringify(json);
+
+                let Status_Cobrança_Cartão = json.charges?.[0]?.status ?? '-';
+
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Cartão na BD - PEDIDOS.
+
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Cartão, null, null, null, null, null, null ]]});
+
+            });
+
+        });
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // MODALIDADE DE PAGAMENTO: PIX
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Insere o pedido na BD - PEDIDOS.
+
+    if (Tipo_de_Pagamento_Escolhido === "PIX") {
+
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        
+        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX, "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_PIX, "-", "-", "-", "-", "-" ]]})  
+
+        .then(async (response) => {
+
+            res.status(200).send();
+
+            let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                message: {
+                    subject: 'Novo Pedido Gerado no Checkout',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p><b>Aluno:</b> ${NomeCompleto}</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Processa cobrança junto à Pagar.Me.
+
+            fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({
+                    items: [{
+                        amount: Valor_Total_da_Compra_no_PIX_Dígitos, 
+                        description: Nome_Produto, 
+                        quantity: 1,
+                        code: Código_do_Produto
+                    }],
+                    customer: {
+                        name: NomeCompleto,
+                        type: 'individual', 
+                        email: Email_do_Cliente,
+                        document: Campo_de_Preenchimento_CPF_Dígitos,
+                        document_type: 'CPF',
+                        country_code: 55,
+                        area_code: Campo_de_Preenchimento_DDD,
+                        number: Campo_de_Preenchimento_Celular_Dígitos
+                    },
+                    shipping: {
+                        amount: 0,
+                        description: Nome_Produto,
+                        recipient_name: NomeCompleto,
+                        address: {
+                            line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
+                            line_2: Endereço_Complemento,
+                            zip_code: Endereço_CEP_Dígitos,
+                            city: Endereço_Cidade,
+                            state: Endereço_Estado,
+                            country: 'BR'
+                        }
+                    },
+                    payments: [{
+                        payment_method: 'pix',
+                        pix: {
+                            expires_in: 1800
+                        }
+                    }]
+                })
+            })
+
+            .then(response => response.json()).then(async json => {
+
+                let Retorno_Processamento_Cobrança_PagarMe = JSON.stringify(json);
+
+                let Status_Cobrança_Pix = json.charges?.[0]?.status ?? '-';
+
+                let Pix_Url_QR_Code = json.charges?.[0]?.last_transaction?.qr_code_url ?? '-';
+
+                let Pix_QR_Code_Prazo_Vencimento = ConverteData3(new Date(Date.now() + 1800000));
+
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Cartão na BD - PEDIDOS.
+
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Pix, null, null, null ]]})
+
+                .then(async (response) => {
+
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // Envia as instruções de pagamento via PIX ao comprador.
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                        message: {
+                            subject: 'Ivy: PIX para Pagamento',
+                            body: {
+                                contentType: 'HTML',
+                                content: `
+                                    <html>
+                                    <head>
+                                    <style type="text/css">
+                                
+                                    #Container_PIX {
+                                        height: 340px;
+                                        width: 250px;
+                                        padding-top: 30px;
+                                        padding-bottom: 30px;
+                                        padding-left: 30px;
+                                        padding-right: 30px;
+                                        border: 2px solid rgb(149, 201, 63);
+                                        border-radius: 15px;
+                                    }
+                                        
+                                    #Container_Valor_Total_da_Compra_no_PIX {
+                                        display: inline-flex;
+                                        margin-bottom: 5px;
+                                        font-size: 16px;
+                                    }
+                                    
+                                    #Título_Valor_Total_da_Compra_no_PIX {
+                                        margin-right: 5px;
+                                    }
+                                    
+                                    #Container_Validade_qr_code_url {
+                                        display: inline-flex;
+                                        font-size: 16px;
+                                    }
+                                    
+                                    #Título_Validade_qr_code_url {
+                                        margin-right: 5px;
+                                    }
+
+                                    #qr_code_url{
+                                        margin-top: 10px;
+                                        height: 250px;
+                                        width: 250px; 
+                                    }
+                                    
+                                    #Container_Logo_PagarMe {
+                                        display: inline-flex;
+                                        margin-left: 38px;
+                                        margin-right: auto;
+                                    }
+                                    
+                                    #PoweredBy {
+                                        font-size: 10px;
+                                        width: 60px;
+                                        margin-right: 3px;
+                                        margin-top: 20px;
+                                    }
+
+                                    #Logo_PagarMe{
+                                        width: 110px;
+                                        height: 40px;
+                                    }
+                                        
+                                    </style>
+                                    </head>
+                                    <body>
+                                        <p>Prezado(a) ${PrimeiroNome},<br></p>
+                                        <p>Para concluir a compra do <b> ${Nome_Produto}</b>, escaneie o QR Code e realize o PIX.<br></p>
+                                        <p>As orientações de acesso ao serviço serão enviadas para você por e-mail, assim que o pagamento for processado.<br></p>
+
+                                        <div id="Container_PIX">
+                                            <div id="Container_Valor_Total_da_Compra_no_PIX">
+                                                    <div id="Título_Valor_Total_da_Compra_no_PIX"><b>Valor:</b></div>
+                                                    <div id="Valor_Total_da_Compra_no_PIX">${Valor_Total_da_Compra_no_PIX}</div>
+                                            </div>
+                                            <div id="Container_Validade_qr_code_url">
+                                                <div id="Título_Validade_qr_code_url"><b>Validade:</b></div>
+                                                <div id="Validade_qr_code_url">${Pix_QR_Code_Prazo_Vencimento}</div>
+                                            </div>
+                                            <img id="qr_code_url" src="${Pix_Url_QR_Code}" alt="qr_code_url">
+                                            <div id="Container_Logo_PagarMe">
+                                                    <p id="PoweredBy">Powered by</p>
+                                                    <img id="Logo_PagarMe" src="https://plataforma-backend-v3.azurewebsites.net/img/LOGO_PAGAR.ME.png"/>
+                                            </div>
+                                        </div>
+                                        
+                                    <p><br>Por favor entre em contato se surgirem dúvidas ou se precisar de auxílio.<br></p>
+
+                                    <p>Estamos sempre à disposição.<br></p>
+
+                                    <p>Atenciosamente,<br></p>
+
+                                    <img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/>
+
+                                    </body>
+                                    </html>
+                                `
+                            },
+                            toRecipients: [{ emailAddress: { address: Email_do_Cliente } }]
+                        }
+                    });
+
+                });
+
+            });
+
+        });
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // MODALIDADE DE PAGAMENTO: BOLETO
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Insere o pedido na BD - PEDIDOS.
+
+    if (Tipo_de_Pagamento_Escolhido === "BOLETO") {
+
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        
+        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_BOLETO, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_BOLETO, "-", "-" ]]})  
+
+        .then(async (response) => {
+
+            res.status(200).send();
+
+            let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
+
+            let Boleto_Prazo_Vencimento_Processamento_PagarMe = new Date(Date.now() + 86400000);
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                message: {
+                    subject: 'Novo Pedido Gerado no Checkout',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p><b>Aluno:</b> ${NomeCompleto}</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Processa cobrança junto à Pagar.Me.
+
+            fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({
+                    items: [{
+                        amount: Valor_Total_da_Compra_no_BOLETO_Dígitos, 
+                        description: Nome_Produto, 
+                        quantity: 1,
+                        code: Código_do_Produto
+                    }],
+                    customer: {
+                        name: NomeCompleto,
+                        type: 'individual', 
+                        email: Email_do_Cliente,
+                        document: Campo_de_Preenchimento_CPF_Dígitos,
+                        document_type: 'CPF',
+                        country_code: 55,
+                        area_code: Campo_de_Preenchimento_DDD,
+                        number: Campo_de_Preenchimento_Celular_Dígitos
+                    },
+                    shipping: {
+                        amount: 0,
+                        description: Nome_Produto,
+                        recipient_name: NomeCompleto,
+                        address: {
+                            line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
+                            line_2: Endereço_Complemento,
+                            zip_code: Endereço_CEP_Dígitos,
+                            city: Endereço_Cidade,
+                            state: Endereço_Estado,
+                            country: 'BR'
+                        }
+                    },
+                    payments: [{
+                        payment_method: 'boleto',
+                        boleto: {
+                            instructions: 'Não aceitar o pagamento após o vencimento. A emissão deste boleto foi solicitada e/ou intermediada pela empresa IVY ROOM LTDA - CNPJ: 39.794.363/0001-81.',
+                            due_at: Boleto_Prazo_Vencimento_Processamento_PagarMe
+                        }
+                    }]
+                })
+            })
+
+            .then(response => response.json()).then(async json => {
+
+                let Retorno_Processamento_Cobrança_PagarMe = JSON.stringify(json);
+
+                let Status_Cobrança_Boleto = json.charges?.[0]?.status ?? '-';
+
+                let Boleto_Url_Download = json.charges?.[0]?.last_transaction?.url ?? '-';
+
+                let Boleto_Prazo_Vencimento_Email = ConverteData3(new Date(Date.now() + 86400000));
+
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Boleto na BD - PEDIDOS.
+
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Boleto ]]})
+
+                .then(async (response) => {
+
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // Envia as instruções de pagamento via Boleto ao comprador.
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                        message: {
+                            subject: 'Ivy: Boleto para Pagamento',
+                            body: {
+                                contentType: 'HTML',
+                                content: `
+                                    <html>
+                                    <head>
+                                        <style type="text/css">
+                                    
+                                        #Container_Boleto {
+                                            height: 110px;
+                                            width: 250px;
+                                            padding-top: 30px;
+                                            padding-bottom: 30px;
+                                            padding-left: 30px;
+                                            padding-right: 30px;
+                                            border: 2px solid rgb(149, 201, 63);
+                                            border-radius: 15px;
+                                        }
+                                        
+                                    #Container_Valor_Total_da_Compra_no_Boleto {
+                                        display: inline-flex;
+                                        margin-bottom: 5px;
+                                        font-size: 16px;
+                                    }
+                                    
+                                    #Título_Valor_Total_da_Compra_no_Boleto {
+                                        margin-right: 5px;
+                                    }
+                                    
+                                    #Container_Validade_Boleto {
+                                        display: inline-flex;
+                                        margin-bottom: 5px;
+                                        font-size: 16px;
+                                    }
+                                    
+                                    #Título_Validade_Boleto {
+                                        margin-right: 5px;
+                                    }
+
+                                    #Container_Link_Boleto {
+                                        display: inline-flex;
+                                        margin-bottom: 10px;
+                                        font-size: 16px;
+                                    }
+                                    
+                                    #Título_Link_Boleto {
+                                        margin-right: 5px;
+                                    }
+                                    
+                                    #Container_Logo_PagarMe {
+                                        display: inline-flex;
+                                        margin-left: 35px;
+                                        margin-right: auto;
+                                    }
+                                    
+                                    #PoweredBy {
+                                        font-size: 10px;
+                                        margin-right: 3px;
+                                        margin-top: 18px;
+                                        width: 60px;
+                                    }
+
+                                    #Logo_PagarMe{
+                                        width: 110px;
+                                        height: 40px;
+                                    }
+                                        
+                                    </style>
+                                    </head>
+                                    <body>
+                                        <p>Prezado(a) ${PrimeiroNome},<br></p>
+                                        <p>Para concluir a compra do <b> ${Nome_Produto}</b>, faça o pagamento do boleto utilizando o link abaixo.<br></p>
+                                        <p>As orientações de acesso ao serviço serão enviadas para você por e-mail, assim que o pagamento for processado.<br></p>
+
+                                        <div id="Container_Boleto">
+                                            <div id="Container_Valor_Total_da_Compra_no_Boleto">
+                                                    <div id="Título_Valor_Total_da_Compra_no_Boleto"><b>Valor:</b></div>
+                                                    <div id="Valor_Total_da_Compra_no_Boleto"> ${Valor_Total_da_Compra_no_BOLETO}</div>
+                                            </div>
+                                            <div id="Container_Validade_Boleto">
+                                                <div id="Título_Validade_Boleto"><b>Validade:</b></div>
+                                                <div id="Validade_Boleto"> ${Boleto_Prazo_Vencimento_Email}</div>
+                                            </div>
+                                            <div id="Container_Link_Boleto">
+                                                <div id="Título_Link_Boleto"><b>Link de Acesso:</b></div>
+                                                <a id="url_Boleto" href="${Boleto_Url_Download}">Boleto</a>
+                                            </div>
+                                            <div id="Container_Logo_PagarMe">
+                                                    <p id="PoweredBy">Powered by</p>
+                                                    <img id="Logo_PagarMe" src="https://plataforma-backend-v3.azurewebsites.net/img/LOGO_PAGAR.ME.png"/>
+                                            </div>
+                                        </div>
+                                        
+                                    <p><br>Por favor entre em contato se surgirem dúvidas ou se precisar de auxílio.<br></p>
+
+                                    <p>Estamos sempre à disposição.<br></p>
+
+                                    <p>Atenciosamente,<br></p>
+
+                                    <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+
+                                    </body>
+                                    </html>
+                                `
+                            },
+                            toRecipients: [{ emailAddress: { address: Email_do_Cliente } }]
+                        }
+                    });
+
+                });
+
+            });
+
+        });
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // MODALIDADE DE PAGAMENTO: PIX_CARTAO
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Insere o pedido na BD - PEDIDOS.
+
+    if (Tipo_de_Pagamento_Escolhido === "PIX_CARTAO") {
+
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        
+        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX_CARTÃO, Valor_com_Juros_no_Cartão_do_PIX_CARTÃO, Número_do_Cartão_do_PIX_CARTÃO, Nome_do_Titular_do_Cartão_do_PIX_CARTÃO_CaracteresOriginais, Campo_de_Preenchimento_Mês_Cartão_do_PIX_CARTÃO, Campo_de_Preenchimento_Ano_Cartão_do_PIX_CARTÃO, Campo_de_Preenchimento_CVV_Cartão_do_PIX_CARTÃO, Número_de_Parcelas_Cartão_do_PIX_CARTÃO, "-", "-", Valor_no_PIX_do_PIX_CARTÃO, "-", "-", "-", "-", "-" ]]})  
+
+        .then(async (response) => {
+
+            res.status(200).send();
+
+            let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                message: {
+                    subject: 'Novo Pedido Gerado no Checkout',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p><b>Aluno:</b> ${NomeCompleto}</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                }
+            });
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // PROCESSAMENTO DA COBRANÇA NO CARTÃO DE CRÉDITO.
+            ////////////////////////////////////////////////////////////////////////////////////////
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Processa cobrança no Cartão de Crédito junto à Pagar.Me.
+
+            fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({
+                    items: [{
+                        amount: Valor_com_Juros_no_Cartão_do_PIX_CARTÃO_Dígitos, 
+                        description: Nome_Produto, 
+                        quantity: 1,
+                        code: Código_do_Produto
+                    }],
+                    customer: {
+                        name: NomeCompleto,
+                        type: 'individual', 
+                        email: Email_do_Cliente,
+                        document: Campo_de_Preenchimento_CPF_Dígitos,
+                        document_type: 'CPF',
+                        country_code: 55,
+                        area_code: Campo_de_Preenchimento_DDD,
+                        number: Campo_de_Preenchimento_Celular_Dígitos
+                    },
+                    shipping: {
+                        amount: 0,
+                        description: Nome_Produto,
+                        recipient_name: NomeCompleto,
+                        address: {
+                            line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
+                            line_2: Endereço_Complemento,
+                            zip_code: Endereço_CEP_Dígitos,
+                            city: Endereço_Cidade,
+                            state: Endereço_Estado,
+                            country: 'BR'
+                        }
+                    },
+                    payments: [{
+                        payment_method: 'credit_card',
+                        credit_card: {
+                            recurrence: false,
+                            installments: Número_de_Parcelas_Cartão_do_PIX_CARTÃO,
+                            statement_descriptor: Código_do_Produto,
+                            card: {
+                                number: Número_do_Cartão_do_PIX_CARTÃO_Dígitos,
+                                holder_name: Nome_do_Titular_do_Cartão_do_PIX_CARTÃO_CaracteresAjustados,
+                                exp_month: Campo_de_Preenchimento_Mês_Cartão_do_PIX_CARTÃO,
+                                exp_year: Campo_de_Preenchimento_Ano_Cartão_do_PIX_CARTÃO,
+                                cvv: Campo_de_Preenchimento_CVV_Cartão_do_PIX_CARTÃO
+                            }
+                        }
+                    }]
+                })
+            })
+
+            .then(response => response.json()).then(async json => {
+
+                let Retorno_Processamento_Cobrança_Cartão_PIX_CARTAO_PagarMe = JSON.stringify(json);
+
+                let Status_Cobrança_Cartão_PIX_CARTAO = json.charges?.[0]?.status ?? '-';
+
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Cartão_PIX_CARTAO na BD - PEDIDOS.
+
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Cartão_PIX_CARTAO_PagarMe, Status_Cobrança_Cartão_PIX_CARTAO, null, null, null, null, null, null ]]})
+
+                .then(async (response) => {
+
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // PROCESSAMENTO DA COBRANÇA NO PIX.
+                    ////////////////////////////////////////////////////////////////////////////////////////
+
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // Processa cobrança do PIX junto à Pagar.Me.
+
+                    fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify({
+                            items: [{
+                                amount: Valor_no_PIX_do_PIX_CARTÃO_Dígitos, 
+                                description: Nome_Produto, 
+                                quantity: 1,
+                                code: Código_do_Produto
+                            }],
+                            customer: {
+                                name: NomeCompleto,
+                                type: 'individual', 
+                                email: Email_do_Cliente,
+                                document: Campo_de_Preenchimento_CPF_Dígitos,
+                                document_type: 'CPF',
+                                country_code: 55,
+                                area_code: Campo_de_Preenchimento_DDD,
+                                number: Campo_de_Preenchimento_Celular_Dígitos
+                            },
+                            shipping: {
+                                amount: 0,
+                                description: Nome_Produto,
+                                recipient_name: NomeCompleto,
+                                address: {
+                                    line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
+                                    line_2: Endereço_Complemento,
+                                    zip_code: Endereço_CEP_Dígitos,
+                                    city: Endereço_Cidade,
+                                    state: Endereço_Estado,
+                                    country: 'BR'
+                                }
+                            },
+                            payments: [{
+                                payment_method: 'pix',
+                                pix: {
+                                    expires_in: 1800
+                                }
+                            }]
+                        })
+                    })
+
+                    .then(response => response.json()).then(async json => {
+
+                        let Retorno_Processamento_Cobrança_Pix_PIX_CARTAO_PagarMe = JSON.stringify(json);
+
+                        let Status_Cobrança_Pix = json.charges?.[0]?.status ?? '-';
+
+                        let Pix_Url_QR_Code = json.charges?.[0]?.last_transaction?.qr_code_url ?? '-';
+
+                        let Pix_QR_Code_Prazo_Vencimento = ConverteData3(new Date(Date.now() + 1800000));
+
+                        ////////////////////////////////////////////////////////////////////////////////////////
+                        // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Cartão na BD - PEDIDOS.
+
+                        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Pix_PIX_CARTAO_PagarMe, Status_Cobrança_Pix, null, null, null ]]})
+
+                        .then(async (response) => {
+
+                            ////////////////////////////////////////////////////////////////////////////////////////
+                            // Envia as instruções de pagamento via PIX ao comprador.
+
+                            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                                message: {
+                                    subject: 'Ivy: PIX para Pagamento',
+                                    body: {
+                                        contentType: 'HTML',
+                                        content: `
+                                            <html>
+                                            <head>
+                                            <style type="text/css">
+                                        
+                                            #Container_PIX {
+                                                height: 340px;
+                                                width: 250px;
+                                                padding-top: 30px;
+                                                padding-bottom: 30px;
+                                                padding-left: 30px;
+                                                padding-right: 30px;
+                                                border: 2px solid rgb(149, 201, 63);
+                                                border-radius: 15px;
+                                            }
+                                                
+                                            #Container_Valor_Total_da_Compra_no_PIX {
+                                                display: inline-flex;
+                                                margin-bottom: 5px;
+                                                font-size: 16px;
+                                            }
+                                            
+                                            #Título_Valor_Total_da_Compra_no_PIX {
+                                                margin-right: 5px;
+                                            }
+                                            
+                                            #Container_Validade_qr_code_url {
+                                                display: inline-flex;
+                                                font-size: 16px;
+                                            }
+                                            
+                                            #Título_Validade_qr_code_url {
+                                                margin-right: 5px;
+                                            }
+
+                                            #qr_code_url{
+                                                margin-top: 10px;
+                                                height: 250px;
+                                                width: 250px; 
+                                            }
+                                            
+                                            #Container_Logo_PagarMe {
+                                                display: inline-flex;
+                                                margin-left: 38px;
+                                                margin-right: auto;
+                                            }
+                                            
+                                            #PoweredBy {
+                                                font-size: 10px;
+                                                width: 60px;
+                                                margin-right: 3px;
+                                                margin-top: 20px;
+                                            }
+
+                                            #Logo_PagarMe{
+                                                width: 110px;
+                                                height: 40px;
+                                            }
+                                                
+                                            </style>
+                                            </head>
+                                            <body>
+                                                <p>Prezado(a) ${PrimeiroNome},<br></p>
+                                                <p>Para concluir a compra do <b> ${Nome_Produto}</b>, escaneie o QR Code e realize o PIX.<br></p>
+                                                <p>As orientações de acesso ao serviço serão enviadas para você por e-mail, assim que o pagamento for processado.<br></p>
+
+                                                <div id="Container_PIX">
+                                                    <div id="Container_Valor_Total_da_Compra_no_PIX">
+                                                            <div id="Título_Valor_Total_da_Compra_no_PIX"><b>Valor:</b></div>
+                                                            <div id="Valor_Total_da_Compra_no_PIX">${Valor_no_PIX_do_PIX_CARTÃO}</div>
+                                                    </div>
+                                                    <div id="Container_Validade_qr_code_url">
+                                                        <div id="Título_Validade_qr_code_url"><b>Validade:</b></div>
+                                                        <div id="Validade_qr_code_url">${Pix_QR_Code_Prazo_Vencimento}</div>
+                                                    </div>
+                                                    <img id="qr_code_url" src="${Pix_Url_QR_Code}" alt="qr_code_url">
+                                                    <div id="Container_Logo_PagarMe">
+                                                            <p id="PoweredBy">Powered by</p>
+                                                            <img id="Logo_PagarMe" src="https://plataforma-backend-v3.azurewebsites.net/img/LOGO_PAGAR.ME.png"/>
+                                                    </div>
+                                                </div>
+                                                
+                                            <p><br>Por favor entre em contato se surgirem dúvidas ou se precisar de auxílio.<br></p>
+
+                                            <p>Estamos sempre à disposição.<br></p>
+
+                                            <p>Atenciosamente,<br></p>
+
+                                            <img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/>
+
+                                            </body>
+                                            </html>
+                                        `
+                                    },
+                                    toRecipients: [{ emailAddress: { address: Email_do_Cliente } }]
+                                }
+                            });
+
+                        });
+
+                    });
+
+                });
+
+            });
+
+        });
+
+    }
+
+});
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1979,7 +2967,7 @@ cron.schedule('0 1 0 * * *', async () => {
 
                         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBY6STB7R6BSQBFKAY5LO6W3TFRR/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
                         
-                        .post({"values": [[ "-", ConverteData2(new Date()), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
+                        .post({"values": [[ "-", ConverteData2(new Date(new Date().setDate(new Date().getDate() - 1))), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
 
                     });
 
