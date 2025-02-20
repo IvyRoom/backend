@@ -2295,6 +2295,110 @@ app.post('/alunos/conviteOHs', async (req,res) => {
 
 });
 
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Envia lembretes para as Office Hours.
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/alunos/lembretesOHs', async (req,res) => {
+
+//     let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
+
+//     res.status(200).json({ message: "1. Request recebida." });
+
+//     console.log('1. Request recebida.');
+
+//     let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
+
+//     let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Puxa os dados da BD - OFFICE HOURS.
+    
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+//     const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+//     //if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "LembreteOHs" }));
+    
+//     if (BD_Office_Hours !== null) console.log('2. BD - OFFICE HOURS obtida.');
+
+//     const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
+
+//     let Número_Lembrete_Enviado = 0;
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
+//     // Então envia um invite a cada 2s.
+    
+//     async function Envia_Lembretes_Office_Hours() {
+
+//         for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
+
+//             ///////////////////////////////////////////////////////////////////////////////////////////////////
+//             // Puxa as variáveis do aluno da BD - OFFICE HOURS.
+    
+//             Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
+//             Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
+//             Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
+    
+//             if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
+    
+//                 Número_Lembrete_Enviado++;
+    
+//                 // if (client) client.send(JSON.stringify({ message: `3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "LembreteOHs" }));
+                
+//                 console.log(`3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+
+//                 // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                
+//                 if (LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`)
+    
+//                 ////////////////////////////////////////////////////////////////////////////////////////
+//                 // Envia o e-mail para o aluno na LinhaAtual da BD - OFFICE HOURS.
+    
+//                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+//                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+    
+//                     message: {
+//                         subject: 'Ivy - Lembrete: Office Hours (Atendimento ao Vivo)',
+//                         body: {
+//                             contentType: 'HTML',
+//                             content: `
+//                                 <p>Olá ${Aluno_PrimeiroNome},</p>
+//                                 <p>Reforçamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>hoje, ${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+//                                 <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
+//                                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+//                                 <p>Atenciosamente,</p>
+//                                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+//                             `
+//                         },
+//                         toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+//                     }
+                
+//                 });
+
+//                 await new Promise(resolve => setTimeout(resolve, 2000));
+    
+//             } else {
+
+//                 await new Promise(resolve => setTimeout(resolve, 0));
+
+//                 // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+
+//                 if(LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`);
+
+//             }
+    
+//         }
+
+//     }
+
+//     setTimeout(Envia_Lembretes_Office_Hours, 1000);
+
+// });
 
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2449,79 +2553,6 @@ app.post('/meta/postar', async (req, res) => {
 
                                     if (client) client.send(JSON.stringify({ message: `Reels - 7. BD - RESULTADOS atualizada.`, origin: "postar" }));
 
-                                    ////////////////////////////////////////////////////////////////////////////////////////////////////
-                                    // Programa o registro dos Resultados Orgânicos de Contas Alcançadas a 5% do Número de Seguidores.
-                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
-                                    
-                                    let Número_Verificação_Alcance_Orgânico = 1;
-
-                                    Registra_Resultados_Orgânicos_5_Porcento();
-
-                                    function Registra_Resultados_Orgânicos_5_Porcento () {
-
-                                        if (Número_Verificação_Alcance_Orgânico === 1 && client) client.send(JSON.stringify({ message: `Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`, origin: "postar" }));
-                                        
-                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-                                        .then(response => response.json()).then(async data => {
-
-                                            let Reel_Organic_Reach_5_Porcento = data.data.find(metric => metric.name === 'reach').values[0].value;
-                                            let Critério_Registro_Alcance = Math.ceil(Número_Seguidores * 0.05);
-                                            
-                                            if (Reel_Organic_Reach_5_Porcento >= Critério_Registro_Alcance) {
-                                                
-                                                let Reel_Organic_Likes_5_Porcento = data.data.find(metric => metric.name === 'likes').values[0].value;
-                                                let Reel_Organic_Saved_5_Porcento = data.data.find(metric => metric.name === 'saved').values[0].value;
-                                                let Reel_Organic_Shares_5_Porcento = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-                                                let Reel_Organic_Interactions_5_Porcento = Reel_Organic_Likes_5_Porcento + Reel_Organic_Saved_5_Porcento + Reel_Organic_Shares_5_Porcento;
-
-                                                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_5_Porcento, Reel_Organic_Interactions_5_Porcento, null, null ]]})
-                                            
-                                            } else {
-
-                                                Número_Verificação_Alcance_Orgânico++;
-                                                setTimeout(Registra_Resultados_Orgânicos_5_Porcento, 300000);
-
-                                            }
-
-                                        });
-
-                                    }
-
-                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
-                                    // Programa o registro dos Resultados Orgânicos de 72h.
-                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-                                    let Index_Reel_IG_Media_ID = response.index;
-
-                                    let Timeout_ID = setTimeout(() => Registra_Resultados_Orgânicos_72h(), 259200000);
-
-                                    if (Timeout_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 9. Registro Orgânico de 72h programado.`, origin: "postar" }));
-
-                                    function Registra_Resultados_Orgânicos_72h() {
-
-                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-                                        .then(response => response.json()).then(async data => {
-
-                                            let Reel_Organic_Reach_72h = data.data.find(metric => metric.name === 'reach').values[0].value;
-                                            let Reel_Organic_Likes_72h = data.data.find(metric => metric.name === 'likes').values[0].value;
-                                            let Reel_Organic_Saved_72h = data.data.find(metric => metric.name === 'saved').values[0].value;
-                                            let Reel_Organic_Shares_72h = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-                                            let Reel_Organic_Interactions_72h = Reel_Organic_Likes_72h + Reel_Organic_Saved_72h + Reel_Organic_Shares_72h;
-
-                                            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_72h, Reel_Organic_Interactions_72h ]]});
-
-                                        })
-
-                                    }
-
                                     /////////////////////////////////////////////////////////////////////////////////////////////////////
                                     // Cria o evento na agenda (calendário) para criação da campanha de RL (72h depois).
                                     /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2549,7 +2580,7 @@ app.post('/meta/postar', async (req, res) => {
 
                                     .then(async () => {
 
-                                        if (client) client.send(JSON.stringify({ message: `Reels - 10. Criação da campanha agendada.`, origin: "postar" }));
+                                        if (client) client.send(JSON.stringify({ message: `Reels - 8. Criação da campanha agendada.`, origin: "postar" }));
 
                                         ////////////////////////////////////////////////////////////////////////////////////////
                                         ////////////////////////////////////////////////////////////////////////////////////////
@@ -2892,8 +2923,6 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 cron.schedule('0 1 0 * * *', async () => {
 
-    console.log("Registro de Desempenho de Campanhas DB iniciado!")
-
     let Data_Hoje_Formatada_Meta_Graph_API = (new Date()).toISOString().split('T')[0];
 
     ///////////////////////////////////////////////////////////////////////////////////////
@@ -2991,3 +3020,91 @@ cron.schedule('0 1 0 * * *', async () => {
     scheduled: true,
     timezone: "America/Sao_Paulo"
 });
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Registra os Desempenhos Orgânicos de 5% e de 72h.
+// ---> Acionado pela function01.js 1x a cada 10min <--- 
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
+
+    res.status(200).send();
+
+    console.log('success');
+
+});
+
+// ////////////////////////////////////////////////////////////////////////////////////////////////////
+// // Programa o registro dos Resultados Orgânicos de Contas Alcançadas a 5% do Número de Seguidores.
+// /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// let Número_Verificação_Alcance_Orgânico = 1;
+
+// Registra_Resultados_Orgânicos_5_Porcento();
+
+// function Registra_Resultados_Orgânicos_5_Porcento () {
+
+// if (Número_Verificação_Alcance_Orgânico === 1 && client) client.send(JSON.stringify({ message: `Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`, origin: "postar" }));
+
+// fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+// .then(response => response.json()).then(async data => {
+
+// let Reel_Organic_Reach_5_Porcento = data.data.find(metric => metric.name === 'reach').values[0].value;
+// let Critério_Registro_Alcance = Math.ceil(Número_Seguidores * 0.05);
+
+// if (Reel_Organic_Reach_5_Porcento >= Critério_Registro_Alcance) {
+
+// let Reel_Organic_Likes_5_Porcento = data.data.find(metric => metric.name === 'likes').values[0].value;
+// let Reel_Organic_Saved_5_Porcento = data.data.find(metric => metric.name === 'saved').values[0].value;
+// let Reel_Organic_Shares_5_Porcento = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+// let Reel_Organic_Interactions_5_Porcento = Reel_Organic_Likes_5_Porcento + Reel_Organic_Saved_5_Porcento + Reel_Organic_Shares_5_Porcento;
+
+// if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+// await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_5_Porcento, Reel_Organic_Interactions_5_Porcento, null, null ]]})
+
+// } else {
+
+// Número_Verificação_Alcance_Orgânico++;
+// setTimeout(Registra_Resultados_Orgânicos_5_Porcento, 300000);
+
+// }
+
+// });
+
+// }
+
+// /////////////////////////////////////////////////////////////////////////////////////////////////////
+// // Programa o registro dos Resultados Orgânicos de 72h.
+// /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// let Index_Reel_IG_Media_ID = response.index;
+
+// let Timeout_ID = setTimeout(() => Registra_Resultados_Orgânicos_72h(), 259200000);
+
+// if (Timeout_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 9. Registro Orgânico de 72h programado.`, origin: "postar" }));
+
+// function Registra_Resultados_Orgânicos_72h() {
+
+// fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+// .then(response => response.json()).then(async data => {
+
+// let Reel_Organic_Reach_72h = data.data.find(metric => metric.name === 'reach').values[0].value;
+// let Reel_Organic_Likes_72h = data.data.find(metric => metric.name === 'likes').values[0].value;
+// let Reel_Organic_Saved_72h = data.data.find(metric => metric.name === 'saved').values[0].value;
+// let Reel_Organic_Shares_72h = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+// let Reel_Organic_Interactions_72h = Reel_Organic_Likes_72h + Reel_Organic_Saved_72h + Reel_Organic_Shares_72h;
+
+// if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+// await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_72h, Reel_Organic_Interactions_72h ]]});
+
+// })
+
+// }
