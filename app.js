@@ -2921,113 +2921,6 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
 });
 
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Função: Registrar Desempenho - Campanhas DB (às 00:01 AM, todos os dias).
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-cron.schedule('0 1 0 * * *', async () => {
-
-    let Data_Hoje_Formatada_Meta_Graph_API = (new Date()).toISOString().split('T')[0];
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Obtém a BD - STATUS CAMPANHAS.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-    let BD_Status_Campanhas_DB = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYTOUDIQ5V5KBEIMADJCDNO2S4Z/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
-
-    const BD_Status_Campanhas_DB_Última_Linha = BD_Status_Campanhas_DB.value.length - 1;
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Registra um de desempenho de Campanha de DB a cada 2s.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    async function Registra_Desempenho_Campanhas_DB() {
-
-        for (let LinhaAtual = 0; LinhaAtual <= BD_Status_Campanhas_DB_Última_Linha; LinhaAtual++) {
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Obtém as variáveis do aluno da BD - OFFICE HOURS.
-    
-            let Campanha_DB_Status = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][4];
-
-            if (Campanha_DB_Status === "ATIVA") {
-    
-                let Campanha_DB_Reel_Código = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][0];
-                let Campanha_DB_Ad_ID = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][1];
-                let Campanha_DB_Descrição = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][2];
-                let Campanha_DB_Qualidade_Clique = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][3];
-                
-                ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Obtém as variáveis de desempenho do Ad junto ao Meta Graph API.
-
-                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Ad_ID}/insights?fields=campaign_id,spend,reach,impressions,actions&time_range={"since":"2022-08-31","until":"${Data_Hoje_Formatada_Meta_Graph_API}"}&filtering=[{field: "action_type",operator:"IN", value: ['link_click']}]`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                    }
-                })
-    
-                .then(response => response.json()).then(async data => {
-
-                    let Campanha_DB_Campaign_ID = data.data[0].campaign_id;
-                    let Campanha_DB_Ad_Spend = data.data[0].spend;
-                    let Campanha_DB_Ad_Reach = data.data[0].reach;
-                    let Campanha_DB_Ad_Impressions = data.data[0].impressions;
-                    let Campanha_DB_Ad_Link_Clicks = data.data[0].actions[0].value;
-
-                    ///////////////////////////////////////////////////////////////////////////////////////////////////
-                    // Obtém o orçamento da campanha junto ao Meta Graph API.
-
-                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Campaign_ID}?fields=daily_budget`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                        }
-                    })
-
-                    .then(response => response.json()).then(async data => {
-
-                        let Campanha_DB_Campaign_Daily_Budget = data.daily_budget;
-                        
-                        ////////////////////////////////////////////////////////////////////////////////////////
-                        // Adiciona as informações à BD - RESULTADOS CAMPANHAS.
-
-                        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBY6STB7R6BSQBFKAY5LO6W3TFRR/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
-                        
-                        .post({"values": [[ "-", ConverteData2(new Date(new Date().setDate(new Date().getDate() - 1))), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
-
-                    });
-
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-    
-            } else {
-
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-            }
-    
-        }
-
-    }
-
-    Registra_Desempenho_Campanhas_DB();
-
-}, {
-    scheduled: true,
-    timezone: "America/Sao_Paulo"
-});
-
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 // Endpoint: Registra os Desempenhos Orgânicos de 5% e de 72h.
@@ -3151,5 +3044,103 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
         }
 
     };
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint: Registra Desempenho - Campanhas DB.
+// ---> Acionado pela function02.js às 00:01 AM, todos os dias <--- 
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/meta/RegistraDesempenhosCampanhasDB', async (req,res) => {
+
+    let Data_Hoje_Formatada_Meta_Graph_API = (new Date()).toISOString().split('T')[0];
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Obtém a BD - STATUS CAMPANHAS.
+    ///////////////////////////////////////////////////////////////////////////////////////
+
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+    let BD_Status_Campanhas_DB = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYTOUDIQ5V5KBEIMADJCDNO2S4Z/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
+
+    const BD_Status_Campanhas_DB_Última_Linha = BD_Status_Campanhas_DB.value.length - 1;
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Registra um de desempenho de Campanha de DB a cada 2s.
+    ///////////////////////////////////////////////////////////////////////////////////////
+
+    for (let LinhaAtual = 0; LinhaAtual <= BD_Status_Campanhas_DB_Última_Linha; LinhaAtual++) {
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////
+        // Obtém as variáveis do aluno da BD - OFFICE HOURS.
+
+        let Campanha_DB_Status = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][4];
+
+        if (Campanha_DB_Status === "ATIVA") {
+
+            let Campanha_DB_Reel_Código = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][0];
+            let Campanha_DB_Ad_ID = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][1];
+            let Campanha_DB_Descrição = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][2];
+            let Campanha_DB_Qualidade_Clique = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][3];
+            
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Obtém as variáveis de desempenho do Ad junto ao Meta Graph API.
+
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Ad_ID}/insights?fields=campaign_id,spend,reach,impressions,actions&time_range={"since":"2022-08-31","until":"${Data_Hoje_Formatada_Meta_Graph_API}"}&filtering=[{field: "action_type",operator:"IN", value: ['link_click']}]`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+                }
+            })
+
+            .then(response => response.json()).then(async data => {
+
+                let Campanha_DB_Campaign_ID = data.data[0].campaign_id;
+                let Campanha_DB_Ad_Spend = data.data[0].spend;
+                let Campanha_DB_Ad_Reach = data.data[0].reach;
+                let Campanha_DB_Ad_Impressions = data.data[0].impressions;
+                let Campanha_DB_Ad_Link_Clicks = data.data[0].actions[0].value;
+
+                ///////////////////////////////////////////////////////////////////////////////////////////////////
+                // Obtém o orçamento da campanha junto ao Meta Graph API.
+
+                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Campaign_ID}?fields=daily_budget`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+                    }
+                })
+
+                .then(response => response.json()).then(async data => {
+
+                    let Campanha_DB_Campaign_Daily_Budget = data.daily_budget;
+                    
+                    ////////////////////////////////////////////////////////////////////////////////////////
+                    // Adiciona as informações à BD - RESULTADOS CAMPANHAS.
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBY6STB7R6BSQBFKAY5LO6W3TFRR/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
+                    
+                    .post({"values": [[ "-", ConverteData2(new Date(new Date().setDate(new Date().getDate() - 1))), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
+
+                });
+
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+        } else {
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+        }
+
+    }
 
 });
