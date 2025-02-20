@@ -112,6 +112,13 @@ function ConverteData3(DataJavaScript) {
     return DataJavaScript.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Cria função que transforma datas no formato DD/MM/AAAA hh:mm (Excel) em datas no formato JavaScript.
+
+function ConverteData4(DataExcel) {
+    return new Date((DataExcel - 25569) * 86400000); 
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // Importa a biblioteca para criptografar variáveis para o formato SHA256.
 
@@ -3024,7 +3031,7 @@ cron.schedule('0 1 0 * * *', async () => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 // Endpoint: Registra os Desempenhos Orgânicos de 5% e de 72h.
-// ---> Acionado pela function01.js 1x a cada 10min <--- 
+// ---> Acionado pela function01.js uma vez a cada 10min <--- 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3032,79 +3039,117 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
     res.status(200).send();
 
-    console.log('success');
+    let Data_e_Hora_Atual = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+
+    console.log(`Endpoint /meta/RegistraDesempenhosOrganicos acionado agora (${Data_e_Hora_Atual}) pela function01.js.`);
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - RESULTADOS.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    let BD_Resultados_RL = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Verifica se há criativos com:
+    // --> O número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) em branco.
+    // --> O número de CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h) em branco.
+
+    let BD_Resultados_RL_Número_Linhas = BD_Resultados_RL.value.length;
+    let BD_Resultados_RL_Última_Linha = BD_Resultados_RL_Número_Linhas - 1;
+    
+    for (let LinhaVerificada = 0; LinhaVerificada <= BD_Resultados_RL_Última_Linha; LinhaVerificada++) {
+
+        let Reel_IG_Media_ID = BD_Resultados_RL.value[LinhaVerificada].values[0][1];
+        let Reel_Data_e_Hora_Postagem = ConverteData4(BD_Resultados_RL.value[LinhaVerificada].values[0][3]);
+        let Reel_Número_de_Seguidores_Momento_Postagem = BD_Resultados_RL.value[LinhaVerificada].values[0][4];
+        let Reel_Contas_Alcançadas_5Porcento_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][5];
+        let Reel_Contas_Alcançadas_72Horas_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][7];
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) esteja em branco.
+        // E tenham passado menos de 72h desde a postagem.
+        // --> Puxa os dados do Meta Graph API.
+        
+        if (Reel_Contas_Alcançadas_5Porcento_Registrado === "" && Data_e_Hora_Atual - Reel_Data_e_Hora_Postagem < 72 * 60 * 60 * 1000){
+
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+            .then(response => response.json()).then(async data => {
+
+                let Reel_Organic_Reach_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
+
+                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso o Reel_Organic_Reach_5_Porcento seja >= 5% do Criativo_Número_de_Seguidores_Momento_Postagem:
+                // --> Registra as informações do criativo na BD - RESULTADOS.
+
+                if (Reel_Organic_Reach_Atual >= Math.ceil(Reel_Número_de_Seguidores_Momento_Postagem * 0.05)) {
+
+                    let Reel_Organic_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
+                    let Reel_Organic_Saved_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
+                    let Reel_Organic_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+                    let Reel_Organic_Interactions_Atual = Reel_Organic_Likes_Atual + Reel_Organic_Saved_Atual + Reel_Organic_Shares_Atual;
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null ]]})
+
+                } 
+
+            });
+
+        }
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Caso número de CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h) em branco.
+        // E tenham passado mais ou igual a 72h desde a postagem.
+        // --> Puxa os dados do Meta Graph API.
+
+        if (Reel_Contas_Alcançadas_72Horas_Registrado === "" && Data_e_Hora_Atual - Reel_Data_e_Hora_Postagem >= 72 * 60 * 60 * 1000){
+
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+            .then(response => response.json()).then(async data => {
+
+                let Reel_Organic_Reach_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
+                let Reel_Organic_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
+                let Reel_Organic_Saved_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
+                let Reel_Organic_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
+
+                let Reel_Organic_Interactions_Atual = Reel_Organic_Likes_Atual + Reel_Organic_Saved_Atual + Reel_Organic_Shares_Atual;
+
+                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) também esteja em branco.
+                // --> Registra as informações do criativo na BD - RESULTADOS:
+                //       - Tanto nas colunas CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%).
+                //       - Quanto nas colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
+
+                if ( Reel_Contas_Alcançadas_5Porcento_Registrado === "" ) {
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual ]]});
+                    
+                } 
+                
+                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) não esteja em branco.
+                // --> Registra as informações do criativo na BD - RESULTADOS:
+                //       - Somente nas colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
+                
+                else {
+
+                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+                    
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual ]]});
+                    
+                }
+
+            });
+
+        }
+
+    };
 
 });
-
-// ////////////////////////////////////////////////////////////////////////////////////////////////////
-// // Programa o registro dos Resultados Orgânicos de Contas Alcançadas a 5% do Número de Seguidores.
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// let Número_Verificação_Alcance_Orgânico = 1;
-
-// Registra_Resultados_Orgânicos_5_Porcento();
-
-// function Registra_Resultados_Orgânicos_5_Porcento () {
-
-// if (Número_Verificação_Alcance_Orgânico === 1 && client) client.send(JSON.stringify({ message: `Reels - 8. Registro Orgânico de Contas Alcançadas a 5% do Número de Seguidores programado.`, origin: "postar" }));
-
-// fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-// .then(response => response.json()).then(async data => {
-
-// let Reel_Organic_Reach_5_Porcento = data.data.find(metric => metric.name === 'reach').values[0].value;
-// let Critério_Registro_Alcance = Math.ceil(Número_Seguidores * 0.05);
-
-// if (Reel_Organic_Reach_5_Porcento >= Critério_Registro_Alcance) {
-
-// let Reel_Organic_Likes_5_Porcento = data.data.find(metric => metric.name === 'likes').values[0].value;
-// let Reel_Organic_Saved_5_Porcento = data.data.find(metric => metric.name === 'saved').values[0].value;
-// let Reel_Organic_Shares_5_Porcento = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-// let Reel_Organic_Interactions_5_Porcento = Reel_Organic_Likes_5_Porcento + Reel_Organic_Saved_5_Porcento + Reel_Organic_Shares_5_Porcento;
-
-// if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-// await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_5_Porcento, Reel_Organic_Interactions_5_Porcento, null, null ]]})
-
-// } else {
-
-// Número_Verificação_Alcance_Orgânico++;
-// setTimeout(Registra_Resultados_Orgânicos_5_Porcento, 300000);
-
-// }
-
-// });
-
-// }
-
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-// // Programa o registro dos Resultados Orgânicos de 72h.
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// let Index_Reel_IG_Media_ID = response.index;
-
-// let Timeout_ID = setTimeout(() => Registra_Resultados_Orgânicos_72h(), 259200000);
-
-// if (Timeout_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 9. Registro Orgânico de 72h programado.`, origin: "postar" }));
-
-// function Registra_Resultados_Orgânicos_72h() {
-
-// fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-// .then(response => response.json()).then(async data => {
-
-// let Reel_Organic_Reach_72h = data.data.find(metric => metric.name === 'reach').values[0].value;
-// let Reel_Organic_Likes_72h = data.data.find(metric => metric.name === 'likes').values[0].value;
-// let Reel_Organic_Saved_72h = data.data.find(metric => metric.name === 'saved').values[0].value;
-// let Reel_Organic_Shares_72h = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-// let Reel_Organic_Interactions_72h = Reel_Organic_Likes_72h + Reel_Organic_Saved_72h + Reel_Organic_Shares_72h;
-
-// if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-// await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + Index_Reel_IG_Media_ID + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_72h, Reel_Organic_Interactions_72h ]]});
-
-// })
-
-// }
