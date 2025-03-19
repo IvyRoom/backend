@@ -1512,7 +1512,7 @@ app.post('/checkout/webhook_pagaleve', async (req, res) => {
 
     if (PagaLeve_Checkout_Status === "CANCELED") { // "AUTHORIZED"
 
-        let PagaLeve_Checkout_Response = req.body;
+        let PagaLeve_Checkout_Response = JSON.stringify(req.body);
         let PagaLeve_Checkout_ID = req.body.id;
         let PagaLeve_Checkout_Amount = req.body.amount;
         let NomeCompleto = req.body.metadata.full_name;
