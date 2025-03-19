@@ -1510,7 +1510,7 @@ app.post('/checkout/webhook_pagaleve', async (req, res) => {
     ////////////////////////////////////////////////////////////////////////////////////////
     // Insere o pedido na BD - PEDIDOS.
 
-    if (PagaLeve_Checkout_Status === "CANCELED") { // "AUTHORIZED"
+    if (PagaLeve_Checkout_Status === "AUTHORIZED") {
 
         let PagaLeve_Checkout_Response = JSON.stringify(req.body);
         let PagaLeve_Checkout_ID = req.body.id;
@@ -1597,12 +1597,6 @@ app.post('/checkout/webhook_pagaleve', async (req, res) => {
                         checkout_id: PagaLeve_Checkout_ID
                     })
                 })
-
-                .then(response => response.json()).then(async json => {
-
-                    console.log(json);
-
-                });
                 
             });
 
