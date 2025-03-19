@@ -125,6 +125,11 @@ function ConverteData4(DataExcel) {
 const crypto = require('crypto');
 
 ////////////////////////////////////////////////////////////////////////////////////////
+// Importa a biblioteca para criar Idempotency-Keys.
+
+const { v4: uuidv4 } = require('uuid');
+
+////////////////////////////////////////////////////////////////////////////////////////
 // Cria as variáveis de interface com o Meta Graph API.
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +154,12 @@ const Meta_Conversions_API_Access_Token = process.env.META_CONVERSIONS_API_ACCES
 const PagarMe_API_Latest_Version = process.env.PAGARME_API_LATEST_VERSION;
 const PagarMe_SecretKey_Base64_Encoded = process.env.PAGARME_SECRETKEY_BASE64_ENCODED;
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Cria as variáveis de interface com o API da PagaLeve.
+////////////////////////////////////////////////////////////////////////////////////////
+
+const PagaLeve_API_Key = process.env.PAGALEVE_API_KEY;
+const PagaLeve_API_Secret = process.env.PAGALEVE_API_SECRET;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -462,8 +473,14 @@ app.post('/checkout/processarpagamento', async (req, res) => {
         Valor_Total_da_Compra_com_Juros_UM_CARTAO,
         Valor_Total_da_Compra_com_Juros_UM_CARTAO_Dígitos,
 
-        Valor_Total_da_Compra_no_PIX,
-        Valor_Total_da_Compra_no_PIX_Dígitos,
+        Valor_Nominal_da_Compra_no_PIX_PARCELADO,
+        Valor_Nominal_da_Compra_no_PIX_PARCELADO_Dígitos,
+        Url_Aprovação_PIX_PARCELADO,
+        Url_Cancelamento_PIX_PARCELADO,
+        Url_Webhook_PIX_PARCELADO,
+
+        Valor_Total_da_Compra_no_PIX_À_VISTA,
+        Valor_Total_da_Compra_no_PIX_À_VISTA_Dígitos,
 
         Valor_Total_da_Compra_no_BOLETO,
         Valor_Total_da_Compra_no_BOLETO_Dígitos,
@@ -505,7 +522,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         .then(async (response) => {
 
-            res.status(200).send();
+            res.status(200).json({});
 
             let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
 
@@ -608,24 +625,100 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
     ////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////
-    // MODALIDADE DE PAGAMENTO: PIX
+    // MODALIDADE DE PAGAMENTO: PIX_PARCELADO
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    if (Tipo_de_Pagamento_Escolhido === "PIX_PARCELADO") {
+        
+        ////////////////////////////////////////////////////////////////////////////////////////
+        // Direciona à análise de crédito junto à PagaLeve.
+        ////////////////////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////////////////////
+        // Obtém o Access Token junto à PagaLeve (Endpoint: Criar uma Sessão Segura).
+
+        fetch('https://api.pagaleve.com.br/v1/authentication', {
+            method: 'POST',
+            headers: {accept: 'application/json', 'content-type': 'application/json'},
+            body: JSON.stringify({
+                password: PagaLeve_API_Secret,
+                username: PagaLeve_API_Key
+            })
+        })
+
+        .then(response => response.json()).then(async json => {
+
+            let PagaLeve_Session_Token = 'Bearer ' + json.token;
+
+            let PagaLeve_Session_IdempotencyKey = uuidv4();
+            
+            let [PrimeiroNome, ...rest] = NomeCompleto.split(" "), Sobrenome = rest.join(" ");
+
+            let DDD_Telefone = Campo_de_Preenchimento_DDD + Campo_de_Preenchimento_Celular_Dígitos;
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Cria o "Checkout PagaLeve" (Endpoint: Criar Checkout).
+
+            fetch('https://api.pagaleve.com.br/v1/checkouts', {
+                method: 'POST',
+                headers: {
+                    accept: 'application/json',
+                    'Idempotency-Key': PagaLeve_Session_IdempotencyKey,
+                    'content-type': 'application/json',
+                    authorization: PagaLeve_Session_Token
+                },
+                body: JSON.stringify({
+                    webhook_url: Url_Webhook_PIX_PARCELADO,
+                    order: {
+                        amount: parseInt(Valor_Nominal_da_Compra_no_PIX_PARCELADO_Dígitos),
+                        reference: PagaLeve_Session_IdempotencyKey
+                    },
+                    shopper: {
+                        cpf: Campo_de_Preenchimento_CPF_Dígitos,
+                        email: Email_do_Cliente,
+                        first_name: PrimeiroNome,
+                        last_name: Sobrenome,
+                        phone: DDD_Telefone
+                    },
+                    approve_url: Url_Aprovação_PIX_PARCELADO,
+                    cancel_url: Url_Cancelamento_PIX_PARCELADO,
+                    is_pix_upfront: false
+                })
+            })
+            
+            .then(response => response.json()).then(async json => {
+
+                let PagaLeve_Checkout_URL = json.checkout_url;
+                
+                res.status(200).json({ PagaLeve_Checkout_URL });
+
+            });
+
+        });
+
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // MODALIDADE DE PAGAMENTO: PIX_À_VISTA
     ////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // Insere o pedido na BD - PEDIDOS.
 
-    if (Tipo_de_Pagamento_Escolhido === "PIX") {
+    if (Tipo_de_Pagamento_Escolhido === "PIX_À_VISTA") {
 
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
         
-        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX, "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_PIX, "-", "-", "-", "-", "-" ]]})  
+        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX_À_VISTA, "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_PIX_À_VISTA, "-", "-", "-", "-", "-" ]]})  
 
         .then(async (response) => {
 
-            res.status(200).send();
+            res.status(200).json({});
 
             let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
 
@@ -661,7 +754,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                 },
                 body: JSON.stringify({
                     items: [{
-                        amount: Valor_Total_da_Compra_no_PIX_Dígitos, 
+                        amount: Valor_Total_da_Compra_no_PIX_À_VISTA_Dígitos, 
                         description: Nome_Produto, 
                         quantity: 1,
                         code: Código_do_Produto
@@ -796,7 +889,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                                         <div id="Container_PIX">
                                             <div id="Container_Valor_Total_da_Compra_no_PIX">
                                                     <div id="Título_Valor_Total_da_Compra_no_PIX"><b>Valor:</b></div>
-                                                    <div id="Valor_Total_da_Compra_no_PIX">${Valor_Total_da_Compra_no_PIX}</div>
+                                                    <div id="Valor_Total_da_Compra_no_PIX">${Valor_Total_da_Compra_no_PIX_À_VISTA}</div>
                                             </div>
                                             <div id="Container_Validade_qr_code_url">
                                                 <div id="Título_Validade_qr_code_url"><b>Validade:</b></div>
@@ -852,7 +945,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         .then(async (response) => {
 
-            res.status(200).send();
+            res.status(200).json({});
 
             let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
 
@@ -1090,7 +1183,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         .then(async (response) => {
 
-            res.status(200).send();
+            res.status(200).json({});
 
             let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
 
@@ -1385,6 +1478,18 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
 });
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Webhook: Atualização de Status de Pedido (Checkout) da PagaLeve.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/checkout/webhook_pagaleve', async (req, res) => {
+
+    console.log(req.body);
+    
+    res.status(200).send();
+
+});
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1625,11 +1730,11 @@ var ProcessamentoLeads_Email;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mail em escala para os leads na BD - LEADS.
+// Envia e-mail de RL em escala para os leads na BD - LEADS.
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/leads/envioemail', async (req,res) => {
+app.post('/leads/email_RL', async (req,res) => {
     
     res.status(200).send();
     
@@ -1640,299 +1745,163 @@ app.post('/leads/envioemail', async (req,res) => {
 
     const BD_Leads = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows').get();
 
-    const BD_Leads_Número_Linhas = BD_Leads.value.length;
+    const BD_Leads_Última_Linha = BD_Leads.value.length - 1;
 
-    const BD_Leads_Última_Linha = BD_Leads_Número_Linhas - 1;
+    async function Envia_Email_Leads() {
     
-    // Linha Atual inicial, com e-mail: 483
-    for (let LinhaAtual = 483; LinhaAtual <= BD_Leads_Última_Linha; LinhaAtual++) {
-        
-        ProcessamentoLeads_Email = BD_Leads.value[LinhaAtual].values[0][1];
-        ProcessamentoLeads_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
+        for (let LinhaAtual = 0; LinhaAtual <= BD_Leads_Última_Linha; LinhaAtual++) {
+            
+            ProcessamentoLeads_Email = BD_Leads.value[LinhaAtual].values[0][1];
+            ProcessamentoLeads_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
 
-        if (ProcessamentoLeads_Email === "-") {
-
-        } else {
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Turma de Black Friday: Faltam 48 horas',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Olá ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>Quem escreve é Lucas Machado, fundador da Ivy. Tudo bem?</p>
-            //                 <p>Sinalizo que a <b>Turma Especial de Black Friday</b> do Preparatório em Gestão Generalista <b>abre em pouco mais de 48h</b>, no dia 28/nov (quinta-feira) às 23:59, por meio do link <a href="https://ivygestao.com/" target="_blank">https://ivygestao.com/</a>.</p>
-            //                 <p>Ao entrar na turma, você irá adquirir habilidades fundamentais para o seu crescimento de carreira, como dominar o Sistema de Gestão e suas porções, o Ciclo de Melhoria de Resultados (PDCA) e o Ciclo de Estabilização de Processos (SDCA). Tudo de forma extremamente prática e guiada pela aplicação de softwares e Estudos de Caso reais. Fora isto, você receberá <b>três bônus exclusivos</b>:</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;1) <b>Caixa de materiais impressos</b> com apostilas, cases e guias de aplicação rápida do conhecimento.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;2) <b>Bibliografias de suporte</b>. Os livros: Princípios (Ray Dalio), O Verdadeiro Poder (Falconi) e Gerenciamento da Rotina (Falconi).</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;3) <b>Encontro a portas fechadas</b> com conteúdo exclusivo, trazido da Harvard Business School, disponível aos 10 primeiros alunos.</p>
-            //                 <p>Todas as informações sobre o serviço podem ser acessadas por <a href="https://ivygestao.com/" target="_blank">aqui</a>.</p>
-            //                 <p>Qualquer dúvida, entre em contato. Sempre à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Turma de Black Friday: É hoje!',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Bom dia ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>Sinalizamos que a <b>Turma Especial de Black Friday</b> do Preparatório em Gestão Generalista <b>abre hoje, dia 28/nov (quinta-feira) às 23:59</b>, por meio do nosso <b><a href="https://ivygestao.com/" target="_blank">Link da Bio</a></b>!</p>
-            //                 <p>Confira todos os detalhes sobre a oferta, incluindo os bônus exclusivos, <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>E se tiver dúvidas, entre em contato. Estamos sempre à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Turma de Black Friday: Faltam 3 horas!',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Olá ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>Quem escreve é Lucas Machado, fundador da Ivy. Tudo bem?</p>
-            //                 <p><b>Faltam 3 horas</b> para a abertura da <b>Turma Especial de Black Friday</b> do Preparatório em Gestão Generalista.</p>
-            //                 <p>A turma <b>abre hoje, 28/nov (quinta-feira) às 23:59</b>, em nosso <b><a href="https://ivygestao.com/" target="_blank">Link da Bio</a></b>!</p>
-            //                 <p>Aproveito para lhe passar três dicas que podem fazer a diferença para você ter acesso a todos os bônus ofertados (incluindo o encontro fechado para os 10 primeiros alunos):</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;1) Às 23:59, aperte Ctrl + F5 para atualizar a página direto do nosso servidor.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;2) Preencha o checkout com calma e atenção. Tenha certeza que seus dados estão corretos.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;3) Se tiver qualquer dúvida, mande um e-mail ou direct. Nossa equipe estará de plantão durante a madrugada.</p>
-            //                 <p>Além disso, disponibilizaremos no checkout formas de pagamento flexíveis incluindo PIX, Boleto, Cartão, PIX + Cartão e Dois Cartões, e parcelamento em até 12x.</p>
-            //                 <p>Todos os detalhes da oferta, incluindo os bônus exclusivos, podem ser vistos <a href="https://ivygestao.com/" target="_blank">aqui</a>.</p>
-            //                 <p>Está bem?</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Turma de Black Friday: Inscrições Abertas!',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Boa noite ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>As <b>inscrições estão abertas</b> para a <b>Turma Especial de Black Friday</b> do Preparatório em Gestão Generalista, por meio do nosso <b><a href="https://ivygestao.com/" target="_blank">Link da Bio</a></b>!</p>
-            //                 <p>P.S. #1. Sua trajetória rumo a cargos gerenciais começa agora. Parabéns.</p>
-            //                 <p>P.S. #2. Ficamos honrados em participar deste processo. Conte com a gente.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Reflexão sobre Investimentos',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p><b>REFLEXÃO SOBRE INVESTIMENTOS:</b></p>
-            //                 <p>-----</p>
-            //                 <p>Antes dos 30 o foco não é juntar dinheiro.</p>
-            //                 <p>Ao invés de investir os R$500 que te sobram no mês em ações, por exemplo...</p>
-            //                 <p>Invista em adquirir competências que tripliquem seu salário em 2 ou 3 anos.</p>
-            //                 <p>Pois R$500 rendendo 10% / ano não mudam nada na sua vida. Mas ganhar 3x mais muda.</p>
-            //                 <p>-----</p>
-            //                 <p>Se isto fizer sentido para você, a turma de Black Friday do Preparatório em Gestão Generalista está com <a href="https://ivygestao.com/" target="_blank">inscrições abertas</a>. Esta é uma excelente oportunidade para você começar a caminhar nesta direção.</p>
-            //                 <p>Saiba mais <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Reflexão sobre Carreira',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p><b>REFLEXÃO SOBRE CARREIRA:</b></p>
-            //                 <p>------</p>
-            //                 <p>Todos nós pagamos pela lições que nós temos que aprender na vida profissional ou com <b>tempo</b>, ou com <b>dinheiro</b>.</p>
-            //                 <p>E, dentre estas duas opções, nós escolhemos utilizar aquilo que a gente valoriza menos.</p>
-            //                 <p>É por isto que a maioria das pessoas fica tentando sozinha, investindo só o próprio tempo, na tentativa e erro.</p>
-            //                 <p>Só que o segredo é <b>investir as duas coisas</b> (tempo e dinheiro) em livros, cursos, mentorias, workshops e seminários que te permitam <u><b>aprender com experts</b></u>. Que te permitam aprender com pessoas que já tenham tido muito resultado fazendo aquilo que você quer fazer.</p>
-            //                 <p>Assim você poupa anos (ou décadas!) de trabalho improdutivo, simplesmente por você aprender com quem já sabe fazer.</p>
-            //                 <p>------</p>
-            //                 <p>E quando o assunto é Gestão e Carreira, sem dúvidas nós podemos cumprir este papel para você.</p>
-            //                 <p>Por isto lembramos que a Turma de Black Friday do Preparatório em Gestão Generalista está com <a href="https://ivygestao.com/" target="_blank">inscrições abertas</a>.</p>
-            //                 <p>Saiba mais <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-            // })
-
-            // // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Reflexão sobre o Mercado',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p><b>REFLEXÃO SOBRE O MERCADO:</b></p>
-            //                 <p>------</p>
-            //                 <p>Você sabe qual é a maior força da natureza?</p>
-            //                 <p>A <b>Lei de Mercado</b>. Ou seja, a Lei de <b>Oferta e Demanda</b>.</p>
-            //                 <p>Quando observamos esta lei aplicada as nossas vidas profissionais, vemos que o mercado de trabalho está cheio de oportunidades.</p>
-            //                 <p>Por exemplo...</p>
-            //                 <p>Recentemente nós fizemos um estudo em nossos stories, com pouco mais de 10.000 pessoas.</p>
-            //                 <p>Ali, nós colocamos em sequência as 10 perguntas mais básicas que existem sobre Gestão, com alternativas de múltipla escolha.</p>
-            //                 <p>Eram perguntas como "Qual é a Equação Fundamental da Gestão?" ou "Qual é o Primeiro Princípio do Método Gerencial?".</p>
-            //                 <p>O resultado? 99,6% das pessoas não acertaram nem a metade destas perguntas.</p>
-            //                 <p>Isto mostra a <b>absoluta escassez</b> de pessoas que dominam Gestão no mercado de trabalho brasileiro.</p>
-            //                 <p>Por outro lado, existem cerca de 800 mil empresas de médio e grande porte em nosso país.</p>
-            //                 <p>E a infinita maioria delas não só precisa melhorar urgentemente a própria gestão, como tem a plena consciência disto.</p>
-            //                 <p>Em outras palavras, no Brasil existe também <b>enorme demanda</b> por gente que saiba Gestão de verdade (gente que não só saiba teorias soltas e desconexas, mas que domine o software, a ferramenta, a implementação... A prática!).</p>
-            //                 <p>E isto é uma excelente notícia sabe para quem?</p>
-            //                 <p>Para você!</p>
-            //                 <p>Pois onde há escassez de gente bem preparada e enorme demanda por estas pessoas... Há <b>oportunidade</b>.</p>
-            //                 <p>Oportunidade para crescer na carreira, se destacar e disputar melhores cargos e salários.</p>
-            //                 <p>------</p>
-            //                 <p>Com isto, lembramos que a Turma de Black Friday do Preparatório em Gestão Generalista está com <a href="https://ivygestao.com/" target="_blank">inscrições abertas</a> <b>só até quarta-feira (04/dez) às 23:59</b>.</p>
-            //                 <p>Saiba mais <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-                
-            // })
-
-            // // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Black Friday: Inscrições Encerram AMANHÃ!',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Boa tarde ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>As <a href="https://ivygestao.com/" target="_blank">inscrições</a> para a Turma de Black Friday do Preparatório em Gestão Generalista <u><b>encerram amanhã</b></u>, quarta-feira (04/dez) às 23:59.</p>
-            //                 <p>Lembramos que esta é a <b>última turma de 2024</b>.</p>
-            //                 <p>Não perca a oportunidade de aprender Método Gerencial, a habilidade mais importante para o seu crescimento no mundo corporativo, de forma prática, objetiva e guiada pelo uso de softwares e cases reais.</p>
-            //                 <p>Se inscreva <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-                
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Black Friday: Inscrições Encerram HOJE!',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Olá ${ProcessamentoLeads_PrimeiroNome},</p>
-            //                 <p>As <a href="https://ivygestao.com/" target="_blank">inscrições</a> para a Turma de Black Friday do Preparatório em Gestão Generalista <u><b>encerram hoje</b></u>, quarta-feira (04/dez) às 23:59.</p>
-            //                 <p>Importante: esta é a <b>última turma de 2024</b>.</p>
-            //                 <p>Se você deseja aprender Gestão Generalista (a competência central ao seu crescimento de carreira) de forma prática, objetiva e voltada à aplicação de softwares e cases reais, se inscreva <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
-            //                 <p>Qualquer dúvida ou insegurança, à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-            //     }
-                
-            // })
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
                 message: {
-                    subject: 'Ivy - Black Friday: Última Chamada',
+                    subject: 'Ivy - Conteúdo 🎯: A Cultura do Sugar até Espanar',
                     body: {
                         contentType: 'HTML',
                         content: `
                             <p>Olá ${ProcessamentoLeads_PrimeiroNome},</p>
-                            <p>As <a href="https://ivygestao.com/" target="_blank">inscrições</a> para a Turma de Black Friday do Preparatório em Gestão Generalista <u><b>encerram dentro de 1h</b></u>, hoje, quarta-feira (04/dez) às 23:59.</p>
-                            <p>Se inscreva <a href="https://ivygestao.com/" target="_blank">clicando aqui</a>.</p>
+                            <p>Quem escreve é Lucas Machado, fundador da Ivy | Escola de Gestão. Tudo bem?</p>
+                            <p>Passo para compartilhar um conteúdo de extremo valor para profissionais com interesse em Gestão. Espero que traga boas reflexões.</p>
+                            <p>--------------------------------------</p>
+                            <p><b>A CULTURA DO SUGAR ATÉ ESPANAR</b></p>
+                            <p>Não seja ingênuo.</p>
+                            <p>No Brasil, infelizmente, tem muita empresa que adota a cultura do <b>sugar até espanar</b>.</p>
+                            <p>Ou seja.</p>
+                            <p>São empresas que buscam contratar gente que trabalha duro e “pede” pouco, e que sugam estas pessoas ao máximo (sem as contrapartidas coerentes, é claro) até que elas espanem e peçam demissão.</p>
+                            <p>Daí a pessoa é substituída. E o ciclo reinicia.</p>
+                            <p>Por isto, tenha segurança disto: esta é uma cultura <b>medíocre</b>. Isto é a antítese da boa Gestão. Cedo ou tarde estas empresas quebram. E se você for vítima deste ciclo, minha orientação é: não hesite em sair.</p>
+                            <p>--------------------------------------</p>
+                            <p>Caso queira se aprofundar no tema, acompanhe os stories e nosso Canal de Transmissão no Instagram amanhã (sexta, 07/mar).
+                            <p>P.S. Nas próximas semanas traremos mais conteúdos nesta linha.</p>
+                            <p>P.S.2. Idem para informações sobre a próxima turma do Preparatório em Gestão Generalista.</p>
+                            <p>Sempre à disposição</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                    toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
                 }
                 
             })
 
-        }
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
+            console.log(`E-mail ${LinhaAtual + 1} enviado: ${ProcessamentoLeads_PrimeiroNome}`);
+
+        }
+    
     }
+
+    Envia_Email_Leads();
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Envia e-mail de CV em escala para os leads na BD - LEADS.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/leads/email_CV', async (req,res) => {
+    
+    res.status(200).send();
+
+    let { Data_Abertura_Turma } = req.body;
+
+    let [Dia_Abertura_Turma,Mês_Abertura_Turma,Ano_Abertura_Turma] = Data_Abertura_Turma.split("/").map(num => parseInt(num, 10));
+
+    let Dia_da_Semana_Data_Abertura_Turma = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma));
+    
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - LEADS.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    const BD_Leads = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows').get();
+
+    const BD_Leads_Última_Linha = BD_Leads.value.length - 1;
+
+    async function Envia_Email_Leads() {
+    
+        for (let LinhaAtual = 0; LinhaAtual <= BD_Leads_Última_Linha; LinhaAtual++) {
+            
+            Lead_Email = BD_Leads.value[LinhaAtual].values[0][1];
+            Lead_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Cria o evento iCalendar para a Abertura de Turma, com alerta de 1 hora antes do início do encontro.
+
+            const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Abertura de Turma: Preparatório em Gestão Generalista', language: 'PT-BR' } });
+            const event = cal.createEvent({
+                start: new Date(Date.UTC(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma + 1, 1, 0, 0)), // 22:00 BRT
+                end: new Date(Date.UTC(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma + 1, 2, 0, 0)), // 23:00 BRT
+                summary: 'Abertura de Turma',
+                description: 
+`A próxima turma do Preparatório em Gestão Generalista abre 10/abril/2025 (quinta-feira) às 22:00, no horário de Brasília.
+Acesse este link para adquirir o serviço: https://ivygestao.com/`,
+                uid: `${new Date().getTime()}@ivyroom.com.br`,
+                stamp: new Date()
+            });
+
+            event.createAlarm({
+                type: 'display',
+                trigger: 1 * 60 * 60 * 1000,
+                description: 'Ivy - Abertura de Turma: Falta 1 hora.'
+            });
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+
+                message: {
+                    subject: 'Ivy - Próxima Turma do Preparatório em Gestão Generalista: 10/abril 22:00',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p>Olá ${Lead_PrimeiroNome},</p>
+                            <p>É com satisfação que informamos que a data de abertura da próxima turma do Preparatório em Gestão Generalista foi definida para:</p> 
+                            <p><b>10/abril/2025 (${Dia_da_Semana_Data_Abertura_Turma}) às 22:00</b>, no horário de Brasília.</p>
+                            <p>Abra o arquivo .ics em anexo para adicionar o evento a sua agenda.</p>
+                            <p>No dia da abertura da turma, você poderá comprar o Preparatório por meio deste link: <a href="https://ivygestao.com/" target="_blank">https://ivygestao.com/</a></p>
+                            <p>Precisamente às 22:00, o botão de "Entrar na Lista de Espera" será substituído pelo botão de compra, que dará acesso ao nosso checkout com diversas modalidades de pagamento e parcelamento.</p>
+                            <p>Lembrando que ofereceremos um <b>bônus exclusivo</b>, muito diferenciado, aos <b>50 primeiros alunos</b>.</p>
+                            <p>Os detalhes também estão <a href="https://ivygestao.com/" target="_blank">neste link</a>.</p>
+                            <p>P.S. Há pouco postamos stories em <a href="https://www.instagram.com/ivy.escoladegestao/" target="_blank">nosso instagram</a> explicando os principais pontos sobre a abertura de turma. Vale conferir.</p>
+                            <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: Lead_Email } }],
+                    attachments: [
+                        {
+                            "@odata.type": "#microsoft.graph.fileAttachment",
+                            name: "Ivy - Abertura de Turma.ics",
+                            contentBytes: Buffer.from(cal.toString()).toString('base64')
+                        }
+                    ]
+                }
+            
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            console.log(`E-mail ${LinhaAtual + 1} enviado: ${Lead_PrimeiroNome}`);
+
+        }
+    
+    }
+
+    Envia_Email_Leads();
 
 });
 
@@ -2302,110 +2271,110 @@ app.post('/alunos/conviteOHs', async (req,res) => {
 
 });
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Envia lembretes para as Office Hours.
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Envia lembretes para as Office Hours.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 
-// app.post('/alunos/lembretesOHs', async (req,res) => {
+app.post('/alunos/lembretesOHs', async (req,res) => {
 
-//     let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
+    let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
 
-//     res.status(200).json({ message: "1. Request recebida." });
+    res.status(200).json({ message: "1. Request recebida." });
 
-//     console.log('1. Request recebida.');
+    console.log('1. Request recebida.');
 
-//     let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
+    let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
 
-//     let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
+    let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
 
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Puxa os dados da BD - OFFICE HOURS.
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - OFFICE HOURS.
     
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-//     const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
-//     //if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "LembreteOHs" }));
+    //if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "LembreteOHs" }));
     
-//     if (BD_Office_Hours !== null) console.log('2. BD - OFFICE HOURS obtida.');
+    if (BD_Office_Hours !== null) console.log('2. BD - OFFICE HOURS obtida.');
 
-//     const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
+    const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
 
-//     let Número_Lembrete_Enviado = 0;
+    let Número_Lembrete_Enviado = 0;
 
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
-//     // Então envia um invite a cada 2s.
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
+    // Então envia um invite a cada 2s.
     
-//     async function Envia_Lembretes_Office_Hours() {
+    async function Envia_Lembretes_Office_Hours() {
 
-//         for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
 
-//             ///////////////////////////////////////////////////////////////////////////////////////////////////
-//             // Puxa as variáveis do aluno da BD - OFFICE HOURS.
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Puxa as variáveis do aluno da BD - OFFICE HOURS.
     
-//             Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
-//             Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
-//             Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
+            Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
+            Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
     
-//             if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
+            if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
     
-//                 Número_Lembrete_Enviado++;
+                Número_Lembrete_Enviado++;
     
-//                 // if (client) client.send(JSON.stringify({ message: `3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "LembreteOHs" }));
+                // if (client) client.send(JSON.stringify({ message: `3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "LembreteOHs" }));
                 
-//                 console.log(`3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+                console.log(`3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
 
-//                 // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
                 
-//                 if (LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`)
+                if (LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`)
     
-//                 ////////////////////////////////////////////////////////////////////////////////////////
-//                 // Envia o e-mail para o aluno na LinhaAtual da BD - OFFICE HOURS.
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Envia o e-mail para o aluno na LinhaAtual da BD - OFFICE HOURS.
     
-//                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-//                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
     
-//                     message: {
-//                         subject: 'Ivy - Lembrete: Office Hours (Atendimento ao Vivo)',
-//                         body: {
-//                             contentType: 'HTML',
-//                             content: `
-//                                 <p>Olá ${Aluno_PrimeiroNome},</p>
-//                                 <p>Reforçamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>hoje, ${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-//                                 <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
-//                                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
-//                                 <p>Atenciosamente,</p>
-//                                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-//                             `
-//                         },
-//                         toRecipients: [{ emailAddress: { address: Aluno_Email } }]
-//                     }
+                    message: {
+                        subject: 'Ivy - Lembrete: Office Hours (Atendimento ao Vivo)',
+                        body: {
+                            contentType: 'HTML',
+                            content: `
+                                <p>Olá ${Aluno_PrimeiroNome},</p>
+                                <p>Reforçamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>hoje, ${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
+                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                                <p>Atenciosamente,</p>
+                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            `
+                        },
+                        toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+                    }
                 
-//                 });
+                });
 
-//                 await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
     
-//             } else {
+            } else {
 
-//                 await new Promise(resolve => setTimeout(resolve, 0));
+                await new Promise(resolve => setTimeout(resolve, 0));
 
-//                 // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
 
-//                 if(LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`);
+                if(LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`);
 
-//             }
+            }
     
-//         }
+        }
 
-//     }
+    }
 
-//     setTimeout(Envia_Lembretes_Office_Hours, 1000);
+    setTimeout(Envia_Lembretes_Office_Hours, 1000);
 
-// });
+});
 
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2879,37 +2848,39 @@ app.post('/meta/CriaCampanhaRL', async (req, res) => {
 
                     let Reel_Criativo_Relacionamento_ID = data.id;
 
-                    if (Reel_Criativo_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '6. Criativo criado.', origin: "CriaCampanhaRL" }));
+                    console.log(response);
+
+                    console.log("-----------");
+
+                    console.log(data);
+
+                    if (Reel_Criativo_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `6. Criativo criado. ${Reel_Criativo_Relacionamento_ID}`, origin: "CriaCampanhaRL" }));
 
                     ///////////////////////////////////////////////////////////////////////////////////////
-                    // Cria o Anúncio (após 1s, para garantir a existência / carregamento do Criativo).
+                    // Cria o Anúncio (após 2s, para garantir a existência / carregamento do Criativo).
                     ///////////////////////////////////////////////////////////////////////////////////////
-
-                    setTimeout(() => {
                         
-                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                name: 'RL.' + Reel_Código,
-                                adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
-                                status: 'ACTIVE',
-                                creative: {creative_id: Reel_Criativo_Relacionamento_ID},
-                                access_token: Meta_Graph_API_Access_Token
-                            })
+                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            name: 'RL.' + Reel_Código,
+                            adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
+                            status: 'ACTIVE',
+                            creative: {creative_id: Reel_Criativo_Relacionamento_ID},
+                            access_token: Meta_Graph_API_Access_Token
                         })
+                    })
 
-                        .then(response => response.json()).then(async data => {
+                    .then(response => response.json()).then(async data => {
 
-                            let Reel_Anúncio_Relacionamento_ID = data.id;
+                        let Reel_Anúncio_Relacionamento_ID = data.id;
 
-                            if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '7. Anúncio criado.', origin: "CriaCampanhaRL" }));
+                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `7. Anúncio criado. ${Reel_Anúncio_Relacionamento_ID}`, origin: "CriaCampanhaRL" }));
 
-                            if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '--- Fim ---', origin: "CriaCampanhaRL" }));
+                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '--- Fim ---', origin: "CriaCampanhaRL" }));
 
-                        });
-
-                    }, 1000);
+                    });
                     
                 });
 
