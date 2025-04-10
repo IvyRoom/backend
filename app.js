@@ -569,9 +569,13 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         email: Email_do_Cliente,
                         document: Campo_de_Preenchimento_CPF_Dígitos,
                         document_type: 'CPF',
-                        country_code: 55,
-                        area_code: Campo_de_Preenchimento_DDD,
-                        number: Campo_de_Preenchimento_Celular_Dígitos
+                        phones: {
+                            mobile_phone: {
+                                country_code: 55,
+                                area_code: Campo_de_Preenchimento_DDD,
+                                number: Campo_de_Preenchimento_Celular_Dígitos
+                            }
+                        }
                     },
                     shipping: {
                         amount: 0,
@@ -1252,9 +1256,13 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         email: Email_do_Cliente,
                         document: Campo_de_Preenchimento_CPF_Dígitos,
                         document_type: 'CPF',
-                        country_code: 55,
-                        area_code: Campo_de_Preenchimento_DDD,
-                        number: Campo_de_Preenchimento_Celular_Dígitos
+                        phones: {
+                            mobile_phone: {
+                                country_code: 55,
+                                area_code: Campo_de_Preenchimento_DDD,
+                                number: Campo_de_Preenchimento_Celular_Dígitos
+                            }
+                        }
                     },
                     shipping: {
                         amount: 0,
@@ -1979,20 +1987,18 @@ Acesse este link para adquirir o serviço: https://ivygestao.com/`,
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
 
                 message: {
-                    subject: 'Ivy - Próxima Turma do Preparatório em Gestão Generalista: 10/abril 22:00',
+                    subject: 'Ivy - 🔥🔥🔥 É AMANHÃ 🔥🔥🔥',
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>Olá ${Lead_PrimeiroNome},</p>
-                            <p>É com satisfação que informamos que a data de abertura da próxima turma do Preparatório em Gestão Generalista foi definida para:</p> 
-                            <p><b>10/abril/2025 (${Dia_da_Semana_Data_Abertura_Turma}) às 22:00</b>, no horário de Brasília.</p>
-                            <p>Abra o arquivo .ics em anexo para adicionar o evento a sua agenda.</p>
-                            <p>No dia da abertura da turma, você poderá comprar o Preparatório por meio deste link: <a href="https://ivygestao.com/" target="_blank">https://ivygestao.com/</a></p>
-                            <p>Precisamente às 22:00, o botão de "Entrar na Lista de Espera" será substituído pelo botão de compra, que dará acesso ao nosso checkout com diversas modalidades de pagamento e parcelamento.</p>
-                            <p>Lembrando que ofereceremos um <b>bônus exclusivo</b>, muito diferenciado, aos <b>50 primeiros alunos</b>.</p>
-                            <p>Os detalhes também estão <a href="https://ivygestao.com/" target="_blank">neste link</a>.</p>
-                            <p>P.S. Há pouco postamos stories em <a href="https://www.instagram.com/ivy.escoladegestao/" target="_blank">nosso instagram</a> explicando os principais pontos sobre a abertura de turma. Vale conferir.</p>
-                            <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                            <p>“O conhecimento que eu adquiri com o Lucas e com a Ivy, de verdade assim... Teve um impacto muito direto na minha carreira. Eu fui promovida pro meu primeiro cargo de gestão meses depois de ter terminado o Prep. E o meu salário quase dobrou nesse processo. O Prep transformou assim... A minha visão do todo. A forma não só como eu enxergo o meu trabalho, o funcionamento da empresa, as funções de cada cargo. Mas eu acho que... Os processos, principalmente. É até estranho falar, assim... Mas eu não sei como que a gente trabalhava antes de ter este conhecimento. Essas ferramentas, os cases. O Prep entrega muito, assim. Muito mais do que eu imaginava. É uma virada de chave. Isso aqui muda o jogo mesmo.”</p>
+                            <p>O depoimento acima foi dado em 2022 pela Bruna T. Resende, ex-aluna do Prep e atual diretora do Instituto Semear (uma das maiores ONGs de educação do Brasil).</p>
+                            <p>E este não é um caso isolado. Pelo contrário. Como vocês viram recentemente em nosso Instagram... Ao longo dos anos, tivemos centenas de pessoas compartilhando experiências similares (ver Seção 4 do <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>).</p>
+                            <p>Agora é a sua vez.</p>
+                            <p>A nova turma do Preparatório em Gestão Generalista abre <b>amanhã (quinta, 10/abril, às 22:00)</b>, pelo nosso <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>.</p>
+                            <p>Se tiver dúvidas, mande em resposta a este e-mail.</p>
+                            <p>P.S. Abra o arquivo .ics em anexo para adicionar o evento da abertura de turma a sua agenda.</p>
+                            <p>Nos vemos na amanhã! 📚🚀</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
@@ -2020,7 +2026,6 @@ Acesse este link para adquirir o serviço: https://ivygestao.com/`,
     Envia_Email_Leads();
 
 });
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
