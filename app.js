@@ -787,9 +787,13 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         email: Email_do_Cliente,
                         document: Campo_de_Preenchimento_CPF_Dígitos,
                         document_type: 'CPF',
-                        country_code: 55,
-                        area_code: Campo_de_Preenchimento_DDD,
-                        number: Campo_de_Preenchimento_Celular_Dígitos
+                        phones: {
+                            mobile_phone: {
+                                country_code: 55,
+                                area_code: Campo_de_Preenchimento_DDD,
+                                number: Campo_de_Preenchimento_Celular_Dígitos
+                            }
+                        }
                     },
                     shipping: {
                         amount: 0,
@@ -1016,9 +1020,13 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         email: Email_do_Cliente,
                         document: Campo_de_Preenchimento_CPF_Dígitos,
                         document_type: 'CPF',
-                        country_code: 55,
-                        area_code: Campo_de_Preenchimento_DDD,
-                        number: Campo_de_Preenchimento_Celular_Dígitos
+                        phones: {
+                            mobile_phone: {
+                                country_code: 55,
+                                area_code: Campo_de_Preenchimento_DDD,
+                                number: Campo_de_Preenchimento_Celular_Dígitos
+                            }
+                        }
                     },
                     shipping: {
                         amount: 0,
@@ -1337,9 +1345,13 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                                 email: Email_do_Cliente,
                                 document: Campo_de_Preenchimento_CPF_Dígitos,
                                 document_type: 'CPF',
-                                country_code: 55,
-                                area_code: Campo_de_Preenchimento_DDD,
-                                number: Campo_de_Preenchimento_Celular_Dígitos
+                                phones: {
+                                    mobile_phone: {
+                                        country_code: 55,
+                                        area_code: Campo_de_Preenchimento_DDD,
+                                        number: Campo_de_Preenchimento_Celular_Dígitos
+                                    }
+                                }
                             },
                             shipping: {
                                 amount: 0,
@@ -1987,18 +1999,13 @@ Acesse este link para adquirir o serviço: https://ivygestao.com/`,
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
 
                 message: {
-                    subject: 'Ivy - 🔥🔥🔥 É AMANHÃ 🔥🔥🔥',
+                    subject: 'Ivy - 🚨 FALTA 1 HORA 🚨',
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>“O conhecimento que eu adquiri com o Lucas e com a Ivy, de verdade assim... Teve um impacto muito direto na minha carreira. Eu fui promovida pro meu primeiro cargo de gestão meses depois de ter terminado o Prep. E o meu salário quase dobrou nesse processo. O Prep transformou assim... A minha visão do todo. A forma não só como eu enxergo o meu trabalho, o funcionamento da empresa, as funções de cada cargo. Mas eu acho que... Os processos, principalmente. É até estranho falar, assim... Mas eu não sei como que a gente trabalhava antes de ter este conhecimento. Essas ferramentas, os cases. O Prep entrega muito, assim. Muito mais do que eu imaginava. É uma virada de chave. Isso aqui muda o jogo mesmo.”</p>
-                            <p>O depoimento acima foi dado em 2022 pela Bruna T. Resende, ex-aluna do Prep e atual diretora do Instituto Semear (uma das maiores ONGs de educação do Brasil).</p>
-                            <p>E este não é um caso isolado. Pelo contrário. Como vocês viram recentemente em nosso Instagram... Ao longo dos anos, tivemos centenas de pessoas compartilhando experiências similares (ver Seção 4 do <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>).</p>
-                            <p>Agora é a sua vez.</p>
-                            <p>A nova turma do Preparatório em Gestão Generalista abre <b>amanhã (quinta, 10/abril, às 22:00)</b>, pelo nosso <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>.</p>
-                            <p>Se tiver dúvidas, mande em resposta a este e-mail.</p>
-                            <p>P.S. Abra o arquivo .ics em anexo para adicionar o evento da abertura de turma a sua agenda.</p>
-                            <p>Nos vemos na amanhã! 📚🚀</p>
+                            <p>Boa noite ${Lead_PrimeiroNome},</p>
+                            <p>A turma do Preparatório em Gestão Generalista abre precisamente <b>dentro de 1h</b> (hoje, quinta-feira, 10/abril, às 22:00) por meio do nosso <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>.</p>
+                            <p>Dúvidas? Mande em resposta a este e-mail ou por Direct no Instagram.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
@@ -2015,7 +2022,7 @@ Acesse este link para adquirir o serviço: https://ivygestao.com/`,
             
             });
 
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             console.log(`E-mail ${LinhaAtual + 1} enviado: ${Lead_PrimeiroNome}`);
 
