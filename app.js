@@ -2573,7 +2573,7 @@ app.post('/meta/postar', async (req, res) => {
 
                             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
                             
-                            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `-`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null ]]})
+                            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null, null, null, null ]]})
                             
                             .then(async response => {
 
@@ -2728,220 +2728,6 @@ app.post('/meta/postar', async (req, res) => {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint: Cria Campanha de RL
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/meta/CriaCampanhaRL', async (req, res) => {
-
-    let { Reel_Código } = req.body;
-
-    res.status(200).json({ message: "1. Request recebida." });
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Obtém os dados do Reel.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-    let BD_Resultados_RL = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // Obtém o Reel_IG_Media_ID e obtém o Reel_Audience_ID.
-
-    let Index_Verificado = 0;
-    let Reel_Código_Verificado;
-    let Reel_IG_Media_ID;
-    let Reel_Audience_ID;
-
-    Obtém_Dados_Reel();
-
-    function Obtém_Dados_Reel() {
-
-        Reel_Código_Verificado = BD_Resultados_RL.value[Index_Verificado].values[0][0];
-
-        if (Reel_Código_Verificado === Reel_Código) {
-
-            Reel_IG_Media_ID =  BD_Resultados_RL.value[Index_Verificado].values[0][1];
-            Reel_Audience_ID = BD_Resultados_RL.value[Index_Verificado].values[0][2];
-
-
-            if(client) client.send(JSON.stringify({ message: `2. Reel_IG_Media_ID e Reel_Audience_ID encontrados.`, origin: "CriaCampanhaRL" }));
-        
-        } else {
-
-            Index_Verificado++;
-            Obtém_Dados_Reel();
-
-        }
-    
-    }  
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Cria a Campanha.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/campaigns`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            name: 'RL.' + Reel_Código,
-            status: 'ACTIVE',
-            buying_type: 'AUCTION',
-            objective: 'OUTCOME_ENGAGEMENT',
-            special_ad_categories: [],
-            campaign_budget_optimization: false,
-            is_ab_test: false,
-            access_token: Meta_Graph_API_Access_Token
-        })
-    })
-
-    .then(response => response.json()).then(async data => {
-
-        let Reel_Campanha_Relacionamento_ID = data.id;
-
-        if(Reel_Campanha_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `3. Campanha de RL criada.`, origin: "CriaCampanhaRL" }));
-
-        ///////////////////////////////////////////////////////////////////////////////////////
-        // Obtém o orçamento mínimo diário atualizado, em BRL,
-        // para setar o Orçamento do Conjunto de Anúncios.
-        ///////////////////////////////////////////////////////////////////////////////////////
-
-        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}?fields=min_daily_budget`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-            }
-        })
-
-        .then(response => response.json()).then(data => {
-
-            let Reel_Conjunto_Anuncios_Orçamento = data.min_daily_budget;
-
-            if(Reel_Conjunto_Anuncios_Orçamento !== null && client) client.send(JSON.stringify({ message: `4. Orçamento do Conjunto de Anúncios obtido.`, origin: "CriaCampanhaRL" }));
-
-            ///////////////////////////////////////////////////////////////////////////////////////
-            // Cria o Conjunto de Anúncios.
-            ///////////////////////////////////////////////////////////////////////////////////////
-
-            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/adsets`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    status: 'ACTIVE',
-                    campaign_id: Reel_Campanha_Relacionamento_ID,
-                    name: 'RL.' + Reel_Código,
-                    destination_type: 'ON_VIDEO',
-                    optimization_goal: 'THRUPLAY',
-                    frequency_control_specs: [{
-                        event:'IMPRESSIONS',
-                        interval_days: 90,
-                        max_frequency: 1
-                    }],
-                    daily_budget: Reel_Conjunto_Anuncios_Orçamento,
-                    billing_event: 'IMPRESSIONS',
-                    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-                    start_time: Math.floor(Date.now() / 1000),
-                    targeting:{
-                        "geo_locations": {
-                            "countries":["BR"]
-                        },
-                        "age_min":18,
-                        "age_max":65,
-                        "custom_audiences": [{"id": Meta_Graph_API_Custom_Audience_ID_Seguidores}],
-                        "excluded_custom_audiences": [{"id": Reel_Audience_ID}],
-                        "targeting_relaxation_types": {
-                            "lookalike": 0,
-                            "custom_audience": 0
-                        },
-                        "publisher_platforms": ["instagram"],
-                        "instagram_positions": ["stream","profile_reels","explore","reels", "explore_home", "profile_feed"]
-                    },
-                    access_token: Meta_Graph_API_Access_Token
-                })
-            })
-
-            .then(response => response.json()).then(async data => {
-
-                let Reel_Conjunto_Anuncios_Relacionamento_ID = data.id;
-
-                if (Reel_Conjunto_Anuncios_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `5. Conjunto de Anúncios criado.`, origin: "CriaCampanhaRL" }));
-
-                ///////////////////////////////////////////////////////////////////////////////////////
-                // Cria o Criativo.
-                ///////////////////////////////////////////////////////////////////////////////////////
-
-                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/adcreatives`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        object_id: Meta_Graph_API_Facebook_Page_ID,
-                        instagram_user_id: Meta_Graph_API_Instagram_Business_Account_ID,
-                        source_instagram_media_id: Reel_IG_Media_ID,
-                        call_to_action: {
-                            type: 'LEARN_MORE',
-                            value: {
-                                link: 'https://ivygestao.com/'
-                            }
-                        },
-                        contextual_multi_ads: {
-                            enroll_status: 'OPT_OUT'
-                        },
-                        access_token: Meta_Graph_API_Access_Token
-                    })
-                })
-
-                .then(response => response.json()).then(async data => {
-
-                    let Reel_Criativo_Relacionamento_ID = data.id;
-
-                    console.log(response);
-
-                    console.log("-----------");
-
-                    console.log(data);
-
-                    if (Reel_Criativo_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `6. Criativo criado. ${Reel_Criativo_Relacionamento_ID}`, origin: "CriaCampanhaRL" }));
-
-                    ///////////////////////////////////////////////////////////////////////////////////////
-                    // Cria o Anúncio (após 2s, para garantir a existência / carregamento do Criativo).
-                    ///////////////////////////////////////////////////////////////////////////////////////
-                        
-                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/ads`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            name: 'RL.' + Reel_Código,
-                            adset_id: Reel_Conjunto_Anuncios_Relacionamento_ID,
-                            status: 'ACTIVE',
-                            creative: {creative_id: Reel_Criativo_Relacionamento_ID},
-                            access_token: Meta_Graph_API_Access_Token
-                        })
-                    })
-
-                    .then(response => response.json()).then(async data => {
-
-                        let Reel_Anúncio_Relacionamento_ID = data.id;
-
-                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: `7. Anúncio criado. ${Reel_Anúncio_Relacionamento_ID}`, origin: "CriaCampanhaRL" }));
-
-                        if (Reel_Anúncio_Relacionamento_ID !== null && client) client.send(JSON.stringify({ message: '--- Fim ---', origin: "CriaCampanhaRL" }));
-
-                    });
-                    
-                });
-
-            });
-
-        });
-
-    });
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
 // Endpoint: Registra os Desempenhos Orgânicos de 5% e de 72h.
 // ---> Acionado pela function01.js uma vez a cada 10min <--- 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2973,9 +2759,9 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
     for (let LinhaVerificada = 0; LinhaVerificada <= BD_Resultados_RL_Última_Linha; LinhaVerificada++) {
 
         let Reel_IG_Media_ID = BD_Resultados_RL.value[LinhaVerificada].values[0][1];
-        let Reel_Data_e_Hora_Postagem = ConverteData4(BD_Resultados_RL.value[LinhaVerificada].values[0][3]);
-        let Reel_Número_de_Seguidores_Momento_Postagem = BD_Resultados_RL.value[LinhaVerificada].values[0][4];
-        let Reel_Contas_Alcançadas_5Porcento_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][5];
+        let Reel_Data_e_Hora_Postagem = ConverteData4(BD_Resultados_RL.value[LinhaVerificada].values[0][2]);
+        let Reel_Número_de_Seguidores_Momento_Postagem = BD_Resultados_RL.value[LinhaVerificada].values[0][3];
+        let Reel_Contas_Alcançadas_5Porcento_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][4];
         let Reel_Contas_Alcançadas_72Horas_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][7];
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3005,7 +2791,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null ]]})
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null, null, null, null ]]})
 
                 } 
 
@@ -3041,7 +2827,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual ]]});
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
                     
                 } 
                 
@@ -3054,7 +2840,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
                     
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual ]]});
+                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
                     
                 }
 
