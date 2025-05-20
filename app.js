@@ -141,11 +141,8 @@ const Meta_Graph_API_Ad_Account_ID = process.env.META_GRAPH_API_AD_ACCOUNT_ID;
 const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_CUSTOM_AUDIENCE_ID_SEGUIDORES;
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Cria as variáveis de interface com o Meta Conversions API.
 ////////////////////////////////////////////////////////////////////////////////////////
 
-const Meta_Dataset_ID = process.env.META_DATASET_ID;
-const Meta_Conversions_API_Access_Token = process.env.META_CONVERSIONS_API_ACCESS_TOKEN;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Cria as variáveis de interface com o API da Pagar.Me.
@@ -175,80 +172,6 @@ const PagaLeve_API_Secret = process.env.PAGALEVE_API_SECRET;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.use('/img', express.static('img'));
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint: Registra junto à Meta a Visualização da Página Principal.
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/landingpage/meta/viewcontent', async (req, res) => {
-    
-    let { 
-    
-        Meta_Server_Event_Parameter_Event_Name, 
-        Meta_Server_Event_Parameter_Event_Time,
-        Meta_Server_Event_Parameter_Event_Source_Url,
-        Meta_Server_Event_Parameter_Opt_Out, 
-        Meta_Server_Event_Parameter_Event_ID, 
-        Meta_Server_Event_Parameter_Action_Source, 
-        Meta_Server_Event_Parameter_Data_Processing_Options,
-        Meta_Customer_Information_Parameter_Country_NotHashed,
-        Meta_Customer_Information_Parameter_External_ID_NotHashed,
-        Meta_Customer_Information_Parameter_Client_User_Agent,
-        Meta_Customer_Information_Parameter_fbc,
-        Meta_Customer_Information_Parameter_fbp
-    
-    } = req.body;
-
-    let Meta_Customer_Information_Parameter_Client_IP_Address = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    let Meta_Customer_Information_Parameter_Facebook_Page_ID = Meta_Graph_API_Facebook_Page_ID;
-
-    let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
-    let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
-
-    res.status(200).json();
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Envia os dados do visitante ao Meta Conversions API.
-    ///////////////////////////////////////////////////////////////////////////////////////
-    
-    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Dataset_ID}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            data: [
-                {
-                    event_name: Meta_Server_Event_Parameter_Event_Name,
-                    event_time: Meta_Server_Event_Parameter_Event_Time,
-                    event_source_url: Meta_Server_Event_Parameter_Event_Source_Url,
-                    opt_out: Meta_Server_Event_Parameter_Opt_Out,
-                    event_id: Meta_Server_Event_Parameter_Event_ID,
-                    action_source: Meta_Server_Event_Parameter_Action_Source,
-                    data_processing_options: Meta_Server_Event_Parameter_Data_Processing_Options,
-                    user_data: {
-                        country: Meta_Customer_Information_Parameter_Country_Hashed,
-                        external_id: Meta_Customer_Information_Parameter_External_ID_Hashed,
-                        client_ip_address: Meta_Customer_Information_Parameter_Client_IP_Address,
-                        client_user_agent: Meta_Customer_Information_Parameter_Client_User_Agent,
-                        fbc: Meta_Customer_Information_Parameter_fbc,
-                        fbp: Meta_Customer_Information_Parameter_fbp,
-                        page_id: Meta_Customer_Information_Parameter_Facebook_Page_ID
-                    }
-                }
-            ],
-            access_token: Meta_Conversions_API_Access_Token
-        })
-    })
-
-    .then(response => {
-        console.log(response.status);
-    })
-    
-    .catch(error => {
-        console.error(error);
-    });
-
-});
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Endpoint que processa submissão do formulário de cadastro.
@@ -320,7 +243,7 @@ app.post('/landingpage/cadastro', async (req, res) => {
 
         Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows')
         
-            .post({"values": [[ConverteData2(new Date()), Lead_Email, Lead_NomeCompleto, "TURMA #1 2025"]]})
+            .post({"values": [[ConverteData2(new Date()), Lead_Email, Lead_NomeCompleto, "TURMA #2 2025"]]})
 
             .then(() => {
 
@@ -334,89 +257,6 @@ app.post('/landingpage/cadastro', async (req, res) => {
         
         res.status(400).send();
 
-    });
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint: Registra junto à Meta a Geração do Lead.
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/landingpage/meta/lead', async (req, res) => {
-    
-    let { 
-    
-        Meta_Server_Event_Parameter_Event_Name, 
-        Meta_Server_Event_Parameter_Event_Time,
-        Meta_Server_Event_Parameter_Event_Source_Url,
-        Meta_Server_Event_Parameter_Opt_Out, 
-        Meta_Server_Event_Parameter_Event_ID, 
-        Meta_Server_Event_Parameter_Action_Source, 
-        Meta_Server_Event_Parameter_Data_Processing_Options,
-
-        Meta_Customer_Information_Parameter_Email_NotHashed,
-        Meta_Customer_Information_Parameter_First_Name_NotHashed,
-        Meta_Customer_Information_Parameter_Last_Name_NotHashed,
-        Meta_Customer_Information_Parameter_Country_NotHashed,
-        Meta_Customer_Information_Parameter_External_ID_NotHashed,
-        Meta_Customer_Information_Parameter_Client_User_Agent,
-        Meta_Customer_Information_Parameter_fbc,
-        Meta_Customer_Information_Parameter_fbp
-    
-    } = req.body;
-
-    let Meta_Customer_Information_Parameter_Client_IP_Address = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    let Meta_Customer_Information_Parameter_Facebook_Page_ID = Meta_Graph_API_Facebook_Page_ID;
-
-    let Meta_Customer_Information_Parameter_Email_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Email_NotHashed).digest('hex');
-    let Meta_Customer_Information_Parameter_First_Name_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_First_Name_NotHashed).digest('hex');
-    let Meta_Customer_Information_Parameter_Last_Name_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Last_Name_NotHashed).digest('hex');
-    let Meta_Customer_Information_Parameter_Country_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_Country_NotHashed).digest('hex');
-    let Meta_Customer_Information_Parameter_External_ID_Hashed = crypto.createHash('sha256').update(Meta_Customer_Information_Parameter_External_ID_NotHashed).digest('hex');
-    
-    res.status(200).json();
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Envia os dados do Lead ao Meta Conversions API.
-    ///////////////////////////////////////////////////////////////////////////////////////
-    
-    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Dataset_ID}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            data: [
-                {
-                    event_name: Meta_Server_Event_Parameter_Event_Name,
-                    event_time: Meta_Server_Event_Parameter_Event_Time,
-                    event_source_url: Meta_Server_Event_Parameter_Event_Source_Url,
-                    opt_out: Meta_Server_Event_Parameter_Opt_Out,
-                    event_id: Meta_Server_Event_Parameter_Event_ID,
-                    action_source: Meta_Server_Event_Parameter_Action_Source,
-                    data_processing_options: Meta_Server_Event_Parameter_Data_Processing_Options,
-                    user_data: {
-                        em: Meta_Customer_Information_Parameter_Email_Hashed,
-                        fn: Meta_Customer_Information_Parameter_First_Name_Hashed,
-                        ln: Meta_Customer_Information_Parameter_Last_Name_Hashed,
-                        country: Meta_Customer_Information_Parameter_Country_Hashed,
-                        external_id: Meta_Customer_Information_Parameter_External_ID_Hashed,
-                        client_ip_address: Meta_Customer_Information_Parameter_Client_IP_Address,
-                        client_user_agent: Meta_Customer_Information_Parameter_Client_User_Agent,
-                        fbc: Meta_Customer_Information_Parameter_fbc,
-                        fbp: Meta_Customer_Information_Parameter_fbp,
-                        page_id: Meta_Customer_Information_Parameter_Facebook_Page_ID
-                    }
-                }
-            ],
-            access_token: Meta_Conversions_API_Access_Token
-        })
-    })
-
-    .then(response => {
-        console.log(response.status);
-    })
-    
-    .catch(error => {
-        console.error(error);
     });
 
 });
@@ -1948,12 +1788,6 @@ app.post('/leads/email_CV', async (req,res) => {
     
     res.status(200).send();
 
-    let { Data_Abertura_Turma } = req.body;
-
-    let [Dia_Abertura_Turma,Mês_Abertura_Turma,Ano_Abertura_Turma] = Data_Abertura_Turma.split("/").map(num => parseInt(num, 10));
-
-    let Dia_da_Semana_Data_Abertura_Turma = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma));
-    
     ////////////////////////////////////////////////////////////////////////////////////////
     // Puxa os dados da BD - LEADS.
     
@@ -1970,27 +1804,6 @@ app.post('/leads/email_CV', async (req,res) => {
             Lead_Email = BD_Leads.value[LinhaAtual].values[0][1];
             Lead_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
 
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Cria o evento iCalendar para a Abertura de Turma, com alerta de 1 hora antes do início do encontro.
-
-            const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Abertura de Turma: Preparatório em Gestão Generalista', language: 'PT-BR' } });
-            const event = cal.createEvent({
-                start: new Date(Date.UTC(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma + 1, 1, 0, 0)), // 22:00 BRT
-                end: new Date(Date.UTC(Ano_Abertura_Turma, Mês_Abertura_Turma - 1, Dia_Abertura_Turma + 1, 2, 0, 0)), // 23:00 BRT
-                summary: 'Abertura de Turma',
-                description: 
-`A próxima turma do Preparatório em Gestão Generalista abre 10/abril/2025 (quinta-feira) às 22:00, no horário de Brasília.
-Acesse este link para adquirir o serviço: https://ivygestao.com/`,
-                uid: `${new Date().getTime()}@ivyroom.com.br`,
-                stamp: new Date()
-            });
-
-            event.createAlarm({
-                type: 'display',
-                trigger: 1 * 60 * 60 * 1000,
-                description: 'Ivy - Abertura de Turma: Falta 1 hora.'
-            });
-
             ////////////////////////////////////////////////////////////////////////////////////////
             // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
 
@@ -1999,25 +1812,20 @@ Acesse este link para adquirir o serviço: https://ivygestao.com/`,
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
 
                 message: {
-                    subject: 'Ivy - 🚨 FALTA 1 HORA 🚨',
+                    subject: 'Ivy - 🚨ÚLTIMA CHAMADA🚨',
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>Boa noite ${Lead_PrimeiroNome},</p>
-                            <p>A turma do Preparatório em Gestão Generalista abre precisamente <b>dentro de 1h</b> (hoje, quinta-feira, 10/abril, às 22:00) por meio do nosso <a href="https://ivygestao.com/" target="_blank">Link da Bio</a>.</p>
-                            <p>Dúvidas? Mande em resposta a este e-mail ou por Direct no Instagram.</p>
+                            <p>Última chamada!</p>
+                            <p>As inscrições para a próxima turma do Prep. Gestão Generalista encerram em menos de 60min (<b>hoje, quarta, 16/abril às 22:00</b> via <a href="https://ivygestao.com/">Link da Bio</a>).</p>
+                            <p>Se você quer construir carreira gerencial, este é um dos momentos mais importantes em toda a sua trajetória.</p>
+                            <p>Não deixe a oportunidade passar.</p>
+                            <p>Dúvidas em resposta a este e-mail.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: Lead_Email } }],
-                    attachments: [
-                        {
-                            "@odata.type": "#microsoft.graph.fileAttachment",
-                            name: "Ivy - Abertura de Turma.ics",
-                            contentBytes: Buffer.from(cal.toString()).toString('base64')
-                        }
-                    ]
+                    toRecipients: [{ emailAddress: { address: Lead_Email } }]
                 }
             
             });
@@ -2277,32 +2085,30 @@ app.post('/alunos/envioemail', async (req,res) => {
 
 });
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia convites para as Office Hours.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
+app.post('/alunos/envioemail02', async (req,res) => {
 
-app.post('/alunos/conviteOHs', async (req,res) => {
-
-    let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
+    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
     
-    res.status(200).json({ message: "1. Request recebida." });
+    //res.status(200).json({ message: "1. Request recebida." });
 
-    let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
+    console.log(`1. Request recebida.`);
 
-    let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
+    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
+
+    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - OFFICE HOURS.
+    // Puxa os dados da BD - ATENDIMENTOS.
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
-    if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "ConviteOHs" }));
+    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
     
-    const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
+    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
+
+    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
 
     let Número_Invite_Enviado = 0;
 
@@ -2310,33 +2116,37 @@ app.post('/alunos/conviteOHs', async (req,res) => {
     // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
     // Então envia um invite a cada 2s.
     
-    async function Envia_Invites_Office_Hours() {
+    async function Envia_Invites_Atendimentos() {
 
-        for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 256; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - OFFICE HOURS.
+            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
     
-            Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
-            Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
+            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
+            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
     
-            if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
+            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
     
                 Número_Invite_Enviado++;
     
-                if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteOHs" }));
+                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
     
-                if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteOHs" }));
-    
+                console.log(`3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+                
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
+                
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+
                 ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Cria o evento iCalendar para as Office Hours, com alerta de 1 hora antes do início do encontro.
+                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
     
-                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Office Hours', language: 'PT-BR' } });
+                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Atendimentos', language: 'PT-BR' } });
                 const event = cal.createEvent({
-                    start: new Date(Date.UTC(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours, 21, 30, 0)), // 18:30 BRT
-                    end: new Date(Date.UTC(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours, 23, 0, 0)), // 20:00 BRT
-                    summary: 'Office Hours',
+                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
+                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
+                    summary: 'Atendimento ao Vivo',
                     description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
                     uid: `${new Date().getTime()}@ivyroom.com.br`,
                     stamp: new Date()
@@ -2345,26 +2155,32 @@ app.post('/alunos/conviteOHs', async (req,res) => {
                 event.createAlarm({
                     type: 'display',
                     trigger: 1 * 60 * 60 * 1000,
-                    description: 'Office Hours (Ivy) - Inicia em 1 hora.'
+                    description: 'Atendimento ao Vivo (Ivy) - Inicia em 1 hora.'
                 });
     
                 ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
+                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
     
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
     
                     message: {
-                        subject: 'Ivy - Convite: Office Hours (Atendimento ao Vivo)',
+                        subject: 'Ivy - Atualizações: Bônus e Atendimentos ao Vivo',
                         body: {
                             contentType: 'HTML',
                             content: `
-                                <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Informamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
-                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
-                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                                <p>Bom dia ${Aluno_PrimeiroNome},</p>
+                                <p>Passamos para atualizá-los sobre dois temas importantes:<br><br></p>
+                                <p><b>1. BÔNUS</b></p>
+                                <p>Todos os bônus já foram preparados e embalados para expedição. Para alunos com endereço cadastrado em:</p>
+                                <p><b>• Curitiba/PR e Região Metropolitana:</b> bônus será enviado via Uber Delivery ou Loggi na segunda-feira (28/abril). Fique atento! Entraremos em contato via WhatsApp para alinharmos os detalhes antes do envio.</p>
+                                <p><b>• Demais localidades:</b> bônus já expedido via Correios. Previsão de entrega entre hoje (24/abril) e segunda-feira (28/abril). Monitoramento feito automaticamente por nós via API. Entramos em contato se necessário. Basta aguardar.<br><br></p>
+                                <p><b>2. ATENDIMENTOS AO VIVO</b></p>
+                                <p>O primeiro atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p>Abra o arquivo .ics em anexo e adicione o evento a sua agenda.</p>
+                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.<br><br></p> 
+                                <p>Qualquer dúvida, à disposição.</p>
                                 <p>Atenciosamente,</p>
                                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                             `
@@ -2373,7 +2189,7 @@ app.post('/alunos/conviteOHs', async (req,res) => {
                         attachments: [
                             {
                                 "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Ivy - Office Hours.ics",
+                                name: "Ivy - Atendimento ao Vivo.ics",
                                 contentBytes: Buffer.from(cal.toString()).toString('base64')
                             }
                         ]
@@ -2387,7 +2203,9 @@ app.post('/alunos/conviteOHs', async (req,res) => {
 
                 await new Promise(resolve => setTimeout(resolve, 0));
 
-                if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteOHs" }));
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
+
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
 
             }
     
@@ -2395,40 +2213,172 @@ app.post('/alunos/conviteOHs', async (req,res) => {
 
     }
 
-    setTimeout(Envia_Invites_Office_Hours, 1000);
+    setTimeout(Envia_Invites_Atendimentos, 1000);
 
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Envia lembretes para as Office Hours.
+// Envia convites para os atendimentos ao vivo.
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/alunos/lembretesOHs', async (req,res) => {
+app.post('/alunos/convite-atendimentos', async (req,res) => {
 
-    let { Data_Início_Office_Hours, Link_Microsoft_Teams } = req.body;
+    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
+    
+    //res.status(200).json({ message: "1. Request recebida." });
+
+    console.log(`1. Request recebida.`);
+
+    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
+
+    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - ATENDIMENTOS.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
+    
+    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
+    
+    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
+
+    let Número_Invite_Enviado = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
+    // Então envia um invite a cada 2s.
+    
+    async function Envia_Invites_Atendimentos() {
+
+        for (let LinhaAtual = 147; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
+    
+            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
+            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
+    
+            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
+    
+                Número_Invite_Enviado++;
+    
+                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
+    
+                console.log(`3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+                
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
+                
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+
+                ///////////////////////////////////////////////////////////////////////////////////////////////////
+                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
+    
+                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Atendimentos', language: 'PT-BR' } });
+                const event = cal.createEvent({
+                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
+                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
+                    summary: 'Atendimento ao Vivo',
+                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
+                    uid: `${new Date().getTime()}@ivyroom.com.br`,
+                    stamp: new Date()
+                });
+    
+                event.createAlarm({
+                    type: 'display',
+                    trigger: 1 * 60 * 60 * 1000,
+                    description: 'Atendimento ao Vivo (Ivy) - Inicia em 1 hora.'
+                });
+    
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+    
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+    
+                    message: {
+                        subject: 'Ivy - Convite: Atendimento ao Vivo',
+                        body: {
+                            contentType: 'HTML',
+                            content: `
+                                <p>Olá ${Aluno_PrimeiroNome},</p>
+                                <p>Informamos que o próximo atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
+                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.</p> 
+                                <p>Qualquer dúvida, à disposição.</p>
+                                <p>Atenciosamente,</p>
+                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            `
+                        },
+                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
+                        attachments: [
+                            {
+                                "@odata.type": "#microsoft.graph.fileAttachment",
+                                name: "Ivy - Atendimento ao Vivo.ics",
+                                contentBytes: Buffer.from(cal.toString()).toString('base64')
+                            }
+                        ]
+                    }
+                
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+    
+            } else {
+
+                await new Promise(resolve => setTimeout(resolve, 0));
+
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
+
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+
+            }
+    
+        }
+
+    }
+
+    setTimeout(Envia_Invites_Atendimentos, 1000);
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Envia lembretes para os atendimentos ao vivo.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/alunos/lembretes-atendimentos', async (req,res) => {
+
+    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
 
     res.status(200).json({ message: "1. Request recebida." });
 
     console.log('1. Request recebida.');
 
-    let [Dia_Início_Office_Hours,Mês_Início_Office_Hours,Ano_Início_Office_Hours] = Data_Início_Office_Hours.split("/").map(num => parseInt(num, 10));
+    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
 
-    let Dia_da_Semana_Data_Início_Office_Hours = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Office_Hours, Mês_Início_Office_Hours - 1, Dia_Início_Office_Hours));
+    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - OFFICE HOURS.
+    // Puxa os dados da BD - ATENDIMENTOS.
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    const BD_Office_Hours = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB4MCD3537W3HFGZXYMIIMCN5JQ2/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
     //if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "LembreteOHs" }));
     
-    if (BD_Office_Hours !== null) console.log('2. BD - OFFICE HOURS obtida.');
+    if (BD_Atendimentos !== null) console.log('2. BD - ATENDIMENTOS obtida.');
 
-    const BD_Office_Hours_Última_Linha = BD_Office_Hours.value.length - 1;
+    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
 
     let Número_Lembrete_Enviado = 0;
 
@@ -2436,18 +2386,18 @@ app.post('/alunos/lembretesOHs', async (req,res) => {
     // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
     // Então envia um invite a cada 2s.
     
-    async function Envia_Lembretes_Office_Hours() {
+    async function Envia_Lembretes_Atendimentos() {
 
-        for (let LinhaAtual = 0; LinhaAtual <= BD_Office_Hours_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 146; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - OFFICE HOURS.
+            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
     
-            Aluno_PrimeiroNome = BD_Office_Hours.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Office_Hours.value[LinhaAtual].values[0][2];
-            Aluno_Status_Envio_Convite_Office_Hours = BD_Office_Hours.value[LinhaAtual].values[0][3];
+            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
+            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
     
-            if (Aluno_Status_Envio_Convite_Office_Hours === "SIM") {
+            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
     
                 Número_Lembrete_Enviado++;
     
@@ -2455,25 +2405,25 @@ app.post('/alunos/lembretesOHs', async (req,res) => {
                 
                 console.log(`3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
 
-                // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                // if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
                 
-                if (LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`)
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`)
     
                 ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o aluno na LinhaAtual da BD - OFFICE HOURS.
+                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
     
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
                 await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
     
                     message: {
-                        subject: 'Ivy - Lembrete: Office Hours (Atendimento ao Vivo)',
+                        subject: 'Ivy - Lembrete: Atendimento ao Vivo',
                         body: {
                             contentType: 'HTML',
                             content: `
                                 <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Reforçamos que as próximas Office Hours com o Lucas, nosso fundador, acontecerão <b>hoje, ${Dia_da_Semana_Data_Início_Office_Hours} (${Data_Início_Office_Hours}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais impressos.</p> 
+                                <p>Reforçamos que o próximo atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>hoje, ${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais de suporte ao Preparatório.</p> 
                                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                                 <p>Atenciosamente,</p>
                                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
@@ -2490,9 +2440,9 @@ app.post('/alunos/lembretesOHs', async (req,res) => {
 
                 await new Promise(resolve => setTimeout(resolve, 0));
 
-                // if (LinhaAtual === BD_Office_Hours_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                // if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
 
-                if(LinhaAtual === BD_Office_Hours_Última_Linha) console.log(`--- fim ---`);
+                if(LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
 
             }
     
@@ -2500,7 +2450,7 @@ app.post('/alunos/lembretesOHs', async (req,res) => {
 
     }
 
-    setTimeout(Envia_Lembretes_Office_Hours, 1000);
+    setTimeout(Envia_Lembretes_Atendimentos, 1000);
 
 });
 
@@ -2604,184 +2554,154 @@ app.post('/meta/postar', async (req, res) => {
                         if (Reel_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 4. Reel ID ${Reel_IG_Media_ID} publicado.`, origin: "postar" }));
 
                         ////////////////////////////////////////////////////////////////////////////////////////
-                        // Cria a Custom Audience (Video View 3s) para o Reel.
+                        // Obtém o Número de Seguidores atualizado.
                         ////////////////////////////////////////////////////////////////////////////////////////
 
-                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Ad_Account_ID}/customaudiences`, {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                name: 'Video View 3s - ' + Reel_Código,
-                                description: 'Audiência criada via Meta Graph API.',
-                                subtype: 'ENGAGEMENT',
-                                retention_days: 365,
-                                rule: [{
-                                    event_name: 'video_watched',
-                                    object_id: Reel_IG_Media_ID,
-                                    context_id: Meta_Graph_API_Facebook_Page_ID
-                                }],
-                                prefill: 'true',
-                                access_token: Meta_Graph_API_Access_Token
-                            })
-                        })
+                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+
+                        .then(response => response.json()).then(async data => {
+
+                            let Número_Seguidores = data.followers_count;
+
+                            if (Número_Seguidores !== null && client) client.send(JSON.stringify({ message: `Reels - 5. Número de Seguidores obtido: ${Número_Seguidores}`, origin: "postar" }));
                         
-                        .then(response => response.json()).then(data => {
+                            ///////////////////////////////////////////////////////////////////////////////////////
+                            // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
+                            ///////////////////////////////////////////////////////////////////////////////////////
 
-                            let Reel_Audience_ID = data.id;
+                            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                            if (Reel_Audience_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 5. Audiência ID ${Reel_Audience_ID} criada.`, origin: "postar" }));
-
-                            ////////////////////////////////////////////////////////////////////////////////////////
-                            // Obtém o Número de Seguidores atualizado.
-                            ////////////////////////////////////////////////////////////////////////////////////////
-
-                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-                            .then(response => response.json()).then(async data => {
-
-                                let Número_Seguidores = data.followers_count;
-
-                                if (Número_Seguidores !== null && client) client.send(JSON.stringify({ message: `Reels - 6. Número de Seguidores obtido: ${Número_Seguidores}`, origin: "postar" }));
+                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
                             
-                                ///////////////////////////////////////////////////////////////////////////////////////
-                                // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
-                                ///////////////////////////////////////////////////////////////////////////////////////
+                            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `-`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null ]]})
+                            
+                            .then(async response => {
+
+                                if (client) client.send(JSON.stringify({ message: `Reels - 6. BD - RESULTADOS atualizada.`, origin: "postar" }));
+
+                                /////////////////////////////////////////////////////////////////////////////////////////////////////
+                                // Cria o evento na agenda (calendário) para criação da campanha de DB (72h depois).
+                                /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                                let Horário_Início_Criação_Campanha_DB = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
+                                let Horário_Término_Criação_Campanha_DB = new Date(Horário_Início_Criação_Campanha_DB.getTime() + 60 * 60 * 1000);
 
                                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
-                                
-                                .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, `'${Reel_Audience_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null ]]})
-                                
-                                .then(async response => {
+                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
+                                    
+                                    subject: "CAMPANHA DB - " + Reel_Código,
+                                    
+                                    start: {
+                                        "dateTime": Horário_Início_Criação_Campanha_DB,
+                                        "timeZone": "UTC"
+                                    },
+                                    
+                                    end: {
+                                        "dateTime": Horário_Término_Criação_Campanha_DB,
+                                        "timeZone": "UTC"
+                                    }
+                                    
+                                })
 
-                                    if (client) client.send(JSON.stringify({ message: `Reels - 7. BD - RESULTADOS atualizada.`, origin: "postar" }));
+                                .then(async () => {
 
-                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
-                                    // Cria o evento na agenda (calendário) para criação da campanha de RL (72h depois).
-                                    /////////////////////////////////////////////////////////////////////////////////////////////////////
+                                    if (client) client.send(JSON.stringify({ message: `Reels - 7. Criação da campanha agendada.`, origin: "postar" }));
 
-                                    let Horário_Início_Criação_Campanha_RL = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
-                                    let Horário_Término_Criação_Campanha_RL = new Date(Horário_Início_Criação_Campanha_RL.getTime() + 60 * 60 * 1000);
+                                    ////////////////////////////////////////////////////////////////////////////////////////
+                                    ////////////////////////////////////////////////////////////////////////////////////////
+                                    // Stories: Início do processo de postagem.
+                                    ////////////////////////////////////////////////////////////////////////////////////////
+                                    ////////////////////////////////////////////////////////////////////////////////////////
 
-                                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
-                                        
-                                        subject: "CAMPANHA RL - " + Reel_Código,
-                                        
-                                        start: {
-                                            "dateTime": Horário_Início_Criação_Campanha_RL,
-                                            "timeZone": "UTC"
-                                        },
-                                        
-                                        end: {
-                                            "dateTime": Horário_Término_Criação_Campanha_RL,
-                                            "timeZone": "UTC"
-                                        }
-                                        
-                                    })
-
-                                    .then(async () => {
-
-                                        if (client) client.send(JSON.stringify({ message: `Reels - 8. Criação da campanha agendada.`, origin: "postar" }));
+                                    if (Incluir_Stories === true) {
 
                                         ////////////////////////////////////////////////////////////////////////////////////////
-                                        ////////////////////////////////////////////////////////////////////////////////////////
-                                        // Stories: Início do processo de postagem.
-                                        ////////////////////////////////////////////////////////////////////////////////////////
-                                        ////////////////////////////////////////////////////////////////////////////////////////
+                                        // Cria o Media Container (Stories).
+                                        
+                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
+                                            
+                                            method: 'POST',
+                                            headers: {'Content-Type': 'application/json'},
+                                            
+                                            body: JSON.stringify({
+                                                media_type: 'STORIES',
+                                                video_url: Reel_Video_URL,
+                                                access_token: Meta_Graph_API_Access_Token
+                                            })
+                                        
+                                        })
 
-                                        if (Incluir_Stories === true) {
+                                        .then(response => response.json()).then(data => {
+
+                                            let Stories_IG_Media_Container_ID = data.id;
+
+                                            if (Stories_IG_Media_Container_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`, origin: "postar" }));
 
                                             ////////////////////////////////////////////////////////////////////////////////////////
-                                            // Cria o Media Container (Stories).
+                                            // Verifica o status do Media Container (Stories) a cada 5s.
+
+                                            const VerificaStatusStories = () => {
                                             
-                                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
-                                                
-                                                method: 'POST',
-                                                headers: {'Content-Type': 'application/json'},
-                                                
-                                                body: JSON.stringify({
-                                                    media_type: 'STORIES',
-                                                    video_url: Reel_Video_URL,
-                                                    access_token: Meta_Graph_API_Access_Token
+                                                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
+                                                    method: 'GET',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
+                                                    }
                                                 })
-                                            
-                                            })
+                                    
+                                                .then(response => response.json()).then(data => {
+                                    
+                                                    let Stories_IG_Media_Container_Status = data.status_code;
+                                                    
+                                                    if (Stories_IG_Media_Container_Status === "FINISHED") {
+                                    
+                                                        clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
 
-                                            .then(response => response.json()).then(data => {
+                                                        if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
 
-                                                let Stories_IG_Media_Container_ID = data.id;
-
-                                                if (Stories_IG_Media_Container_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`, origin: "postar" }));
-
-                                                ////////////////////////////////////////////////////////////////////////////////////////
-                                                // Verifica o status do Media Container (Stories) a cada 5s.
-
-                                                const VerificaStatusStories = () => {
-                                                
-                                                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
-                                                        method: 'GET',
-                                                        headers: {
-                                                            'Content-Type': 'application/json',
-                                                            'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                                                        }
-                                                    })
-                                        
-                                                    .then(response => response.json()).then(data => {
-                                        
-                                                        let Stories_IG_Media_Container_Status = data.status_code;
+                                                        ////////////////////////////////////////////////////////////////////////////////////////
+                                                        // Publica o Media Container (Stories).
                                                         
-                                                        if (Stories_IG_Media_Container_Status === "FINISHED") {
-                                        
-                                                            clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
-
-                                                            if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
-
-                                                            ////////////////////////////////////////////////////////////////////////////////////////
-                                                            // Publica o Media Container (Stories).
+                                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
                                                             
-                                                            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
-                                                                
-                                                                method: 'POST',
-                                                                headers: {'Content-Type': 'application/json'},
-                                                                
-                                                                body: JSON.stringify({
-                                                                    creation_id: Stories_IG_Media_Container_ID,
-                                                                    access_token: Meta_Graph_API_Access_Token
-                                                                })
+                                                            method: 'POST',
+                                                            headers: {'Content-Type': 'application/json'},
                                                             
-                                                            })
-                                                            
-                                                            .then(response => response.json()).then(data => {
-                                                                
-                                                                let Stories_IG_Media_ID = data.id;
-
-                                                                if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`, origin: "postar" }));
-                                                                
-                                                                if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "postar" }));
-
+                                                            body: JSON.stringify({
+                                                                creation_id: Stories_IG_Media_Container_ID,
+                                                                access_token: Meta_Graph_API_Access_Token
                                                             })
                                                         
-                                                        } else {
+                                                        })
+                                                        
+                                                        .then(response => response.json()).then(data => {
+                                                            
+                                                            let Stories_IG_Media_ID = data.id;
 
-                                                            if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
-                                        
-                                                        }
+                                                            if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`, origin: "postar" }));
+                                                            
+                                                            if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "postar" }));
 
-                                                    });
+                                                        })
+                                                    
+                                                    } else {
 
-                                                }
+                                                        if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
+                                    
+                                                    }
 
-                                                const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
+                                                });
 
-                                            })
+                                            }
 
-                                        }
-                                        
-                                    });
+                                            const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
 
+                                        })
+
+                                    }
+                                    
                                 });
 
                             });
