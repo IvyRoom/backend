@@ -300,7 +300,7 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
                     <p>${Solicitante_NomeEmpresa}</p>
                     <p>${Solicitante_CNPJ}</p>
                     <p>${Solicitante_Observações}</p>
-                    <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
+                    <p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                 `
             },
             toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
