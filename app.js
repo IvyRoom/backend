@@ -261,6 +261,60 @@ app.post('/landingpage/cadastro', async (req, res) => {
 
 });
 
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa submissão do formulário de Solicitação de Orçamento.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
+    
+    var { 
+        
+        Solicitante_NomeCompleto,
+        Solicitante_Email,
+        Solicitante_Telefone,
+        Solicitante_Cargo,
+        Solicitante_NomeEmpresa,
+        Solicitante_CNPJ,
+        Solicitante_Observações
+    
+    } = req.body;
+    
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Envia o e-mail de confirmação de cadastro ao lead, com o evento iCalendar anexado.
+
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
+        message: {
+            subject: 'Machado - Nova Solicitação de Orçamento',
+            body: {
+                contentType: 'HTML',
+                content: `
+                    <p><b>Dados do Solicitante:</b></p>
+                    <p>${Solicitante_NomeCompleto}</p>
+                    <p>${Solicitante_Email}</p>
+                    <p>${Solicitante_Telefone}</p>
+                    <p>${Solicitante_Cargo}</p>
+                    <p><b>Dados da Empresa:</b></p>
+                    <p>${Solicitante_NomeEmpresa}</p>
+                    <p>${Solicitante_CNPJ}</p>
+                    <p>${Solicitante_Observações}</p>
+                    <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
+                `
+            },
+            toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
+        }
+    })
+
+    .then(() => {
+
+        res.status(200).send();
+
+    });
+
+});
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
