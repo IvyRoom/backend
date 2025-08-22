@@ -29,6 +29,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // Importa a biblioteca para trabalhar com multipart/form-data, necessária para fazer o upload das Fotos de Referência dos alunos.
+
+// const multer = require('multer');
+
+// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// // Importa as bibliotecas necessárias para comunicação com o Azure Face API.
+
+// const { AzureKeyCredential } = require("@azure/core-auth");
+// const FaceClient = require("@azure-rest/ai-vision-face").default;
+// const { readFileSync } = require('fs');
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Importa o módulo necessário para criar servidores HTTP (HTTP).
 // Importa a biblioteca para comunicação bidirecional entre o backend e o frontend (WebSocket).
@@ -140,9 +152,12 @@ const Meta_Graph_API_Facebook_Page_ID = process.env.META_GRAPH_API_FACEBOOK_PAGE
 const Meta_Graph_API_Ad_Account_ID = process.env.META_GRAPH_API_AD_ACCOUNT_ID;
 const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_CUSTOM_AUDIENCE_ID_SEGUIDORES;
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Cria as variáveis de interface com o Azure Face API.
+// ////////////////////////////////////////////////////////////////////////////////////////
 
+// const Azure_Face_API_Endpoint = process.env.AZURE_FACE_API_ENDPOINT;
+// const Azure_Face_API_Key = process.env.AZURE_FACE_API_KEY;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Cria as variáveis de interface com o API da Pagar.Me.
@@ -1537,6 +1552,9 @@ app.post('/checkout/webhook_pagaleve', async (req, res) => {
 var Usuário_NomeCompleto;
 var Usuário_PrimeiroNome;
 var Usuário_Login;
+var Usuário_Senha;
+// var Usuário_Foto_Cadastrada;
+// var Usuário_Status_FaceID;
 var Usuário_Preparatório1_Status;
 var Usuário_Preparatório1_PrazoAcesso;
 var Usuário_Preparatório1_NúmeroTópicosConcluídos;
@@ -1550,9 +1568,14 @@ var Usuário_Preparatório1_NotaMódulo7;
 var Usuário_Preparatório1_NotaAcumulado;
 var Usuário_Preparatório1_CertificadoID;
 
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoints que realizam os processos envolvidos no login.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que processa submissão do formulário de login.
+// Endpoint que processa submissão do formulário de login (sem Face ID).
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.post('/login', async (req, res) => {
@@ -1562,10 +1585,10 @@ app.post('/login', async (req, res) => {
     Usuário_Senha = senha;
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Obtém os dados da BD - PLATAFORMA.xlsx.
+    // Obtém os dados da BD - PLATAFORMA.xlsx no OneDrive do contato@machadogestao.com.
 
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
     
     ////////////////////////////////////////////////////////////////////////////////////////
     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
@@ -1622,7 +1645,203 @@ app.post('/login', async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que processa carregamento da aba /estudos no Frontend.
+// Endpoint que processa submissão do formulário de login (com Face ID).
+////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/login', async (req, res) => {
+    
+//     var { login, senha } = req.body;
+    
+//     Usuário_Login = login;
+//     Usuário_Senha = senha;
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Obtém os dados da BD - PLATAFORMA.xlsx.
+
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
+
+//     const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
+
+//     var LoginAutenticado = 0;
+//     var IndexVerificado = 0;
+//     var LoginVerificado;
+//     var SenhaVerificada;
+
+//     Verifica_Login_e_Senha();
+
+//     function Verifica_Login_e_Senha() {
+
+//         if (IndexVerificado < BD_Plataforma_Número_Linhas) {
+            
+//             LoginVerificado = BD_Plataforma.value[IndexVerificado].values[0][2];
+//             SenhaVerificada = BD_Plataforma.value[IndexVerificado].values[0][3].toString();
+
+//             if(Usuário_Login === LoginVerificado) {
+
+//                 if(Usuário_Senha === SenhaVerificada) {
+                    
+//                     LoginAutenticado = 1;
+
+//                     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
+//                     Usuário_Status_FaceID = BD_Plataforma.value[IndexVerificado].values[0][4];
+//                     Usuário_Foto_Cadastrada = BD_Plataforma.value[IndexVerificado].values[0][5];
+//                     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
+//                     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
+                    
+//                 }
+                
+//             } else {
+
+//                 IndexVerificado++;
+//                 Verifica_Login_e_Senha();
+
+//             }
+
+//         }
+        
+//     }
+
+//     res.status(200).json({ 
+        
+//         LoginAutenticado,
+//         IndexVerificado,
+//         Usuário_PrimeiroNome,
+//         Usuário_Status_FaceID,
+//         Usuário_Foto_Cadastrada,
+//         Usuário_Preparatório1_Status,
+//         Usuário_Preparatório1_PrazoAcesso
+
+//     });
+
+// });
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoints que processam o FaceID (Liveness Session) junto ao Azure Face API.
+////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
+    
+//     let IndexVerificado = req.body.IndexVerificado;
+//     let FotoReferência = req.file.buffer;
+    
+//     // Armazena a FotoReferência em PG - FOTOS DE REFERÊNCIA.
+    
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+//     async function UploadFotoReferência(limite_tentativas = 5, intervalo = 2000) {
+    
+//         for (let tentativa = 1; tentativa <= limite_tentativas; tentativa++) {
+//           try {
+//             console.log(tentativa);
+//             await Microsoft_Graph_API_Client.api(`/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/root:/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência);
+//             return; 
+//           } catch (err) {
+//             if (tentativa === limite_tentativas) throw err;
+//             await new Promise(res => setTimeout(res, intervalo));
+//           }
+//         }
+    
+//     }
+    
+//     UploadFotoReferência();
+
+//     // Atualiza a coluna FOTO CADASTRADA para 'Sim' na BD - PLATAFORMA.
+
+//     await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
+    
+//     // Roda o Face ID (Liveness Session).
+    
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+//     .post({
+//         contentType: "multipart/form-data",
+//         body: [
+//             {
+//                 name: "VerifyImage",
+//                 body: FotoReferência
+//             },
+//             {
+//                 name: "livenessOperationMode",
+//                 body: "Passive"
+//             },
+//             {
+//                 name: "deviceCorrelationId",
+//                 body: uuidv4()
+//             }
+//         ]
+//     });
+
+//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+
+// });
+
+// app.post('/FaceID', async (req, res) => {
+
+//     var { IndexVerificado } = req.body;
+    
+//     let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Ivy Room/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
+
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+//     .post({
+//         contentType: "multipart/form-data",
+//         body: [
+//             {
+//                 name: "VerifyImage",
+//                 body: FotoReferência
+//             },
+//             {
+//                 name: "livenessOperationMode",
+//                 body: "Passive"
+//             },
+//             {
+//                 name: "deviceCorrelationId",
+//                 body: uuidv4()
+//             }
+//         ]
+//     });
+
+//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+
+// });
+
+// app.get('/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID', async (req, res) => {
+
+//     let Azure_Face_API_LivenessSession_sessionID = req.params.Azure_Face_API_LivenessSession_sessionID;
+
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession  = await Azure_Face_API_Client.path('/detectLivenessWithVerify-sessions/{sessionId}', Azure_Face_API_LivenessSession_sessionID).get();
+    
+//     let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.livenessDecision;
+//     let Azure_Face_API_LivenessSession_MatchConfidence = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.matchConfidence;
+//     let Azure_Face_API_LivenessSession_MatchDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.isIdentical;
+
+//     console.log(Azure_Face_API_LivenessSession_LivenessDecision);
+//     console.log(Azure_Face_API_LivenessSession_MatchConfidence);
+//     console.log(Azure_Face_API_LivenessSession_MatchDecision);
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_LivenessDecision, Azure_Face_API_LivenessSession_MatchDecision });
+
+// });
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa carregamento da aba /estudos no Frontend (sem FaceID)
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.post('/refresh', async (req, res) => {
@@ -1630,9 +1849,10 @@ app.post('/refresh', async (req, res) => {
     var { IndexVerificado } = req.body;
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Obtém os dados da BD - PLATAFORMA.xlsx.
+    // Obtém os dados da BD - PLATAFORMA.xlsx no OneDrive do contato@machadogestao.com.
+
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
@@ -1672,9 +1892,60 @@ app.post('/refresh', async (req, res) => {
 
 });
 
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint que processa carregamento da aba /estudos no Frontend (com FaceID)
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/refresh', async (req, res) => {
+    
+//     var { IndexVerificado } = req.body;
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Obtém os dados da BD - PLATAFORMA.xlsx.
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+//     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
+//     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
+//     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
+//     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
+//     Usuário_Preparatório1_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
+//     Usuário_Preparatório1_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
+//     Usuário_Preparatório1_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
+//     Usuário_Preparatório1_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
+//     Usuário_Preparatório1_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
+//     Usuário_Preparatório1_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
+//     Usuário_Preparatório1_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
+//     Usuário_Preparatório1_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
+//     Usuário_Preparatório1_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][17];
+//     Usuário_Preparatório1_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][18];
+//     Usuário_Preparatório2_Interesse = BD_Plataforma.value[IndexVerificado].values[0][20];
+                    
+//     res.status(200).json({ 
+        
+//         Usuário_NomeCompleto,
+//         Usuário_PrimeiroNome,
+//         Usuário_Preparatório1_Status,
+//         Usuário_Preparatório1_PrazoAcesso,
+//         Usuário_Preparatório1_NúmeroTópicosConcluídos,
+//         Usuário_Preparatório1_NotaMódulo1,
+//         Usuário_Preparatório1_NotaMódulo2,
+//         Usuário_Preparatório1_NotaMódulo3,
+//         Usuário_Preparatório1_NotaMódulo4,
+//         Usuário_Preparatório1_NotaMódulo5,
+//         Usuário_Preparatório1_NotaMódulo6,
+//         Usuário_Preparatório1_NotaMódulo7,
+//         Usuário_Preparatório1_NotaAcumulado,
+//         Usuário_Preparatório1_CertificadoID,
+//         Usuário_Preparatório2_Interesse
+
+//     });
+
+// });
+
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que atualiza a BD - PLATAFORMA.
+// Endpoint que atualiza a BD - PLATAFORMA (sem FaceID) no OneDrive do contato@machadogestao.com
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.post('/updates', async (req,res) => {
@@ -1688,37 +1959,37 @@ app.post('/updates', async (req,res) => {
         if (NúmeroMódulo === 1){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 2){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 3){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 4){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 5){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
 
         } else if (NúmeroMódulo === 6){
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
 
         } else {
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
 
         } 
 
@@ -1726,19 +1997,86 @@ app.post('/updates', async (req,res) => {
 
         //Atualiza só o Número de Tópicos Concluídos do Prep.
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
 
     } else if(TipoAtualização === 'Preparatório2_Interesse'){
 
         //Atualiza só o Interesse no Preparatório 2.
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB7TUZJNIWDVWFE2MIW7MNKHMWLL/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
 
     }
 
     res.status(200).send();
 
 });
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint que atualiza a BD - PLATAFORMA (com FaceID)
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/updates', async (req,res) => {
+    
+//     var { TipoAtualização, IndexVerificado, NúmeroTópicosConcluídos, NúmeroMódulo, NotaTeste, Preparatório2_Interesse } = req.body;
+
+//     //Atualiza o Número de Tópicos Concluídos e a Nota no Teste.
+
+//     if(TipoAtualização === 'NúmeroTópicosConcluídos-e-NotaTeste'){
+
+//         if (NúmeroMódulo === 1){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
+
+//         } else if (NúmeroMódulo === 2){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
+
+//         } else if (NúmeroMódulo === 3){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
+
+//         } else if (NúmeroMódulo === 4){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
+
+//         } else if (NúmeroMódulo === 5){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
+
+//         } else if (NúmeroMódulo === 6){
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
+
+//         } else {
+
+//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
+
+//         } 
+
+//     } else if(TipoAtualização === 'NúmeroTópicosConcluídos') {
+
+//         //Atualiza só o Número de Tópicos Concluídos do Prep.
+//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
+
+//     } else if(TipoAtualização === 'Preparatório2_Interesse'){
+
+//         //Atualiza só o Interesse no Preparatório 2.
+//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
+
+//     }
+
+//     res.status(200).send();
+
+// });
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1934,201 +2272,33 @@ app.post('/alunos/envioemail', async (req,res) => {
 
     const BD_Alunos_Última_Linha = BD_Alunos_Número_Linhas - 1;
     
-    // Primeira linha Black Friday: 204.
-    // Última linha Black Friday: 237.
-
-    for (let LinhaAtual = 206; LinhaAtual <= 237; LinhaAtual++) {
-        
-//         ////////////////////////////////////////////////////////////////////////////////////////
-//         // Cria o evento iCalendar, com alerta de 3 horas antes do início do evento.
-
-//         const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Encontro Exclusivo: Black Friday', language: 'PT-BR' } });
-//         const event = cal.createEvent({
-//             start: new Date(Date.UTC(2025, 1, 8, 12, 0, 0)), // 08/fev/2025, 09:00 BRT
-//             end: new Date(Date.UTC(2025, 1, 8, 16, 0, 0)), // 08/fev/2025, 12:59 BRT
-//             summary: 'Ivy - Encontro Exclusivo: Black Friday',
-//             description: `
-// Neste encontro, serão discutidas lições gerenciais trazidas pelo Lucas de sua experiência recente na Harvard Business School, divididas em três grandes temas:
-
-//     a) Interface de conhecimento e conexões lógicas entre Ger. Estratégico e Microeconomia.
-
-//     b) Interface de conhecimento e conexões lógicas entre Ger. Tático, Contabilidade e Finanças Corporativas.
-
-//     c) Uso de ferramentas avançadas e programação (VS Code, Git e GitHub, Microsoft Azure) no Ger. Inovações e Ger. Rotina.
-
-// O encontro acontecerá no sábado, dia 08/fev/2025, entre 9h e 13h, via Microsoft Teams, por meio deste link:
-
-// https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjJmMGJjOGMtMDdiMS00NjZkLTlkYzUtNzc3ZjhjYTY2ZGU3%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d`,
-//             uid: `${new Date().getTime()}@ivyroom.com.br`,
-//             stamp: new Date()
-//         });
-
-//         event.createAlarm({
-//             type: 'display',
-//             trigger: 1 * 60 * 60 * 1000,
-//             description: 'Ivy - Encontro Exclusivo: Black Friday - Inicia em 1 hora.'
-//         });
-        
+    for (let LinhaAtual = 0; LinhaAtual <= 2; LinhaAtual++) {
+                
         Aluno_Email = BD_Alunos.value[LinhaAtual].values[0][2];
         Aluno_PrimeiroNome = BD_Alunos.value[LinhaAtual].values[0][1].split(" ")[0];
-
-        Aluno_Login = BD_Alunos.value[LinhaAtual].values[0][12];
-        Aluno_Senha = BD_Alunos.value[LinhaAtual].values[0][13];
 
         if (Aluno_Email === "-") {
 
         } else {
 
-            // // ////////////////////////////////////////////////////////////////////////////////////////
-            // // // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Atualizações Importantes: Encontro Exclusivo, Atendimentos ao Vivo, Materiais Impressos',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-            //                 <p>Este é um e-mail de atualizações importantes referentes a três temas:</p>
-            //                 <p>-----</p>
-            //                 <p><b>1. Encontro Exclusivo 10 Primeiros Alunos:</b></p>
-            //                 <p>Reforçamos que você foi um dos 10 primeiros alunos a entrarem na turma especial de Black Friday e, por isto, está elegível a participar de um encontro exclusivo, com 4h de duração e a portas fechadas, com nosso fundador!<p>
-            //                 <p>Neste encontro, serão discutidas lições gerenciais trazidas pelo Lucas de sua experiência recente na Harvard Business School, divididas em três grandes temas:<p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;a) Interface de conhecimento e conexões lógicas entre Ger. Estratégico e Microeconomia.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;b) Interface de conhecimento e conexões lógicas entre Ger. Tático, Contabilidade e Finanças Corporativas.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;c) Uso de ferramentas avançadas e programação (VS Code, Git, GitHub e Microsoft Azure) no Ger. Inovações e Ger. Rotina.</p>
-            //                 <p>O encontro acontecerá no sábado, dia 08/fev/2025, entre 9h e 13h, via Microsoft Teams, por meio <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjJmMGJjOGMtMDdiMS00NjZkLTlkYzUtNzc3ZjhjYTY2ZGU3%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d" target="_blank">deste link</a>.</p>
-            //                 <p>Abra o arquivo .ics em anexo e adicione o evento a sua agenda.</p>
-            //                 <p>Além disso, reforçamos que os conhecimentos trazidos neste encontro são de <b>extremo valor</b>. Via de regra, estes são temas que abordamos somente junto aos nossos clientes PJ com contratos acima de R$50.000. Por isto, venha preparado. Recomendamos que, na data do encontro, você tenha finalizado pelo menos o estudo dos Módulos 1, 2 e 3 do Preparatório, para que já tenha uma visão sistêmica da Gestão, necessária à absorção adequada dos assuntos e ferramentas trabalhados.</p>
-            //                 <p>-----</p>
-            //                 <p><b>2. Atendimentos ao Vivo:</b> 
-            //                 <p>O primeiro atendimento ao vivo do Preparatório acontecerá na quarta-feira, 18/dez/2024, das 18:30 às 20:00.</p>
-            //                 <p>O link de acesso a este atendimento será enviado por e-mail no dia 18/dez, algumas horas antes do encontro.</p>
-            //                 <p>Porém, já deixe sua agenda reservada para participar!</p>
-            //                 <p>Além das boas-vindas à Turma Especial de Black Friday, o Lucas já iniciará algumas explicações importantes sobre Método Gerencial, com conhecimentos complementares ao conteúdo da plataforma. E estará à disposição para tirar dúvidas iniciais sobre o tema.</p>
-            //                 <p>-----</p>
-            //                 <p><b>3. Materiais Impressos:</b></p> 
-            //                 <p>Seu material impresso está com status <u>Confeccionado</u> e será expedido junto aos correios no dia <u>Entre terça-feira (10/dez/2024) e quinta-feira (12/dez/2024)</u>.</p>                        
-            //                 <p><b>Importante!</b> Devido às fortes chuvas no sul do país (onde nossa sede fica localizada), as coletas dos correios estão paralisadas e as expedições terão 3 a 5 dias úteis de atraso. Por isto, a previsão de entrega dos seus materiais foi atualizada para 21/dez/2024.</p>
-            //                 <p>Para compensar por quaisquer transtornos, nós prolongamos seu acesso ao serviço por mais 30 dias como uma cortesia :) Seu acesso foi estendido até 05/jan/2026.</p>
-            //                 <p>Reiteramos nossa recomendação de que você aguarde a chegada dos materiais para prosseguir com os estudos. As apostilas, guias e cases impressos ajudam muito na absorção do conhecimento!</p>
-            //                 <p>-----</p>
-            //                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: Aluno_Email } }],
-            //         attachments: [
-            //             {
-            //                 "@odata.type": "#microsoft.graph.fileAttachment",
-            //                 name: "Ivy - Encontro Exclusivo: Black Friday.ics",
-            //                 contentBytes: Buffer.from(cal.toString()).toString('base64')
-            //             }
-            //         ]
-            //     }
-                
-            // })
-
-            // // ////////////////////////////////////////////////////////////////////////////////////////
-            // // // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
-
-            // if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - Atualizações Importantes: Encontro Exclusivo, Atendimentos ao Vivo, Materiais Impressos',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-            //                 <p>Este é um e-mail de atualizações importantes referentes a três temas:</p>
-            //                 <p>-----</p>
-            //                 <p><b>1. Encontro Exclusivo 10 Primeiros Alunos:</b></p>
-            //                 <p>Ao longo desta semana, inúmeros alunos solicitaram que nós ampliássemos o número de vagas para o encontro exclusivo com nosso fundador.</p>
-            //                 <p>Como várias destas pessoas fizeram a compra do serviço nos primeiros instantes da abertura da turma (ficando de fora da lista de 10 dos primeiros alunos por poucos segundos ou minutos), julgamos que as solicitações tinham mérito. E, por isto, abriremos uma exceção.<p>
-            //                 <p><b>Faremos um segundo encontro, com mesmo formato e conteúdo, para todos alunos inscritos na turma.</b></p>
-            //                 <p>Neste encontro, serão discutidas lições gerenciais trazidas pelo Lucas de sua experiência recente na Harvard Business School, divididas em três grandes temas:<p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;a) Interface de conhecimento e conexões lógicas entre Ger. Estratégico e Microeconomia.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;b) Interface de conhecimento e conexões lógicas entre Ger. Tático, Contabilidade e Finanças Corporativas.</p>
-            //                 <p>&nbsp;&nbsp;&nbsp;&nbsp;c) Uso de ferramentas avançadas e programação (VS Code, Git, GitHub e Microsoft Azure) no Ger. Inovações e Ger. Rotina.</p>
-            //                 <p>O encontro acontecerá no sábado, dia 08/fev/2025, entre 9h e 13h, via Microsoft Teams, por meio <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjJmMGJjOGMtMDdiMS00NjZkLTlkYzUtNzc3ZjhjYTY2ZGU3%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d" target="_blank">deste link</a>.</p>
-            //                 <p>Abra o arquivo .ics em anexo e adicione o evento a sua agenda.</p>
-            //                 <p>Além disso, reforçamos que os conhecimentos trazidos neste encontro são de <b>extremo valor</b>. Via de regra, estes são temas que abordamos somente junto aos nossos clientes PJ com contratos acima de R$50.000. Por isto, venha preparado. Recomendamos que, na data do encontro, você tenha finalizado pelo menos o estudo dos Módulos 1, 2 e 3 do Preparatório, para que já tenha uma visão sistêmica da Gestão, necessária à absorção adequada dos assuntos e ferramentas trabalhados.</p>
-            //                 <p>-----</p>
-            //                 <p><b>2. Atendimentos ao Vivo:</b> 
-            //                 <p>O primeiro atendimento ao vivo do Preparatório acontecerá na quarta-feira, 18/dez/2024, das 18:30 às 20:00.</p>
-            //                 <p>O link de acesso a este atendimento será enviado por e-mail no dia 18/dez, algumas horas antes do encontro.</p>
-            //                 <p>Porém, já deixe sua agenda reservada para participar!</p>
-            //                 <p>Além das boas-vindas à Turma Especial de Black Friday, o Lucas já iniciará algumas explicações importantes sobre Método Gerencial, com conhecimentos complementares ao conteúdo da plataforma. E estará à disposição para tirar dúvidas iniciais sobre o tema.</p>
-            //                 <p>-----</p>
-            //                 <p><b>3. Materiais Impressos:</b></p> 
-            //                 <p>Seu material impresso está com status <u>Confeccionado</u> e será expedido junto aos correios no dia <u>Entre terça-feira (10/dez/2024) e quinta-feira (12/dez/2024)</u>.</p>                        
-            //                 <p><b>Importante!</b> Devido às fortes chuvas no sul do país (onde nossa sede fica localizada), as coletas dos correios estão paralisadas e as expedições terão 3 a 5 dias úteis de atraso. Por isto, a previsão de entrega dos seus materiais foi atualizada para 21/dez/2024.</p>
-            //                 <p>Para compensar por quaisquer transtornos, nós prolongamos seu acesso ao serviço por mais 30 dias como uma cortesia :) Seu acesso foi estendido até 05/jan/2026.</p>
-            //                 <p>Reiteramos nossa recomendação de que você aguarde a chegada dos materiais para prosseguir com os estudos. As apostilas, guias e cases impressos ajudam muito na absorção do conhecimento!</p>
-            //                 <p>-----</p>
-            //                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }],
-            //         attachments: [
-            //             {
-            //                 "@odata.type": "#microsoft.graph.fileAttachment",
-            //                 name: "Ivy - Encontro Exclusivo: Black Friday.ics",
-            //                 contentBytes: Buffer.from(cal.toString()).toString('base64')
-            //             }
-            //         ]
-            //     }
-                
-            // })
-
             // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
+            // // Envia o e-mail para o aluno atual na BD - ALUNOS.
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-            // await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-            //     message: {
-            //         subject: 'Ivy - É hoje! Link de Acesso: Atendimento ao Vivo #1',
-            //         body: {
-            //             contentType: 'HTML',
-            //             content: `
-            //                 <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-            //                 <p>Lembramos que <b>hoje</b>, pontualmente às <b>18h</b>, acontece o <b>primeiro atendimento ao vivo</b> para os participantes da Turma de Black Friday do Preparatório, via Microsoft Teams.</p>
-            //                 <p>Neste encontro, o Lucas já iniciará algumas explicações importantes sobre Método Gerencial, com conhecimentos complementares ao conteúdo da plataforma. E estará à disposição para tirar dúvidas iniciais sobre o tema.</p>
-            //                 <p>Acesse o encontro por meio <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_ZGUxZjMwYjktYTU3Ny00Yzc5LTkzYWYtOWU4ZGQ5NDYzM2Y0%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22b4a93dcf-5946-4cb2-8368-5db4d242a236%22%7d" target="_blank">deste link</a>.</p>
-            //                 <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
-            //                 <p>Atenciosamente,</p>
-            //                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-            //             `
-            //         },
-            //         toRecipients: [{ emailAddress: { address: Aluno_Email } }]
-            //     }
-                
-            // })
-
             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
                 message: {
-                    subject: 'Encontro Especial de Black Friday - Reagendamento',
+                    subject: 'Teste',
                     body: {
                         contentType: 'HTML',
                         content: `
                             <p>Bom dia ${Aluno_PrimeiroNome},</p>
-                            <p>Quem escreve é Lucas Machado, fundador da Ivy. Tudo bem?</p>
-                            <p>Pelo fato de que menos de 50% dos alunos da Turma de Black Friday já finalizaram o Preparatório, iremos reagendar o Encontro Especial de Black Friday que aconteceria amanhã (sábado, 08/fev às 09:00).</p>
-                            <p>Vamos monitorar o progresso da turma na plataforma e reagendaremos o encontro no momento oportuno. Avisaremos vocês por e-mail.</p>
-                            <p>P.S. Em instantes sairão os invites para as próximas Office Hours (encontros ao vivo mensais que fazem parte da entrega padrão do serviço).</p>
-                            <p>Qualquer dúvida ou insegurança, à disposição.</p>
+                            <p>Este é um teste.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
                 }
                 
             })
@@ -2271,6 +2441,94 @@ app.post('/alunos/envioemail02', async (req,res) => {
 
 });
 
+app.post('/alunos/envioemail03', async (req,res) => {
+
+    console.log(`1. Request recebida.`);
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - ATENDIMENTOS.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
+
+    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
+
+    let Número_Email_Enviado = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
+    // Então envia um invite a cada 2s.
+    
+    async function Envia_Invites_Atendimentos() {
+
+        for (let LinhaAtual = 138; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
+    
+            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
+            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
+    
+            if (Aluno_Email !== "-") {
+    
+                Número_Email_Enviado++;
+    
+                console.log(`3. E-mail #${Número_Email_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+                
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+
+                ////////////////////////////////////////////////////////////////////////////////////////
+                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+    
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
+    
+                    message: {
+                        subject: 'Machado - Novo E-mail e Rebranding',
+                        body: {
+                            contentType: 'HTML',
+                            content: `
+                                <p>Boa tarde ${Aluno_PrimeiroNome},</p>
+                                <p>Quem escreve é Lucas Machado, fundador da Machado (antiga Ivy Room). Tudo bem?</p>
+                                <p>Sinalizo gentilmente que <b>nosso e-mail anterior (contato@ivyroom.com.br) está permanentemente desativado</b> a partir de hoje, quinta-feira, 21/ago/2025, às 18:00.</p>
+                                <p>Qualquer dúvida ou necessidade de auxílio deverá ser direcionada ao nosso novo e-mail de suporte, <b>contato@machadogestao.com</b>.</p>
+                                <p>Pedimos que salve o novo e-mail em sua lista de remetentes seguros, para evitar que nossa comunicação com você caia na caixa de spam.</p>
+                                <p>Esta mudança faz parte da estratégia de rebranding de nossa empresa que, a partir deste ano, irá focar na formação gerencial e atendimento consultivo aos nossos clientes PJ.</p> 
+                                <p>Sempre à disposição.</p>
+                                <p>Atenciosamente,</p>
+                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
+                            `
+                        },
+                        toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+                    }
+                
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+    
+            } else {
+
+                await new Promise(resolve => setTimeout(resolve, 0));
+
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+
+            }
+    
+        }
+
+    }
+
+    setTimeout(Envia_Invites_Atendimentos, 1000);
+
+});
+
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 // Envia convites para os atendimentos ao vivo.
@@ -2310,7 +2568,7 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
     
     async function Envia_Invites_Atendimentos() {
 
-        for (let LinhaAtual = 147; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 150; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2442,7 +2700,7 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
     
     async function Envia_Lembretes_Atendimentos() {
 
-        for (let LinhaAtual = 146; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 150; LinhaAtual <= 160; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2519,265 +2777,91 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint: Postagem de Reels e Stories
+// Endpoint: Registrar novo post na BD - RESULTADOS
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/meta/postar', async (req, res) => {
+app.post('/meta/registrar-novo-post', async (req, res) => {
 
-    let { Reel_Código, Reel_Legenda, Incluir_Stories } = req.body;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Reels: Início do processo de postagem.
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-
-    res.status(200).json({ message: "Reels - 1. Request recebida." });
+    let { Reel_Código } = req.body;
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Cria o Media Container (Reel).
-
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    let Reel_Video_URL = (await Microsoft_Graph_API_Client.api(`/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/root:/SISTEMA DE GESTÃO/1. VENDA/2. POSTAR REELS/PUBLICAÇÕES/${Reel_Código}/PUBLICAÇÃO.mp4`).get())['@microsoft.graph.downloadUrl'];
-
-    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
-        
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        
-        body: JSON.stringify({
-            media_type: 'REELS',
-            video_url: Reel_Video_URL,
-            caption: Reel_Legenda,
-            access_token: Meta_Graph_API_Access_Token
-        })
+    // Obtém o IG Media ID.
+    ////////////////////////////////////////////////////////////////////////////////////////
     
-    })
+    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media?fields=id,timestamp&limit=1&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
 
-    .then(response => response.json()).then(data => {
+    .then(response => response.json()).then(async data => {
 
-        let Reel_IG_Media_Container_ID = data.id;
+        let Reel_IG_Media_ID = data.data[0].id;
+        let Reel_Data_Hora_Postagem = data.data[0].timestamp;
 
-        if (Reel_IG_Media_Container_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 2. Media Container ID ${Reel_IG_Media_Container_ID} criado.`, origin: "postar" }));
+        if (Reel_IG_Media_ID !== null) console.log(`1. IG Media ID obtido: ${Reel_IG_Media_ID}`);
+        if (Reel_Data_Hora_Postagem !== null) console.log(`2. Data e Hora da postagem obtidos: ${Reel_Data_Hora_Postagem}`);
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        // Verifica o status do Media Container (Reels) a cada 5s.
+        // Obtém o Número de Seguidores atualizado.
+        ////////////////////////////////////////////////////////////////////////////////////////
 
-        const VerificaStatusReels = () => {
-            
-            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_Container_ID}?fields=status_code`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                }
-            })
+        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
 
-            .then(response => response.json()).then(data => {
+        .then(response => response.json()).then(async data => {
 
-                let Reel_IG_Media_Container_Status = data.status_code;
-                
-                if (Reel_IG_Media_Container_Status === "FINISHED") {
+            let Número_Seguidores = data.followers_count;
 
-                    clearInterval(Reel_IG_Media_Container_Status_Verificação_ID);
-
-                    if (client) client.send(JSON.stringify({ message: `Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`, origin: "postar" }));
-
-                    ////////////////////////////////////////////////////////////////////////////////////////
-                    // Publica o Media Container (Reels).
-                    ////////////////////////////////////////////////////////////////////////////////////////
-                    
-                    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
-                        
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        
-                        body: JSON.stringify({
-                            creation_id: Reel_IG_Media_Container_ID,
-                            access_token: Meta_Graph_API_Access_Token
-                        })
-                    
-                    })
-                    
-                    .then(response => response.json()).then(data => {
-                        
-                        let Reel_IG_Media_ID = data.id;
-
-                        if (Reel_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `Reels - 4. Reel ID ${Reel_IG_Media_ID} publicado.`, origin: "postar" }));
-
-                        ////////////////////////////////////////////////////////////////////////////////////////
-                        // Obtém o Número de Seguidores atualizado.
-                        ////////////////////////////////////////////////////////////////////////////////////////
-
-                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-                        .then(response => response.json()).then(async data => {
-
-                            let Número_Seguidores = data.followers_count;
-
-                            if (Número_Seguidores !== null && client) client.send(JSON.stringify({ message: `Reels - 5. Número de Seguidores obtido: ${Número_Seguidores}`, origin: "postar" }));
-                        
-                            ///////////////////////////////////////////////////////////////////////////////////////
-                            // Adiciona o Reel na BD - RESULTADOS (RELACIONAMENTO).
-                            ///////////////////////////////////////////////////////////////////////////////////////
-
-                            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
-                            
-                            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null, null, null, null ]]})
-                            
-                            .then(async response => {
-
-                                if (client) client.send(JSON.stringify({ message: `Reels - 6. BD - RESULTADOS atualizada.`, origin: "postar" }));
-
-                                /////////////////////////////////////////////////////////////////////////////////////////////////////
-                                // Cria o evento na agenda (calendário) para criação da campanha de DB (72h depois).
-                                /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-                                let Horário_Início_Criação_Campanha_DB = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
-                                let Horário_Término_Criação_Campanha_DB = new Date(Horário_Início_Criação_Campanha_DB.getTime() + 60 * 60 * 1000);
-
-                                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
-                                    
-                                    subject: "CAMPANHA DB - " + Reel_Código,
-                                    
-                                    start: {
-                                        "dateTime": Horário_Início_Criação_Campanha_DB,
-                                        "timeZone": "UTC"
-                                    },
-                                    
-                                    end: {
-                                        "dateTime": Horário_Término_Criação_Campanha_DB,
-                                        "timeZone": "UTC"
-                                    }
-                                    
-                                })
-
-                                .then(async () => {
-
-                                    if (client) client.send(JSON.stringify({ message: `Reels - 7. Criação da campanha agendada.`, origin: "postar" }));
-
-                                    ////////////////////////////////////////////////////////////////////////////////////////
-                                    ////////////////////////////////////////////////////////////////////////////////////////
-                                    // Stories: Início do processo de postagem.
-                                    ////////////////////////////////////////////////////////////////////////////////////////
-                                    ////////////////////////////////////////////////////////////////////////////////////////
-
-                                    if (Incluir_Stories === true) {
-
-                                        ////////////////////////////////////////////////////////////////////////////////////////
-                                        // Cria o Media Container (Stories).
-                                        
-                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media`, {
-                                            
-                                            method: 'POST',
-                                            headers: {'Content-Type': 'application/json'},
-                                            
-                                            body: JSON.stringify({
-                                                media_type: 'STORIES',
-                                                video_url: Reel_Video_URL,
-                                                access_token: Meta_Graph_API_Access_Token
-                                            })
-                                        
-                                        })
-
-                                        .then(response => response.json()).then(data => {
-
-                                            let Stories_IG_Media_Container_ID = data.id;
-
-                                            if (Stories_IG_Media_Container_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 1. Media Container ID ${Stories_IG_Media_Container_ID} criado.`, origin: "postar" }));
-
-                                            ////////////////////////////////////////////////////////////////////////////////////////
-                                            // Verifica o status do Media Container (Stories) a cada 5s.
-
-                                            const VerificaStatusStories = () => {
-                                            
-                                                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Stories_IG_Media_Container_ID}?fields=status_code`, {
-                                                    method: 'GET',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                                                    }
-                                                })
-                                    
-                                                .then(response => response.json()).then(data => {
-                                    
-                                                    let Stories_IG_Media_Container_Status = data.status_code;
-                                                    
-                                                    if (Stories_IG_Media_Container_Status === "FINISHED") {
-                                    
-                                                        clearInterval(Stories_IG_Media_Container_Status_Verificação_ID);
-
-                                                        if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
-
-                                                        ////////////////////////////////////////////////////////////////////////////////////////
-                                                        // Publica o Media Container (Stories).
-                                                        
-                                                        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media_publish`, {
-                                                            
-                                                            method: 'POST',
-                                                            headers: {'Content-Type': 'application/json'},
-                                                            
-                                                            body: JSON.stringify({
-                                                                creation_id: Stories_IG_Media_Container_ID,
-                                                                access_token: Meta_Graph_API_Access_Token
-                                                            })
-                                                        
-                                                        })
-                                                        
-                                                        .then(response => response.json()).then(data => {
-                                                            
-                                                            let Stories_IG_Media_ID = data.id;
-
-                                                            if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `Stories - 3. Stories ID ${Stories_IG_Media_ID} publicado.`, origin: "postar" }));
-                                                            
-                                                            if (Stories_IG_Media_ID !== null && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "postar" }));
-
-                                                        })
-                                                    
-                                                    } else {
-
-                                                        if (client) client.send(JSON.stringify({ message: `Stories - 2. Media Container Status atualizado: ${Stories_IG_Media_Container_Status}.`, origin: "postar" }));
-                                    
-                                                    }
-
-                                                });
-
-                                            }
-
-                                            const Stories_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusStories, 5000);
-
-                                        })
-
-                                    }
-                                    
-                                });
-
-                            });
-
-                        });
-
-                    });
-                
-                } else {
-
-                    if (client) client.send(JSON.stringify({ message: `Reels - 3. Media Container Status atualizado: ${Reel_IG_Media_Container_Status}.`, origin: "postar" }));
-
-                }
-
-            })
-            
-        };
-
-        const Reel_IG_Media_Container_Status_Verificação_ID = setInterval(VerificaStatusReels, 5000);
+            if (Número_Seguidores !== null) console.log(`3. Número de Seguidores obtido: ${Número_Seguidores}`);
         
-    })
-    
+            ///////////////////////////////////////////////////////////////////////////////////////
+            // Adiciona as informações à BD - RESULTADOS (RELACIONAMENTO).
+            ///////////////////////////////////////////////////////////////////////////////////////
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
+            
+            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null, null, null, null ]]})
+            
+            .then(async response => {
+
+                console.log(`4. BD - RESULTADOS atualizada.`);
+                
+                /////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Cria o evento na agenda (calendário) para criação da campanha de DB (72h depois).
+                /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                let Horário_Início_Criação_Campanha_DB = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
+                let Horário_Término_Criação_Campanha_DB = new Date(Horário_Início_Criação_Campanha_DB.getTime() + 60 * 60 * 1000);
+
+                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
+                    
+                    subject: "CAMPANHA DB - " + Reel_Código,
+                    
+                    start: {
+                        "dateTime": Horário_Início_Criação_Campanha_DB,
+                        "timeZone": "UTC"
+                    },
+                    
+                    end: {
+                        "dateTime": Horário_Término_Criação_Campanha_DB,
+                        "timeZone": "UTC"
+                    }
+                    
+                })
+
+                .then(async () => {
+
+                    console.log(`5. Criação da campanha de DB agendada.`);
+                    
+                });
+
+            });
+
+        });
+
+    });
+
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2796,11 +2880,11 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
     console.log(`Endpoint /meta/RegistraDesempenhosOrganicos acionado agora (${Data_e_Hora_Atual}) pela function01.js.`);
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - RESULTADOS.
+    // Puxa os dados da BD - RESULTADOS do OneDrive do contato@machadogestao.com.
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    let BD_Resultados_RL = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
+    let BD_Resultados_RL = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Verifica se há criativos com:
@@ -2845,7 +2929,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null, null, null, null ]]})
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null, null, null, null ]]})
 
                 } 
 
@@ -2881,7 +2965,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
                     
                 } 
                 
@@ -2894,7 +2978,7 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
                     
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
                     
                 }
 
@@ -2918,12 +3002,12 @@ app.post('/meta/RegistraDesempenhosCampanhasDB', async (req,res) => {
     let Data_Hoje_Formatada_Meta_Graph_API = (new Date()).toISOString().split('T')[0];
 
     ///////////////////////////////////////////////////////////////////////////////////////
-    // Obtém a BD - STATUS CAMPANHAS.
+    // Obtém a BD - STATUS CAMPANHAS do OneDrive do contato@machadogestao.com.
     ///////////////////////////////////////////////////////////////////////////////////////
 
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-    let BD_Status_Campanhas_DB = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYTOUDIQ5V5KBEIMADJCDNO2S4Z/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
+    let BD_Status_Campanhas_DB = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECUCH2N5WBZ3MJHJRSW3UAV6PDRX/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
 
     const BD_Status_Campanhas_DB_Última_Linha = BD_Status_Campanhas_DB.value.length - 1;
 
@@ -2932,9 +3016,6 @@ app.post('/meta/RegistraDesempenhosCampanhasDB', async (req,res) => {
     ///////////////////////////////////////////////////////////////////////////////////////
 
     for (let LinhaAtual = 0; LinhaAtual <= BD_Status_Campanhas_DB_Última_Linha; LinhaAtual++) {
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////
-        // Obtém as variáveis do aluno da BD - OFFICE HOURS.
 
         let Campanha_DB_Status = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][4];
 
@@ -2980,11 +3061,11 @@ app.post('/meta/RegistraDesempenhosCampanhasDB', async (req,res) => {
                     let Campanha_DB_Campaign_Daily_Budget = data.daily_budget;
                     
                     ////////////////////////////////////////////////////////////////////////////////////////
-                    // Adiciona as informações à BD - RESULTADOS CAMPANHAS.
+                    // Adiciona as informações à BD - RESULTADOS CAMPANHAS do OneDrive do contato@machadogestao.com.
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBY6STB7R6BSQBFKAY5LO6W3TFRR/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECVHHGFYL55S4NBKGCBC43AZB3SY/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
                     
                     .post({"values": [[ "-", ConverteData2(new Date(new Date().setDate(new Date().getDate() - 1))), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
 
