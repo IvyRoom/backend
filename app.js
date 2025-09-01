@@ -330,6 +330,103 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
 
 });
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa submissão do formulário de Validação de Certificados.
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/landingpage/validacaocertificados', async (req, res) => {
+    
+    var { Solicitante_CertificadoID, Solicitante_Email } = req.body;
+    
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Verifica se o Certificado ID está na BD - PLATAFORMA.
+
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    
+    const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
+
+    var CertificadoAutenticado = 0;
+    var IndexVerificado = 0;
+    var CertificadoIDVerificado;
+    var NomeCompletoVerificado;
+
+    Verifica_CertificadoID();
+
+    function Verifica_CertificadoID() {
+
+        if (IndexVerificado < BD_Plataforma_Número_Linhas) {
+            
+            CertificadoIDVerificado = BD_Plataforma.value[IndexVerificado].values[0][16];
+
+            if(Solicitante_CertificadoID === CertificadoIDVerificado) {
+
+                    CertificadoAutenticado = 1;
+                    NomeCompletoVerificado = BD_Plataforma.value[IndexVerificado].values[0][0];
+
+            } else {
+
+                IndexVerificado++;
+                Verifica_CertificadoID();
+
+            }
+
+        }
+    
+    }
+
+    if (CertificadoAutenticado === 0){
+
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
+            message: {
+                subject: 'Machado: Resultado - Validação de Certificado',
+                body: {
+                    contentType: 'HTML',
+                    content: `
+                        <p>O Certificado ID# pesquisado não foi encontrado em nossas bases de dados internas.</p>
+                        <p>Atenciosamente,</p>
+                        <p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
+                    `
+                },
+                toRecipients: [{ emailAddress: { address: Solicitante_Email } }]
+            }
+        })
+
+        .then(() => {
+
+            res.status(200).send();
+
+        });
+
+    } else {
+
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
+            message: {
+                subject: 'Machado: Resultado - Validação de Certificado',
+                body: {
+                    contentType: 'HTML',
+                    content: `
+                        <p>O Certificado ID# pesquisado é valido!</p>
+                        <p>Profissional certificado: ${NomeCompletoVerificado}</p>
+                        <p>Atenciosamente,</p>
+                        <p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
+                    `
+                },
+                toRecipients: [{ emailAddress: { address: Solicitante_Email } }]
+            }
+        })
+
+        .then(() => {
+
+            res.status(200).send();
+
+        });
+
+    }
+    
+});
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2467,7 +2564,7 @@ app.post('/alunos/envioemail03', async (req,res) => {
     
     async function Envia_Invites_Atendimentos() {
 
-        for (let LinhaAtual = 138; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 139; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2491,17 +2588,16 @@ app.post('/alunos/envioemail03', async (req,res) => {
                 await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
     
                     message: {
-                        subject: 'Machado - Novo E-mail e Rebranding',
+                        subject: 'Machado (antiga Ivy) - Novo Link de Acesso à Plataforma',
                         body: {
                             contentType: 'HTML',
                             content: `
                                 <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-                                <p>Quem escreve é Lucas Machado, fundador da Machado (antiga Ivy Room). Tudo bem?</p>
-                                <p>Sinalizo gentilmente que <b>nosso e-mail anterior (contato@ivyroom.com.br) está permanentemente desativado</b> a partir de hoje, quinta-feira, 21/ago/2025, às 18:00.</p>
-                                <p>Qualquer dúvida ou necessidade de auxílio deverá ser direcionada ao nosso novo e-mail de suporte, <b>contato@machadogestao.com</b>.</p>
-                                <p>Pedimos que salve o novo e-mail em sua lista de remetentes seguros, para evitar que nossa comunicação com você caia na caixa de spam.</p>
-                                <p>Esta mudança faz parte da estratégia de rebranding de nossa empresa que, a partir deste ano, irá focar na formação gerencial e atendimento consultivo aos nossos clientes PJ.</p> 
-                                <p>Sempre à disposição.</p>
+                                <p>Quem escreve é Lucas Machado, fundador da Machado (antiga Ivy). Como vai?</p>
+                                <p>Sinalizo que, a partir de hoje (22/ago/2025 às 15h30) o acesso ao Preparatório em Gestão Generalista deve realizado por meio do link:</p>
+                                <p><b><a href="https://machadogestao.com/plataforma/login">https://machadogestao.com/plataforma/login</a></b></p>
+                                <p>O link anterior (https://ivygestao.com/plataforma/login) está sendo desativado de forma definitiva.</p>
+                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                                 <p>Atenciosamente,</p>
                                 <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
                             `
