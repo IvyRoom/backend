@@ -166,13 +166,6 @@ const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_
 const PagarMe_API_Latest_Version = process.env.PAGARME_API_LATEST_VERSION;
 const PagarMe_SecretKey_Base64_Encoded = process.env.PAGARME_SECRETKEY_BASE64_ENCODED;
 
-////////////////////////////////////////////////////////////////////////////////////////
-// Cria as variáveis de interface com o API da PagaLeve.
-////////////////////////////////////////////////////////////////////////////////////////
-
-const PagaLeve_API_Key = process.env.PAGALEVE_API_KEY;
-const PagaLeve_API_Secret = process.env.PAGALEVE_API_SECRET;
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -479,17 +472,8 @@ app.post('/checkout/processarpagamento', async (req, res) => {
         Valor_Total_da_Compra_com_Juros_UM_CARTAO,
         Valor_Total_da_Compra_com_Juros_UM_CARTAO_Dígitos,
 
-        Valor_Nominal_da_Compra_no_PIX_PARCELADO,
-        Valor_Nominal_da_Compra_no_PIX_PARCELADO_Dígitos,
-        Url_Aprovação_PIX_PARCELADO,
-        Url_Cancelamento_PIX_PARCELADO,
-        Url_Webhook_PIX_PARCELADO,
-
         Valor_Total_da_Compra_no_PIX_À_VISTA,
         Valor_Total_da_Compra_no_PIX_À_VISTA_Dígitos,
-
-        Valor_Total_da_Compra_no_BOLETO,
-        Valor_Total_da_Compra_no_BOLETO_Dígitos,
 
         Valor_Total_da_Compra_no_PIX_CARTÃO,
         Valor_no_PIX_do_PIX_CARTÃO,
@@ -522,7 +506,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
         
         .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_com_Juros_UM_CARTAO, Valor_Total_da_Compra_com_Juros_UM_CARTAO,  Número_do_Cartão, Nome_do_Titular_do_Cartão_CaracteresOriginais, Campo_de_Preenchimento_Mês_Cartão, Campo_de_Preenchimento_Ano_Cartão, Campo_de_Preenchimento_CVV_Cartão, Número_de_Parcelas_Cartão_do_UM_CARTAO, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-" ]]})  
 
@@ -537,7 +521,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
                 message: {
                     subject: 'Novo Pedido Gerado no Checkout',
                     body: {
@@ -545,10 +529,10 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         content: `
                             <p><b>Aluno:</b> ${NomeCompleto}</p>
                             <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                    toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
                 }
             });
 
@@ -625,7 +609,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Cartão, null, null, null, null, null, null, null, null, null ]]});
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Cartão, null, null, null, null, null, null, null, null, null ]]});
 
             });
 
@@ -633,99 +617,6 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // MODALIDADE DE PAGAMENTO: PIX_PARCELADO
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-
-    if (Tipo_de_Pagamento_Escolhido === "PIX_PARCELADO") {
-        
-        ////////////////////////////////////////////////////////////////////////////////////////
-        // Direciona à análise de crédito junto à PagaLeve.
-        ////////////////////////////////////////////////////////////////////////////////////////
-
-        ////////////////////////////////////////////////////////////////////////////////////////
-        // Obtém o Access Token junto à PagaLeve (Endpoint: Criar uma Sessão Segura).
-
-        fetch('https://api.pagaleve.com.br/v1/authentication', {
-            method: 'POST',
-            headers: {accept: 'application/json', 'content-type': 'application/json'},
-            body: JSON.stringify({
-                password: PagaLeve_API_Secret,
-                username: PagaLeve_API_Key
-            })
-        })
-
-        .then(response => response.json()).then(async json => {
-
-            let PagaLeve_Session_Token = 'Bearer ' + json.token;
-
-            let PagaLeve_Session_IdempotencyKey = uuidv4();
-            
-            let [PrimeiroNome, ...rest] = NomeCompleto.split(" "), Sobrenome = rest.join(" ");
-
-            let DDD_Telefone = Campo_de_Preenchimento_DDD + Campo_de_Preenchimento_Celular_Dígitos;
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Cria o "Checkout PagaLeve" (Endpoint: Criar Checkout).
-
-            fetch('https://api.pagaleve.com.br/v1/checkouts', {
-                method: 'POST',
-                headers: {
-                    accept: 'application/json',
-                    'Idempotency-Key': PagaLeve_Session_IdempotencyKey,
-                    'content-type': 'application/json',
-                    authorization: PagaLeve_Session_Token
-                },
-                body: JSON.stringify({
-                    webhook_url: Url_Webhook_PIX_PARCELADO,
-                    order: {
-                        amount: parseInt(Valor_Nominal_da_Compra_no_PIX_PARCELADO_Dígitos),
-                        reference: PagaLeve_Session_IdempotencyKey
-                    },
-                    shopper: {
-                        cpf: Campo_de_Preenchimento_CPF_Dígitos,
-                        email: Email_do_Cliente,
-                        first_name: PrimeiroNome,
-                        last_name: Sobrenome,
-                        phone: DDD_Telefone
-                    },
-                    metadata: {
-                        full_name: NomeCompleto,
-                        email: Email_do_Cliente,
-                        ddd: Campo_de_Preenchimento_DDD,
-                        phone: Campo_de_Preenchimento_Celular,
-                        cpf: Campo_de_Preenchimento_CPF,
-                        shipping_address: {
-                            street: Endereço_Rua,
-                            number: Endereço_Número,
-                            complement: Endereço_Complemento,
-                            neighborhood: Endereço_Bairro,
-                            city: Endereço_Cidade,
-                            state: Endereço_Estado,
-                            zip_code: Endereço_CEP
-                        },
-                        product: Nome_Produto,
-                        amount: Valor_Nominal_da_Compra_no_PIX_PARCELADO
-                    },
-                    approve_url: Url_Aprovação_PIX_PARCELADO,
-                    cancel_url: Url_Cancelamento_PIX_PARCELADO,
-                    is_pix_upfront: false
-                })
-            })
-            
-            .then(response => response.json()).then(async json => {
-
-                let PagaLeve_Checkout_URL = json.checkout_url;
-                
-                res.status(200).json({ PagaLeve_Checkout_URL });
-
-            });
-
-        });
-
-    }
 
     ////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////
@@ -740,7 +631,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
         
         .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX_À_VISTA, "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_PIX_À_VISTA, "-", "-", "-", "-", "-", "-", "-", "-" ]]})  
 
@@ -755,7 +646,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
                 message: {
                     subject: 'Novo Pedido Gerado no Checkout',
                     body: {
@@ -763,10 +654,10 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         content: `
                             <p><b>Aluno:</b> ${NomeCompleto}</p>
                             <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                    toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
                 }
             });
 
@@ -838,7 +729,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Pix, null, null, null, null, null, null ]]})
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Pix, null, null, null, null, null, null ]]})
 
                 .then(async (response) => {
 
@@ -847,7 +738,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
                         message: {
                             subject: 'Ivy: PIX para Pagamento',
                             body: {
@@ -940,249 +831,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                                     <p>Atenciosamente,<br></p>
 
-                                    <img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/>
-
-                                    </body>
-                                    </html>
-                                `
-                            },
-                            toRecipients: [{ emailAddress: { address: Email_do_Cliente } }]
-                        }
-                    });
-
-                });
-
-            });
-
-        });
-
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // MODALIDADE DE PAGAMENTO: BOLETO
-    ////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Insere o pedido na BD - PEDIDOS.
-
-    if (Tipo_de_Pagamento_Escolhido === "BOLETO") {
-
-        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
-        
-        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_BOLETO, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Valor_Total_da_Compra_no_BOLETO, "-", "-", "-", "-", "-" ]]})  
-
-        .then(async (response) => {
-
-            res.status(200).json({});
-
-            let Número_Linha_Adicionada_à_BD_Cobranças = response.index;
-
-            let Boleto_Prazo_Vencimento_Processamento_PagarMe = new Date(Date.now() + 86400000);
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
-
-            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-                message: {
-                    subject: 'Novo Pedido Gerado no Checkout',
-                    body: {
-                        contentType: 'HTML',
-                        content: `
-                            <p><b>Aluno:</b> ${NomeCompleto}</p>
-                            <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-                        `
-                    },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
-                }
-            });
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Processa cobrança junto à Pagar.Me.
-
-            fetch(`https://api.pagar.me/core/${PagarMe_API_Latest_Version}/orders`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': 'Basic ' + PagarMe_SecretKey_Base64_Encoded,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({
-                    items: [{
-                        amount: Valor_Total_da_Compra_no_BOLETO_Dígitos, 
-                        description: Nome_Produto, 
-                        quantity: 1,
-                        code: Código_do_Produto
-                    }],
-                    customer: {
-                        name: NomeCompleto,
-                        type: 'individual', 
-                        email: Email_do_Cliente,
-                        document: Campo_de_Preenchimento_CPF_Dígitos,
-                        document_type: 'CPF',
-                        phones: {
-                            mobile_phone: {
-                                country_code: 55,
-                                area_code: Campo_de_Preenchimento_DDD,
-                                number: Campo_de_Preenchimento_Celular_Dígitos
-                            }
-                        }
-                    },
-                    shipping: {
-                        amount: 0,
-                        description: Nome_Produto,
-                        recipient_name: NomeCompleto,
-                        address: {
-                            line_1: Endereço_Número + ', ' + Endereço_Rua + ', ' + Endereço_Bairro,
-                            line_2: Endereço_Complemento,
-                            zip_code: Endereço_CEP_Dígitos,
-                            city: Endereço_Cidade,
-                            state: Endereço_Estado,
-                            country: 'BR'
-                        }
-                    },
-                    payments: [{
-                        payment_method: 'boleto',
-                        boleto: {
-                            instructions: 'Não aceitar o pagamento após o vencimento. A emissão deste boleto foi solicitada e/ou intermediada pela empresa IVY ROOM LTDA - CNPJ: 39.794.363/0001-81.',
-                            due_at: Boleto_Prazo_Vencimento_Processamento_PagarMe
-                        }
-                    }]
-                })
-            })
-
-            .then(response => response.json()).then(async json => {
-
-                let Retorno_Processamento_Cobrança_PagarMe = JSON.stringify(json);
-
-                let Status_Cobrança_Boleto = json.charges?.[0]?.status ?? '-';
-
-                let Boleto_Url_Download = json.charges?.[0]?.last_transaction?.url ?? '-';
-
-                let Boleto_Prazo_Vencimento_Email = ConverteData3(new Date(Date.now() + 86400000));
-
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Insere o Retorno_Processamento_Cobrança_PagarMe e o Status_Cobrança_Boleto na BD - PEDIDOS.
-
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_PagarMe, Status_Cobrança_Boleto, null, null, null ]]})
-
-                .then(async (response) => {
-
-                    ////////////////////////////////////////////////////////////////////////////////////////
-                    // Envia as instruções de pagamento via Boleto ao comprador.
-
-                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                    await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-                        message: {
-                            subject: 'Ivy: Boleto para Pagamento',
-                            body: {
-                                contentType: 'HTML',
-                                content: `
-                                    <html>
-                                    <head>
-                                        <style type="text/css">
-                                    
-                                        #Container_Boleto {
-                                            height: 110px;
-                                            width: 250px;
-                                            padding-top: 30px;
-                                            padding-bottom: 30px;
-                                            padding-left: 30px;
-                                            padding-right: 30px;
-                                            border: 2px solid rgb(149, 201, 63);
-                                            border-radius: 15px;
-                                        }
-                                        
-                                    #Container_Valor_Total_da_Compra_no_Boleto {
-                                        display: inline-flex;
-                                        margin-bottom: 5px;
-                                        font-size: 16px;
-                                    }
-                                    
-                                    #Título_Valor_Total_da_Compra_no_Boleto {
-                                        margin-right: 5px;
-                                    }
-                                    
-                                    #Container_Validade_Boleto {
-                                        display: inline-flex;
-                                        margin-bottom: 5px;
-                                        font-size: 16px;
-                                    }
-                                    
-                                    #Título_Validade_Boleto {
-                                        margin-right: 5px;
-                                    }
-
-                                    #Container_Link_Boleto {
-                                        display: inline-flex;
-                                        margin-bottom: 10px;
-                                        font-size: 16px;
-                                    }
-                                    
-                                    #Título_Link_Boleto {
-                                        margin-right: 5px;
-                                    }
-                                    
-                                    #Container_Logo_PagarMe {
-                                        display: inline-flex;
-                                        margin-left: 35px;
-                                        margin-right: auto;
-                                    }
-                                    
-                                    #PoweredBy {
-                                        font-size: 10px;
-                                        margin-right: 3px;
-                                        margin-top: 18px;
-                                        width: 60px;
-                                    }
-
-                                    #Logo_PagarMe{
-                                        width: 110px;
-                                        height: 40px;
-                                    }
-                                        
-                                    </style>
-                                    </head>
-                                    <body>
-                                        <p>Prezado(a) ${PrimeiroNome},<br></p>
-                                        <p>Para concluir a compra do <b> ${Nome_Produto}</b>, faça o pagamento do boleto utilizando o link abaixo.<br></p>
-                                        <p>As orientações de acesso ao serviço serão enviadas para você por e-mail, assim que o pagamento for processado.<br></p>
-
-                                        <div id="Container_Boleto">
-                                            <div id="Container_Valor_Total_da_Compra_no_Boleto">
-                                                    <div id="Título_Valor_Total_da_Compra_no_Boleto"><b>Valor:</b></div>
-                                                    <div id="Valor_Total_da_Compra_no_Boleto"> ${Valor_Total_da_Compra_no_BOLETO}</div>
-                                            </div>
-                                            <div id="Container_Validade_Boleto">
-                                                <div id="Título_Validade_Boleto"><b>Validade:</b></div>
-                                                <div id="Validade_Boleto"> ${Boleto_Prazo_Vencimento_Email}</div>
-                                            </div>
-                                            <div id="Container_Link_Boleto">
-                                                <div id="Título_Link_Boleto"><b>Link de Acesso:</b></div>
-                                                <a id="url_Boleto" href="${Boleto_Url_Download}">Boleto</a>
-                                            </div>
-                                            <div id="Container_Logo_PagarMe">
-                                                    <p id="PoweredBy">Powered by</p>
-                                                    <img id="Logo_PagarMe" src="https://plataforma-backend-v3.azurewebsites.net/img/LOGO_PAGAR.ME.png"/>
-                                            </div>
-                                        </div>
-                                        
-                                    <p><br>Por favor entre em contato se surgirem dúvidas ou se precisar de auxílio.<br></p>
-
-                                    <p>Estamos sempre à disposição.<br></p>
-
-                                    <p>Atenciosamente,<br></p>
-
-                                    <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                                    <img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/>
 
                                     </body>
                                     </html>
@@ -1213,7 +862,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
         
         .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Total_da_Compra_no_PIX_CARTÃO, Valor_com_Juros_no_Cartão_do_PIX_CARTÃO, Número_do_Cartão_do_PIX_CARTÃO, Nome_do_Titular_do_Cartão_do_PIX_CARTÃO_CaracteresOriginais, Campo_de_Preenchimento_Mês_Cartão_do_PIX_CARTÃO, Campo_de_Preenchimento_Ano_Cartão_do_PIX_CARTÃO, Campo_de_Preenchimento_CVV_Cartão_do_PIX_CARTÃO, Número_de_Parcelas_Cartão_do_PIX_CARTÃO, "-", "-", Valor_no_PIX_do_PIX_CARTÃO, "-", "-", "-", "-", "-", "-", "-", "-" ]]})  
 
@@ -1228,7 +877,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
                 message: {
                     subject: 'Novo Pedido Gerado no Checkout',
                     body: {
@@ -1236,10 +885,10 @@ app.post('/checkout/processarpagamento', async (req, res) => {
                         content: `
                             <p><b>Aluno:</b> ${NomeCompleto}</p>
                             <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                            <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
+                    toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
                 }
             });
 
@@ -1320,7 +969,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Cartão_PIX_CARTAO_PagarMe, Status_Cobrança_Cartão_PIX_CARTAO, null, null, null, null, null, null, null, null, null ]]})
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Cartão_PIX_CARTAO_PagarMe, Status_Cobrança_Cartão_PIX_CARTAO, null, null, null, null, null, null, null, null, null ]]})
 
                 .then(async (response) => {
 
@@ -1396,7 +1045,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Pix_PIX_CARTAO_PagarMe, Status_Cobrança_Pix, null, null, null, null, null, null ]]})
+                        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECR5HB32SW46MRH37KVHCWW4MDNU/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + Número_Linha_Adicionada_à_BD_Cobranças + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Retorno_Processamento_Cobrança_Pix_PIX_CARTAO_PagarMe, Status_Cobrança_Pix, null, null, null, null, null, null ]]})
 
                         .then(async (response) => {
 
@@ -1405,7 +1054,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-                            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
                                 message: {
                                     subject: 'Ivy: PIX para Pagamento',
                                     body: {
@@ -1498,7 +1147,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
                                             <p>Atenciosamente,<br></p>
 
-                                            <img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/>
+                                            <img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/>
 
                                             </body>
                                             </html>
@@ -1520,116 +1169,6 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 
     }
 
-});
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Webhook: Processa Pedido (Checkout) Autorizado pela PagaLeve.
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/checkout/webhook_pagaleve', async (req, res) => {
-
-    res.status(200).send();
-    
-    let PagaLeve_Checkout_Status = req.body.state;
-    
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Insere o pedido na BD - PEDIDOS.
-
-    if (PagaLeve_Checkout_Status === "AUTHORIZED") {
-
-        let PagaLeve_Checkout_Response = JSON.stringify(req.body);
-        let PagaLeve_Checkout_ID = req.body.id;
-        let PagaLeve_Checkout_Amount = req.body.amount;
-        let NomeCompleto = req.body.metadata.full_name;
-        let Email_do_Cliente = req.body.metadata.email;
-        let Campo_de_Preenchimento_DDD = req.body.metadata.ddd;
-        let Campo_de_Preenchimento_Celular = req.body.metadata.phone;
-        let Campo_de_Preenchimento_CPF = req.body.metadata.cpf;
-        let Endereço_Rua = req.body.metadata.shipping_address.street;
-        let Endereço_Número = req.body.metadata.shipping_address.number;
-        let Endereço_Complemento = req.body.metadata.shipping_address.complement;
-        let Endereço_Bairro = req.body.metadata.shipping_address.neighborhood;
-        let Endereço_Cidade = req.body.metadata.shipping_address.city;
-        let Endereço_Estado = req.body.metadata.shipping_address.state;
-        let Endereço_CEP = req.body.metadata.shipping_address.zip_code;
-        let Nome_Produto = req.body.metadata.product;
-        let Tipo_de_Pagamento_Escolhido = "PIX_PARCELADO"
-        let Valor_Nominal_da_Compra_no_PIX_PARCELADO = req.body.metadata.amount;
-
-        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-        await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB2FRGLQQA7KHNCYUNGTVRU3HTG7/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows')
-        
-        .post({"values": [[ ConverteData2(new Date()), NomeCompleto, Email_do_Cliente, Campo_de_Preenchimento_DDD, Campo_de_Preenchimento_Celular, Campo_de_Preenchimento_CPF, Endereço_Rua, Endereço_Número, Endereço_Complemento, Endereço_Bairro, Endereço_Cidade, Endereço_Estado, Endereço_CEP, Nome_Produto, Tipo_de_Pagamento_Escolhido, Valor_Nominal_da_Compra_no_PIX_PARCELADO, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", PagaLeve_Checkout_Response, PagaLeve_Checkout_Status ]]})  
-
-        .then(async (response) => {
-
-            res.status(200).send();
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Envia o e-mail de "Novo Pedido Gerado no Checkout".
-
-            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-                message: {
-                    subject: 'Novo Pedido Gerado no Checkout',
-                    body: {
-                        contentType: 'HTML',
-                        content: `
-                            <p><b>Aluno:</b> ${NomeCompleto}</p>
-                            <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-                        `
-                    },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
-                }
-            });
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Obtém o Access Token junto à PagaLeve (Endpoint: Criar uma Sessão Segura).
-
-            fetch('https://api.pagaleve.com.br/v1/authentication', {
-                method: 'POST',
-                headers: {accept: 'application/json', 'content-type': 'application/json'},
-                body: JSON.stringify({
-                    password: PagaLeve_API_Secret,
-                    username: PagaLeve_API_Key
-                })
-            })
-
-            .then(response => response.json()).then(async json => {
-
-                let PagaLeve_Session_Token = 'Bearer ' + json.token;
-
-                let PagaLeve_Session_IdempotencyKey = uuidv4();
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // Processa o Pagamento referente ao Pedido (Checkout) Autorizado junto à PagaLeve (Endpoint: Criar Pagamento).
-
-                fetch('https://api.pagaleve.com.br/v1/payments', {
-                    method: 'POST',
-                    headers: {
-                        accept: 'application/json',
-                        'Idempotency-Key': PagaLeve_Session_IdempotencyKey,
-                        'content-type': 'application/json',
-                        authorization: PagaLeve_Session_Token
-                    },
-                    body: JSON.stringify({
-                        currency: 'BRL',
-                        intent: 'CAPTURE',
-                        amount: PagaLeve_Checkout_Amount,
-                        checkout_id: PagaLeve_Checkout_ID
-                    })
-                })
-                
-            });
-
-        });
-
-    }
-    
 });
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2627,6 +2166,99 @@ app.post('/alunos/envioemail03', async (req,res) => {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
+// Envia e-mails individuais para clientes na BD - PLATAFORMA.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/alunos/envioemail04', async (req,res) => {
+
+    console.log(`1. Request recebida.`);
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Puxa os dados da BD - PLATAFORMA.
+    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+    if (BD_Plataforma !== null) console.log(`2. BD_Plataforma obtida.`);
+
+    const BD_Plataforma_Última_Linha = BD_Plataforma.value.length - 1;
+
+    let Número_Email_Enviado = 0;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Então envia um email a cada 2s.
+    
+    async function Envia_Email_Clientes() {
+
+        for (let LinhaAtual = 287; LinhaAtual <= BD_Plataforma_Última_Linha; LinhaAtual++) {
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+            // Puxa as variáveis do aluno da BD - PLATAFORMA.
+    
+            let Cliente_PrimeiroNome = BD_Plataforma.value[LinhaAtual].values[0][1];
+            let Cliente_Email = BD_Plataforma.value[LinhaAtual].values[0][2];
+            let Cliente_Senha = BD_Plataforma.value[LinhaAtual].values[0][3];
+    
+            Número_Email_Enviado++;
+
+            console.log(`3. E-mail #${Número_Email_Enviado} enviado para: ${Cliente_PrimeiroNome}`);
+            
+            if (LinhaAtual === BD_Plataforma_Última_Linha) console.log(`--- fim ---`);
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
+
+                message: {
+                    subject: 'Instruções Iniciais e Acesso à Plataforma - Machado | Método Gerencial para Empresas',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
+                            <p>Bom dia ${Cliente_PrimeiroNome},</p>
+                            <p>Quem escreve é Lucas Machado, fundador da Machado | Método Gerencial para Empresas. Como vai?</p>
+                            <p>Recentemente a MGF contratou nosso serviço, a Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você é um dos profissionais selecionados para participar!</p>
+                            <p>Nosso trabalho conjunto terá duas grandes etapas:</p>
+                            <p><b>• Preparatório em Gestão Generalista:</b> etapa de formação em gerenciamento científico (Método Gerencial), que acontece por meio de nossa plataforma de ensino em formato assíncrono (com vídeos, ferramentas para download e estudos de caso reais). Esta etapa dura cerca de 60 dias e o acompanhamento do progresso de vocês (percentual de evolução nos estudos e resultados nos testes ao final de cada um dos 7 módulos) será gerenciado via Status Reports enviados ao grupo de WhatsApp que criaremos ao longo do dia de hoje.</p>
+                            <p><b>• Encontros Presenciais:</b> etapa posterior à formação. Aqui iremos tirar dúvidas, revisar conceitos e de fato fazer o ataque consultivo à MGF. Nesta fase, eu irei até vocês para 3 dias inteiros de encontros presenciais (das 9h às 18h). A data destes encontros será definida junto à diretoria, posteriormente.</p>
+                            <p>Amanhã (quarta-feira, 17/set às 9h) faremos um <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_Y2VkYTQ3NzktZmQ0NS00M2U0LWFhM2ItZGEyMmI2ZGYxYzgx%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22a8f570ff-a292-4b2f-a1e4-629ccd7a26be%22%7d">encontro via Microsoft Teams</a> para passarmos por todos estes pontos em detalhes. Por favor entre na reunião no horário. Começaremos pontualmente.</p>
+                            <p>Dito isto, por favor utilize as credenciais abaixo para acessar o Preparatório:</p>
+                            <span><b>Link:</b> <a href="https://machadogestao.com/plataforma/login">https://machadogestao.com/plataforma/login</a><br></span>
+                            <span><b>Login:</b> ${Cliente_Email}<br></span>
+                            <span><b>Senha:</b> ${Cliente_Senha}<br></span>
+                            <p><b>Observações Importantes:</b></p>
+                            <p>• Caso tenha qualquer dificuldade de acesso à plataforma, envie em resposta a este e-mail ou via inbox no WhatsApp para +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente.</p>
+                            <p>• Já preparamos e estamos expedindo amanhã (17/set, via Sedex) <b>materiais impressos</b> que darão suporte aos estudos. Cada um de vocês receberá, no endereço da empresa, uma caixa personalizada com apostilas, guias de aplicação rápida do conhecimento e um compilado com todos os estudos de caso. <b>Sugerimos aguardar a chegada dos materiais antes de iniciarem os estudos.</b></p>
+                            <p>• Estamos passando por um processo de rebranding de nossa empresa (nossa marca original é Ivy | Escola de Gestão). Por isto, parte do Preparatório e dos materiais impressos ainda remetem a esta marca. Tudo certo neste ponto. Não há impacto nos conteúdos.</p>
+                            <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                            <p>Atenciosamente,</p>
+                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
+                        `
+                    },
+                    toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
+                }
+            
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+    
+        }
+
+    }
+
+    setTimeout(Envia_Email_Clientes, 1000);
+
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 // Envia convites para os atendimentos ao vivo.
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2648,7 +2280,7 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
     //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
     
@@ -2664,7 +2296,7 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
     
     async function Envia_Invites_Atendimentos() {
 
-        for (let LinhaAtual = 150; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2688,20 +2320,20 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
                 ///////////////////////////////////////////////////////////////////////////////////////////////////
                 // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
     
-                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Atendimentos', language: 'PT-BR' } });
+                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial para Empresas', product: 'Machado - Atendimento ao Vivo', language: 'PT-BR' } });
                 const event = cal.createEvent({
                     start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
                     end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
                     summary: 'Atendimento ao Vivo',
                     description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
-                    uid: `${new Date().getTime()}@ivyroom.com.br`,
+                    uid: `${new Date().getTime()}@machadogestao.com`,
                     stamp: new Date()
                 });
     
                 event.createAlarm({
                     type: 'display',
                     trigger: 1 * 60 * 60 * 1000,
-                    description: 'Atendimento ao Vivo (Ivy) - Inicia em 1 hora.'
+                    description: 'Atendimento ao Vivo (Machado) - Inicia em 1 hora.'
                 });
     
                 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2709,27 +2341,27 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
     
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
     
                     message: {
-                        subject: 'Ivy - Convite: Atendimento ao Vivo',
+                        subject: 'Machado - Convite: Atendimento ao Vivo',
                         body: {
                             contentType: 'HTML',
                             content: `
                                 <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Informamos que o próximo atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p>Informamos que o próximo atendimento ao vivo com o Lucas Machado, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
                                 <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
                                 <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.</p> 
                                 <p>Qualquer dúvida, à disposição.</p>
                                 <p>Atenciosamente,</p>
-                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                                <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                             `
                         },
                         toRecipients: [{ emailAddress: { address: Aluno_Email } }],
                         attachments: [
                             {
                                 "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Ivy - Atendimento ao Vivo.ics",
+                                name: "Machado - Atendimento ao Vivo.ics",
                                 contentBytes: Buffer.from(cal.toString()).toString('base64')
                             }
                         ]
@@ -2763,13 +2395,13 @@ app.post('/alunos/convite-atendimentos', async (req,res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/alunos/lembretes-atendimentos', async (req,res) => {
+app.post('/alunos/lembrete-atendimentos', async (req,res) => {
 
     let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
+    
+    //res.status(200).json({ message: "1. Request recebida." });
 
-    res.status(200).json({ message: "1. Request recebida." });
-
-    console.log('1. Request recebida.');
+    console.log(`1. Request recebida.`);
 
     let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
 
@@ -2780,12 +2412,12 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
-    //if (BD_Office_Hours !== null && client) client.send(JSON.stringify({ message: `2. BD - OFFICE HOURS obtida.`, origin: "LembreteOHs" }));
+    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
     
-    if (BD_Atendimentos !== null) console.log('2. BD - ATENDIMENTOS obtida.');
-
+    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
+    
     const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
 
     let Número_Lembrete_Enviado = 0;
@@ -2796,7 +2428,7 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
     
     async function Envia_Lembretes_Atendimentos() {
 
-        for (let LinhaAtual = 150; LinhaAtual <= 160; LinhaAtual++) {
+        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2809,35 +2441,62 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
     
                 Número_Lembrete_Enviado++;
     
-                // if (client) client.send(JSON.stringify({ message: `3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "LembreteOHs" }));
+                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
+    
+                console.log(`3. Invite #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
                 
-                console.log(`3. Lembrete #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
+                
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
 
-                // if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
-                
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`)
+                ///////////////////////////////////////////////////////////////////////////////////////////////////
+                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
+    
+                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial para Empresas', product: 'Machado - Atendimento ao Vivo', language: 'PT-BR' } });
+                const event = cal.createEvent({
+                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
+                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
+                    summary: 'Atendimento ao Vivo',
+                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
+                    uid: `${new Date().getTime()}@machadogestao.com`,
+                    stamp: new Date()
+                });
+    
+                event.createAlarm({
+                    type: 'display',
+                    trigger: 1 * 60 * 60 * 1000,
+                    description: 'Atendimento ao Vivo (Machado) - Inicia em 1 hora.'
+                });
     
                 ////////////////////////////////////////////////////////////////////////////////////////
                 // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
     
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
     
                     message: {
-                        subject: 'Ivy - Lembrete: Atendimento ao Vivo',
+                        subject: 'Machado - Lembrete: Atendimento ao Vivo',
                         body: {
                             contentType: 'HTML',
                             content: `
                                 <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Reforçamos que o próximo atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>hoje, ${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p>Lembramos que você é o protagonista destes encontros. Por isto, se prepare previamente e traga suas dúvidas, anotações e materiais de suporte ao Preparatório.</p> 
-                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
+                                <p>Lembramos que o próximo atendimento ao vivo com o Lucas Machado acontecerá hoje, <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
+                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
+                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.</p> 
+                                <p>Qualquer dúvida, à disposição.</p>
                                 <p>Atenciosamente,</p>
-                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                                <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                             `
                         },
-                        toRecipients: [{ emailAddress: { address: Aluno_Email } }]
+                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
+                        attachments: [
+                            {
+                                "@odata.type": "#microsoft.graph.fileAttachment",
+                                name: "Machado - Atendimento ao Vivo.ics",
+                                contentBytes: Buffer.from(cal.toString()).toString('base64')
+                            }
+                        ]
                     }
                 
                 });
@@ -2848,9 +2507,9 @@ app.post('/alunos/lembretes-atendimentos', async (req,res) => {
 
                 await new Promise(resolve => setTimeout(resolve, 0));
 
-                // if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "LembreteOHs" }));
+                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
 
-                if(LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
+                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
 
             }
     
