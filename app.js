@@ -1758,18 +1758,11 @@ app.post('/updates', async (req,res) => {
 
 // });
 
-app.post(
-  '/ezdrm-playready-authorization-url',
-  express.text({ type: '*/*' }),
-  (req, res) => {
-
-    console.log("EZDRM QUERY:", req.query);
-    console.log("EZDRM BODY:", req.body);
-
-    res.set("Content-Type", "text/plain");
-    res.send("p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0");
-  }
-);
+app.post('/ezdrm-playready-authorization-url', express.text({ type: '*/*' }), (req, res) => {
+  res.status(200)
+     .set("Content-Type", "text/html")
+     .send("p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0&token=&CustomData=");
+});
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
