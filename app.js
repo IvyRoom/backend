@@ -1741,21 +1741,27 @@ app.post('/updates', async (req,res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.get('/ezdrm-playready-authorization-url', (req, res) => {
+// app.get('/ezdrm-playready-authorization-url', (req, res) => {
 
-  console.log(req);
+//   console.log(req);
   
-  const token = req.query.token || "";
-  const customData = req.query.CustomData || "";
+//   const token = req.query.token || "";
+//   const customData = req.query.CustomData || "";
 
-  const response =
-    "p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0" +
-    "&token=" + encodeURIComponent(token) +
-    "&CustomData=" + encodeURIComponent(customData);
+//   const response =
+//     "p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0" +
+//     "&token=" + encodeURIComponent(token) +
+//     "&CustomData=" + encodeURIComponent(customData);
 
+//   res.set("Content-Type", "text/plain");
+//   res.status(200).send(response);
+
+// });
+
+app.post('/ezdrm-playready-authorization-url', (req, res) => {
+  res.status(200);
   res.set("Content-Type", "text/plain");
-  res.status(200).send(response);
-
+  res.send("p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0");
 });
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
