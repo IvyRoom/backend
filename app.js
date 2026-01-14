@@ -1743,6 +1743,8 @@ app.post('/updates', async (req,res) => {
 
 app.get('/ezdrm-playready-authorization-url', (req, res) => {
 
+  console.log(req);
+  
   const token = req.query.token || "";
   const customData = req.query.CustomData || "";
 
