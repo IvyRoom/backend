@@ -1174,7 +1174,7 @@ app.post('/checkout/processarpagamento', async (req, res) => {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////// PROCESSAMENTO DA PLATAFORMA /////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////// PROCESSAMENTO DA PLATAFORMA_v1 ///////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1189,8 +1189,6 @@ var Usuário_NomeCompleto;
 var Usuário_PrimeiroNome;
 var Usuário_Login;
 var Usuário_Senha;
-// var Usuário_Foto_Cadastrada;
-// var Usuário_Status_FaceID;
 var Usuário_Preparatório1_Status;
 var Usuário_Preparatório1_PrazoAcesso;
 var Usuário_Preparatório1_NúmeroTópicosConcluídos;
@@ -1281,202 +1279,6 @@ app.post('/login', async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que processa submissão do formulário de login (com Face ID).
-////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/login', async (req, res) => {
-    
-//     var { login, senha } = req.body;
-    
-//     Usuário_Login = login;
-//     Usuário_Senha = senha;
-
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Obtém os dados da BD - PLATAFORMA.xlsx.
-
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-    
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
-
-//     const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
-
-//     var LoginAutenticado = 0;
-//     var IndexVerificado = 0;
-//     var LoginVerificado;
-//     var SenhaVerificada;
-
-//     Verifica_Login_e_Senha();
-
-//     function Verifica_Login_e_Senha() {
-
-//         if (IndexVerificado < BD_Plataforma_Número_Linhas) {
-            
-//             LoginVerificado = BD_Plataforma.value[IndexVerificado].values[0][2];
-//             SenhaVerificada = BD_Plataforma.value[IndexVerificado].values[0][3].toString();
-
-//             if(Usuário_Login === LoginVerificado) {
-
-//                 if(Usuário_Senha === SenhaVerificada) {
-                    
-//                     LoginAutenticado = 1;
-
-//                     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
-//                     Usuário_Status_FaceID = BD_Plataforma.value[IndexVerificado].values[0][4];
-//                     Usuário_Foto_Cadastrada = BD_Plataforma.value[IndexVerificado].values[0][5];
-//                     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
-//                     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
-                    
-//                 }
-                
-//             } else {
-
-//                 IndexVerificado++;
-//                 Verifica_Login_e_Senha();
-
-//             }
-
-//         }
-        
-//     }
-
-//     res.status(200).json({ 
-        
-//         LoginAutenticado,
-//         IndexVerificado,
-//         Usuário_PrimeiroNome,
-//         Usuário_Status_FaceID,
-//         Usuário_Foto_Cadastrada,
-//         Usuário_Preparatório1_Status,
-//         Usuário_Preparatório1_PrazoAcesso
-
-//     });
-
-// });
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoints que processam o FaceID (Liveness Session) junto ao Azure Face API.
-////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
-    
-//     let IndexVerificado = req.body.IndexVerificado;
-//     let FotoReferência = req.file.buffer;
-    
-//     // Armazena a FotoReferência em PG - FOTOS DE REFERÊNCIA.
-    
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-//     async function UploadFotoReferência(limite_tentativas = 5, intervalo = 2000) {
-    
-//         for (let tentativa = 1; tentativa <= limite_tentativas; tentativa++) {
-//           try {
-//             console.log(tentativa);
-//             await Microsoft_Graph_API_Client.api(`/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/root:/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência);
-//             return; 
-//           } catch (err) {
-//             if (tentativa === limite_tentativas) throw err;
-//             await new Promise(res => setTimeout(res, intervalo));
-//           }
-//         }
-    
-//     }
-    
-//     UploadFotoReferência();
-
-//     // Atualiza a coluna FOTO CADASTRADA para 'Sim' na BD - PLATAFORMA.
-
-//     await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
-    
-//     // Roda o Face ID (Liveness Session).
-    
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
-
-//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
-//     .post({
-//         contentType: "multipart/form-data",
-//         body: [
-//             {
-//                 name: "VerifyImage",
-//                 body: FotoReferência
-//             },
-//             {
-//                 name: "livenessOperationMode",
-//                 body: "Passive"
-//             },
-//             {
-//                 name: "deviceCorrelationId",
-//                 body: uuidv4()
-//             }
-//         ]
-//     });
-
-//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
-//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
-
-//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
-
-// });
-
-// app.post('/FaceID', async (req, res) => {
-
-//     var { IndexVerificado } = req.body;
-    
-//     let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Ivy Room/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
-
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
-
-//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
-//     .post({
-//         contentType: "multipart/form-data",
-//         body: [
-//             {
-//                 name: "VerifyImage",
-//                 body: FotoReferência
-//             },
-//             {
-//                 name: "livenessOperationMode",
-//                 body: "Passive"
-//             },
-//             {
-//                 name: "deviceCorrelationId",
-//                 body: uuidv4()
-//             }
-//         ]
-//     });
-
-//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
-//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
-
-//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
-
-// });
-
-// app.get('/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID', async (req, res) => {
-
-//     let Azure_Face_API_LivenessSession_sessionID = req.params.Azure_Face_API_LivenessSession_sessionID;
-
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
-
-//     let Azure_Face_API_LivenessSession  = await Azure_Face_API_Client.path('/detectLivenessWithVerify-sessions/{sessionId}', Azure_Face_API_LivenessSession_sessionID).get();
-    
-//     let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.livenessDecision;
-//     let Azure_Face_API_LivenessSession_MatchConfidence = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.matchConfidence;
-//     let Azure_Face_API_LivenessSession_MatchDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.isIdentical;
-
-//     console.log(Azure_Face_API_LivenessSession_LivenessDecision);
-//     console.log(Azure_Face_API_LivenessSession_MatchConfidence);
-//     console.log(Azure_Face_API_LivenessSession_MatchDecision);
-
-//     res.status(200).json({ Azure_Face_API_LivenessSession_LivenessDecision, Azure_Face_API_LivenessSession_MatchDecision });
-
-// });
-
-////////////////////////////////////////////////////////////////////////////////////////
 // Endpoint que processa carregamento da aba /estudos no Frontend (sem FaceID)
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1528,60 +1330,8 @@ app.post('/refresh', async (req, res) => {
 
 });
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint que processa carregamento da aba /estudos no Frontend (com FaceID)
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/refresh', async (req, res) => {
-    
-//     var { IndexVerificado } = req.body;
-
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Obtém os dados da BD - PLATAFORMA.xlsx.
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-//     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
-//     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
-//     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
-//     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
-//     Usuário_Preparatório1_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
-//     Usuário_Preparatório1_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
-//     Usuário_Preparatório1_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
-//     Usuário_Preparatório1_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
-//     Usuário_Preparatório1_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
-//     Usuário_Preparatório1_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
-//     Usuário_Preparatório1_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
-//     Usuário_Preparatório1_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
-//     Usuário_Preparatório1_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][17];
-//     Usuário_Preparatório1_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][18];
-//     Usuário_Preparatório2_Interesse = BD_Plataforma.value[IndexVerificado].values[0][20];
-                    
-//     res.status(200).json({ 
-        
-//         Usuário_NomeCompleto,
-//         Usuário_PrimeiroNome,
-//         Usuário_Preparatório1_Status,
-//         Usuário_Preparatório1_PrazoAcesso,
-//         Usuário_Preparatório1_NúmeroTópicosConcluídos,
-//         Usuário_Preparatório1_NotaMódulo1,
-//         Usuário_Preparatório1_NotaMódulo2,
-//         Usuário_Preparatório1_NotaMódulo3,
-//         Usuário_Preparatório1_NotaMódulo4,
-//         Usuário_Preparatório1_NotaMódulo5,
-//         Usuário_Preparatório1_NotaMódulo6,
-//         Usuário_Preparatório1_NotaMódulo7,
-//         Usuário_Preparatório1_NotaAcumulado,
-//         Usuário_Preparatório1_CertificadoID,
-//         Usuário_Preparatório2_Interesse
-
-//     });
-
-// });
-
-
 ////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint que atualiza a BD - PLATAFORMA (sem FaceID) no OneDrive do contato@machadogestao.com
+// Endpoint que atualiza a BD - PLATAFORMA (sem FaceID).
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.post('/updates', async (req,res) => {
@@ -1647,6 +1397,277 @@ app.post('/updates', async (req,res) => {
 
 });
 
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////// PROCESSAMENTO DA PLATAFORMA_v2 ///////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Declara as variáveis mestras.
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// var Usuário_Foto_Cadastrada;
+// var Usuário_Status_FaceID;
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoints que realizam os processos envolvidos no login.
+// ////////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint que processa submissão do formulário de login (com Face ID).
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/login', async (req, res) => {
+    
+//     var { login, senha } = req.body;
+    
+//     Usuário_Login = login;
+//     Usuário_Senha = senha;
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Obtém os dados da BD - PLATAFORMA.xlsx.
+
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
+
+//     const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
+
+//     var LoginAutenticado = 0;
+//     var IndexVerificado = 0;
+//     var LoginVerificado;
+//     var SenhaVerificada;
+
+//     Verifica_Login_e_Senha();
+
+//     function Verifica_Login_e_Senha() {
+
+//         if (IndexVerificado < BD_Plataforma_Número_Linhas) {
+            
+//             LoginVerificado = BD_Plataforma.value[IndexVerificado].values[0][2];
+//             SenhaVerificada = BD_Plataforma.value[IndexVerificado].values[0][3].toString();
+
+//             if(Usuário_Login === LoginVerificado) {
+
+//                 if(Usuário_Senha === SenhaVerificada) {
+                    
+//                     LoginAutenticado = 1;
+
+//                     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
+//                     Usuário_Status_FaceID = BD_Plataforma.value[IndexVerificado].values[0][4];
+//                     Usuário_Foto_Cadastrada = BD_Plataforma.value[IndexVerificado].values[0][5];
+//                     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
+//                     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
+                    
+//                 }
+                
+//             } else {
+
+//                 IndexVerificado++;
+//                 Verifica_Login_e_Senha();
+
+//             }
+
+//         }
+        
+//     }
+
+//     res.status(200).json({ 
+        
+//         LoginAutenticado,
+//         IndexVerificado,
+//         Usuário_PrimeiroNome,
+//         Usuário_Status_FaceID,
+//         Usuário_Foto_Cadastrada,
+//         Usuário_Preparatório1_Status,
+//         Usuário_Preparatório1_PrazoAcesso
+
+//     });
+
+// });
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoints que processam o FaceID (Liveness Session) junto ao Azure Face API.
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
+    
+//     let IndexVerificado = req.body.IndexVerificado;
+//     let FotoReferência = req.file.buffer;
+    
+//     // Armazena a FotoReferência em PG - FOTOS DE REFERÊNCIA.
+    
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    
+//     async function UploadFotoReferência(limite_tentativas = 5, intervalo = 2000) {
+    
+//         for (let tentativa = 1; tentativa <= limite_tentativas; tentativa++) {
+//           try {
+//             console.log(tentativa);
+//             await Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência);
+//             return; 
+//           } catch (err) {
+//             if (tentativa === limite_tentativas) throw err;
+//             await new Promise(res => setTimeout(res, intervalo));
+//           }
+//         }
+    
+//     }
+    
+//     UploadFotoReferência();
+
+//     // Atualiza a coluna FOTO CADASTRADA para 'Sim' na BD - PLATAFORMA.
+
+//     await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
+    
+//     // Roda o Face ID (Liveness Session).
+    
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+//     .post({
+//         contentType: "multipart/form-data",
+//         body: [
+//             {
+//                 name: "VerifyImage",
+//                 body: FotoReferência
+//             },
+//             {
+//                 name: "livenessOperationMode",
+//                 body: "Passive"
+//             },
+//             {
+//                 name: "deviceCorrelationId",
+//                 body: uuidv4()
+//             }
+//         ]
+//     });
+
+//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+
+// });
+
+// app.post('/FaceID', async (req, res) => {
+
+//     var { IndexVerificado } = req.body;
+    
+//     let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Machado/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
+
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+//     .post({
+//         contentType: "multipart/form-data",
+//         body: [
+//             {
+//                 name: "VerifyImage",
+//                 body: FotoReferência
+//             },
+//             {
+//                 name: "livenessOperationMode",
+//                 body: "Passive"
+//             },
+//             {
+//                 name: "deviceCorrelationId",
+//                 body: uuidv4()
+//             }
+//         ]
+//     });
+
+//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+
+// });
+
+// app.get('/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID', async (req, res) => {
+
+//     let Azure_Face_API_LivenessSession_sessionID = req.params.Azure_Face_API_LivenessSession_sessionID;
+
+//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+
+//     let Azure_Face_API_LivenessSession  = await Azure_Face_API_Client.path('/detectLivenessWithVerify-sessions/{sessionId}', Azure_Face_API_LivenessSession_sessionID).get();
+    
+//     let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.livenessDecision;
+//     let Azure_Face_API_LivenessSession_MatchConfidence = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.matchConfidence;
+//     let Azure_Face_API_LivenessSession_MatchDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.isIdentical;
+
+//     console.log(Azure_Face_API_LivenessSession_LivenessDecision);
+//     console.log(Azure_Face_API_LivenessSession_MatchConfidence);
+//     console.log(Azure_Face_API_LivenessSession_MatchDecision);
+
+//     res.status(200).json({ Azure_Face_API_LivenessSession_LivenessDecision, Azure_Face_API_LivenessSession_MatchDecision });
+
+// });
+
+
+// ////////////////////////////////////////////////////////////////////////////////////////
+// // Endpoint que processa carregamento da aba /estudos no Frontend (com FaceID)
+// ////////////////////////////////////////////////////////////////////////////////////////
+
+// app.post('/refresh', async (req, res) => {
+    
+//     var { IndexVerificado } = req.body;
+
+//     ////////////////////////////////////////////////////////////////////////////////////////
+//     // Obtém os dados da BD - PLATAFORMA.xlsx.
+//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+//     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
+//     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
+//     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
+//     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
+//     Usuário_Preparatório1_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
+//     Usuário_Preparatório1_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
+//     Usuário_Preparatório1_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
+//     Usuário_Preparatório1_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
+//     Usuário_Preparatório1_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
+//     Usuário_Preparatório1_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
+//     Usuário_Preparatório1_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
+//     Usuário_Preparatório1_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
+//     Usuário_Preparatório1_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][17];
+//     Usuário_Preparatório1_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][18];
+//     Usuário_Preparatório2_Interesse = BD_Plataforma.value[IndexVerificado].values[0][20];
+                    
+//     res.status(200).json({ 
+        
+//         Usuário_NomeCompleto,
+//         Usuário_PrimeiroNome,
+//         Usuário_Preparatório1_Status,
+//         Usuário_Preparatório1_PrazoAcesso,
+//         Usuário_Preparatório1_NúmeroTópicosConcluídos,
+//         Usuário_Preparatório1_NotaMódulo1,
+//         Usuário_Preparatório1_NotaMódulo2,
+//         Usuário_Preparatório1_NotaMódulo3,
+//         Usuário_Preparatório1_NotaMódulo4,
+//         Usuário_Preparatório1_NotaMódulo5,
+//         Usuário_Preparatório1_NotaMódulo6,
+//         Usuário_Preparatório1_NotaMódulo7,
+//         Usuário_Preparatório1_NotaAcumulado,
+//         Usuário_Preparatório1_CertificadoID,
+//         Usuário_Preparatório2_Interesse
+
+//     });
+
+// });
+
 // ////////////////////////////////////////////////////////////////////////////////////////
 // // Endpoint que atualiza a BD - PLATAFORMA (com FaceID)
 // ////////////////////////////////////////////////////////////////////////////////////////
@@ -1662,37 +1683,37 @@ app.post('/updates', async (req,res) => {
 //         if (NúmeroMódulo === 1){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
 
 //         } else if (NúmeroMódulo === 2){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
 
 //         } else if (NúmeroMódulo === 3){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
 
 //         } else if (NúmeroMódulo === 4){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
 
 //         } else if (NúmeroMódulo === 5){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
 
 //         } else if (NúmeroMódulo === 6){
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
 
 //         } else {
 
 //             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
+//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
 
 //         } 
 
@@ -1700,13 +1721,13 @@ app.post('/updates', async (req,res) => {
 
 //         //Atualiza só o Número de Tópicos Concluídos do Prep.
 //         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
+//         await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
 
 //     } else if(TipoAtualização === 'Preparatório2_Interesse'){
 
 //         //Atualiza só o Interesse no Preparatório 2.
 //         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//         await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB26AQYB2EA2YVB3QB3DICPZMIEV/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
+//         await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
 
 //     }
 
@@ -1714,6 +1735,26 @@ app.post('/updates', async (req,res) => {
 
 // });
 
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que serve como Authorization URL para o PlayReady do EZDRM.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.get('/ezdrm-playready-authorization-url', (req, res) => {
+
+  const token = req.query.token || "";
+  const customData = req.query.CustomData || "";
+
+  const response =
+    "p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0" +
+    "&token=" + encodeURIComponent(token) +
+    "&CustomData=" + encodeURIComponent(customData);
+
+  res.set("Content-Type", "text/plain");
+  res.status(200).send(response);
+
+});
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
