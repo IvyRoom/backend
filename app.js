@@ -29,17 +29,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // Importa a biblioteca para trabalhar com multipart/form-data, necessária para fazer o upload das Fotos de Referência dos alunos.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Importa a biblioteca para trabalhar com multipart/form-data, necessária para fazer o upload das Fotos de Referência dos alunos.
 
-// const multer = require('multer');
+const multer = require('multer');
 
-// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// // Importa as bibliotecas necessárias para comunicação com o Azure Face API.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Importa as bibliotecas necessárias para comunicação com o Azure Face API.
 
-// const { AzureKeyCredential } = require("@azure/core-auth");
-// const FaceClient = require("@azure-rest/ai-vision-face").default;
-// const { readFileSync } = require('fs');
+const { AzureKeyCredential } = require("@azure/core-auth");
+const FaceClient = require("@azure-rest/ai-vision-face").default;
+const { readFileSync } = require('fs');
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Importa o módulo necessário para criar servidores HTTP (HTTP).
@@ -152,12 +152,12 @@ const Meta_Graph_API_Facebook_Page_ID = process.env.META_GRAPH_API_FACEBOOK_PAGE
 const Meta_Graph_API_Ad_Account_ID = process.env.META_GRAPH_API_AD_ACCOUNT_ID;
 const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_CUSTOM_AUDIENCE_ID_SEGUIDORES;
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Cria as variáveis de interface com o Azure Face API.
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Cria as variáveis de interface com o Azure Face API.
+////////////////////////////////////////////////////////////////////////////////////////
 
-// const Azure_Face_API_Endpoint = process.env.AZURE_FACE_API_ENDPOINT;
-// const Azure_Face_API_Key = process.env.AZURE_FACE_API_KEY;
+const Azure_Face_API_Endpoint = process.env.AZURE_FACE_API_ENDPOINT;
+const Azure_Face_API_Key = process.env.AZURE_FACE_API_KEY;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Cria as variáveis de interface com o API da Pagar.Me.
@@ -1397,343 +1397,371 @@ app.post('/updates', async (req,res) => {
 
 });
 
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////// PROCESSAMENTO DA PLATAFORMA_v2 ///////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////// PROCESSAMENTO DA PLATAFORMA_v2 ///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Declara as variáveis mestras.
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Declara as variáveis mestras.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 
-// var Usuário_Foto_Cadastrada;
-// var Usuário_Status_FaceID;
+//var Usuário_NomeCompleto;
+//var Usuário_PrimeiroNome;
+//var Usuário_Login;
+//var Usuário_Senha;
+var Usuário_Status_FaceID;
+var Usuário_Foto_Cadastrada;
+var Usuário_PrazoAcesso;
+var Usuário_Status_Login;
+var Usuário_Formação_NúmeroTópicosConcluídos;
+var Usuário_Formação_NotaMódulo1;
+var Usuário_Formação_NotaMódulo2;
+var Usuário_Formação_NotaMódulo3;
+var Usuário_Formação_NotaMódulo4;
+var Usuário_Formação_NotaMódulo5;
+var Usuário_Formação_NotaMódulo6;
+var Usuário_Formação_NotaMódulo7;
+var Usuário_Formação_NotaMódulo8;
+var Usuário_Formação_NotaMódulo9;
+var Usuário_Formação_NotaMódulo10;
+var Usuário_Formação_NotaAcumulado;
+var Usuário_Formação_CertificadoID;
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoints que realizam os processos envolvidos no login.
-// ////////////////////////////////////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoints que realizam os processos envolvidos no login.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint que processa submissão do formulário de login (com Face ID).
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa submissão do formulário de login (com Face ID).
+////////////////////////////////////////////////////////////////////////////////////////
 
-// app.post('/login', async (req, res) => {
+app.post('/plataforma_v2/login-FaceID', async (req, res) => {
     
-//     var { login, senha } = req.body;
+    var { login, senha } = req.body;
     
-//     Usuário_Login = login;
-//     Usuário_Senha = senha;
+    Usuário_Login = login;
+    Usuário_Senha = senha;
 
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Obtém os dados da BD - PLATAFORMA.xlsx.
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Obtém os dados da BD - PLATAFORMA.xlsx.
 
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
     
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Verifica se o Login e Senha cadastrados pelo usuário estão na BD_Plataforma.
 
-//     const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
+    const BD_Plataforma_Número_Linhas = BD_Plataforma.value.length;
 
-//     var LoginAutenticado = 0;
-//     var IndexVerificado = 0;
-//     var LoginVerificado;
-//     var SenhaVerificada;
+    var LoginAutenticado = 0;
+    var IndexVerificado = 0;
+    var LoginVerificado;
+    var SenhaVerificada;
 
-//     Verifica_Login_e_Senha();
+    Verifica_Login_e_Senha();
 
-//     function Verifica_Login_e_Senha() {
+    function Verifica_Login_e_Senha() {
 
-//         if (IndexVerificado < BD_Plataforma_Número_Linhas) {
+        if (IndexVerificado < BD_Plataforma_Número_Linhas) {
             
-//             LoginVerificado = BD_Plataforma.value[IndexVerificado].values[0][2];
-//             SenhaVerificada = BD_Plataforma.value[IndexVerificado].values[0][3].toString();
+            LoginVerificado = BD_Plataforma.value[IndexVerificado].values[0][2];
+            SenhaVerificada = BD_Plataforma.value[IndexVerificado].values[0][3].toString();
 
-//             if(Usuário_Login === LoginVerificado) {
+            if(Usuário_Login === LoginVerificado) {
 
-//                 if(Usuário_Senha === SenhaVerificada) {
+                if(Usuário_Senha === SenhaVerificada) {
                     
-//                     LoginAutenticado = 1;
+                    LoginAutenticado = 1;
 
-//                     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
-//                     Usuário_Status_FaceID = BD_Plataforma.value[IndexVerificado].values[0][4];
-//                     Usuário_Foto_Cadastrada = BD_Plataforma.value[IndexVerificado].values[0][5];
-//                     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
-//                     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
+                    Usuário_Status_FaceID = BD_Plataforma.value[IndexVerificado].values[0][4];
+                    Usuário_Foto_Cadastrada = BD_Plataforma.value[IndexVerificado].values[0][5];
+                    Usuário_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][6]);
+                    Usuário_Status_Login = BD_Plataforma.value[IndexVerificado].values[0][7];
                     
-//                 }
+                }
                 
-//             } else {
+            } else {
 
-//                 IndexVerificado++;
-//                 Verifica_Login_e_Senha();
+                IndexVerificado++;
+                Verifica_Login_e_Senha();
 
-//             }
+            }
 
-//         }
+        }
         
-//     }
+    }
 
-//     res.status(200).json({ 
+    res.status(200).json({ 
         
-//         LoginAutenticado,
-//         IndexVerificado,
-//         Usuário_PrimeiroNome,
-//         Usuário_Status_FaceID,
-//         Usuário_Foto_Cadastrada,
-//         Usuário_Preparatório1_Status,
-//         Usuário_Preparatório1_PrazoAcesso
+        LoginAutenticado,
+        IndexVerificado,
+        Usuário_Status_FaceID,
+        Usuário_Foto_Cadastrada,
+        Usuário_PrazoAcesso,
+        Usuário_Status_Login
 
-//     });
+    });
 
-// });
+});
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoints que processam o FaceID (Liveness Session) junto ao Azure Face API.
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoints que processam o FaceID (Liveness Session) junto ao Azure Face API.
+////////////////////////////////////////////////////////////////////////////////////////
 
-// app.post('/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
+app.post('/plataforma_v2/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
     
-//     let IndexVerificado = req.body.IndexVerificado;
-//     let FotoReferência = req.file.buffer;
+    let IndexVerificado = req.body.IndexVerificado;
+    let FotoReferência = req.file.buffer;
     
-//     // Armazena a FotoReferência em PG - FOTOS DE REFERÊNCIA.
+    // Armazena a FotoReferência em PG - FOTOS DE REFERÊNCIA.
     
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-//     async function UploadFotoReferência(limite_tentativas = 5, intervalo = 2000) {
+    async function UploadFotoReferência(limite_tentativas = 5, intervalo = 2000) {
     
-//         for (let tentativa = 1; tentativa <= limite_tentativas; tentativa++) {
-//           try {
-//             console.log(tentativa);
-//             await Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/SISTEMA DE GESTÃO/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência);
-//             return; 
-//           } catch (err) {
-//             if (tentativa === limite_tentativas) throw err;
-//             await new Promise(res => setTimeout(res, intervalo));
-//           }
-//         }
+        for (let tentativa = 1; tentativa <= limite_tentativas; tentativa++) {
+          try {
+            await Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência);
+            return; 
+          } catch (err) {
+            if (tentativa === limite_tentativas) throw err;
+            await new Promise(res => setTimeout(res, intervalo));
+          }
+        }
     
-//     }
+    }
     
-//     UploadFotoReferência();
+    UploadFotoReferência();
 
-//     // Atualiza a coluna FOTO CADASTRADA para 'Sim' na BD - PLATAFORMA.
+    // Atualiza a coluna FOTO CADASTRADA para 'Sim' na BD - PLATAFORMA.
 
-//     await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
+    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
     
-//     // Roda o Face ID (Liveness Session).
+    // Roda o Face ID (Liveness Session).
     
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+    let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+    let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
 
-//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
-//     .post({
-//         contentType: "multipart/form-data",
-//         body: [
-//             {
-//                 name: "VerifyImage",
-//                 body: FotoReferência
-//             },
-//             {
-//                 name: "livenessOperationMode",
-//                 body: "Passive"
-//             },
-//             {
-//                 name: "deviceCorrelationId",
-//                 body: uuidv4()
-//             }
-//         ]
-//     });
+    let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+    .post({
+        contentType: "multipart/form-data",
+        body: [
+            {
+                name: "VerifyImage",
+                body: FotoReferência
+            },
+            {
+                name: "livenessOperationMode",
+                body: "Passive"
+            },
+            {
+                name: "deviceCorrelationId",
+                body: uuidv4()
+            }
+        ]
+    });
 
-//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
-//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+    let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+    let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
 
-//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+    res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
 
-// });
+});
 
-// app.post('/FaceID', async (req, res) => {
+app.post('/plataforma_v2/FaceID', async (req, res) => {
 
-//     var { IndexVerificado } = req.body;
+    var { IndexVerificado } = req.body;
     
-//     let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Machado/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
+    let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Machado/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
 
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+    let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+    let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
 
-//     let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
-//     .post({
-//         contentType: "multipart/form-data",
-//         body: [
-//             {
-//                 name: "VerifyImage",
-//                 body: FotoReferência
-//             },
-//             {
-//                 name: "livenessOperationMode",
-//                 body: "Passive"
-//             },
-//             {
-//                 name: "deviceCorrelationId",
-//                 body: uuidv4()
-//             }
-//         ]
-//     });
+    let Azure_Face_API_LivenessSession = await Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions")
+    .post({
+        contentType: "multipart/form-data",
+        body: [
+            {
+                name: "VerifyImage",
+                body: FotoReferência
+            },
+            {
+                name: "livenessOperationMode",
+                body: "Passive"
+            },
+            {
+                name: "deviceCorrelationId",
+                body: uuidv4()
+            }
+        ]
+    });
 
-//     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
-//     let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
+    let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
+    let Azure_Face_API_LivenessSession_sessionID = Azure_Face_API_LivenessSession.body.sessionId;
 
-//     res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
+    res.status(200).json({ Azure_Face_API_LivenessSession_authToken, Azure_Face_API_LivenessSession_sessionID });
 
-// });
+});
 
-// app.get('/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID', async (req, res) => {
+app.get('/plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID', async (req, res) => {
 
-//     let Azure_Face_API_LivenessSession_sessionID = req.params.Azure_Face_API_LivenessSession_sessionID;
+    let Azure_Face_API_LivenessSession_sessionID = req.params.Azure_Face_API_LivenessSession_sessionID;
 
-//     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
-//     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
+    let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
+    let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
 
-//     let Azure_Face_API_LivenessSession  = await Azure_Face_API_Client.path('/detectLivenessWithVerify-sessions/{sessionId}', Azure_Face_API_LivenessSession_sessionID).get();
+    let Azure_Face_API_LivenessSession  = await Azure_Face_API_Client.path('/detectLivenessWithVerify-sessions/{sessionId}', Azure_Face_API_LivenessSession_sessionID).get();
     
-//     let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.livenessDecision;
-//     let Azure_Face_API_LivenessSession_MatchConfidence = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.matchConfidence;
-//     let Azure_Face_API_LivenessSession_MatchDecision = Azure_Face_API_LivenessSession.body.results.attempts[0].result.verifyResult.isIdentical;
-
-//     console.log(Azure_Face_API_LivenessSession_LivenessDecision);
-//     console.log(Azure_Face_API_LivenessSession_MatchConfidence);
-//     console.log(Azure_Face_API_LivenessSession_MatchDecision);
-
-//     res.status(200).json({ Azure_Face_API_LivenessSession_LivenessDecision, Azure_Face_API_LivenessSession_MatchDecision });
-
-// });
-
-
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint que processa carregamento da aba /estudos no Frontend (com FaceID)
-// ////////////////////////////////////////////////////////////////////////////////////////
-
-// app.post('/refresh', async (req, res) => {
+    let Azure_Face_API_LivenessSession_Data = Azure_Face_API_LivenessSession.body;
     
-//     var { IndexVerificado } = req.body;
+    let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession_Data.results.attempts[0].result.livenessDecision;
+    //let Azure_Face_API_LivenessSession_MatchConfidence = Azure_Face_API_LivenessSession_Data.results.attempts[0].result.verifyResult.matchConfidence;
+    let Azure_Face_API_LivenessSession_MatchDecision = Azure_Face_API_LivenessSession_Data.results.attempts[0].result.verifyResult.isIdentical;
 
-//     ////////////////////////////////////////////////////////////////////////////////////////
-//     // Obtém os dados da BD - PLATAFORMA.xlsx.
-//     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//     const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    res.status(200).json({ Azure_Face_API_LivenessSession_LivenessDecision, Azure_Face_API_LivenessSession_MatchDecision });
 
-//     Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
-//     Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
-//     Usuário_Preparatório1_Status = BD_Plataforma.value[IndexVerificado].values[0][6];
-//     Usuário_Preparatório1_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][7]);
-//     Usuário_Preparatório1_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
-//     Usuário_Preparatório1_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
-//     Usuário_Preparatório1_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
-//     Usuário_Preparatório1_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
-//     Usuário_Preparatório1_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
-//     Usuário_Preparatório1_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
-//     Usuário_Preparatório1_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
-//     Usuário_Preparatório1_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
-//     Usuário_Preparatório1_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][17];
-//     Usuário_Preparatório1_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][18];
-//     Usuário_Preparatório2_Interesse = BD_Plataforma.value[IndexVerificado].values[0][20];
+});
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa carregamento da aba /estudos no Frontend (plataforma_v2)
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/plataforma_v2/refresh', async (req, res) => {
+    
+    var { IndexVerificado } = req.body;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Obtém os dados da BD - PLATAFORMA.xlsx.
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+
+    Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
+    Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
+    Usuário_Email = BD_Plataforma.value[IndexVerificado].values[0][2];
+    Usuário_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][6]);
+    Usuário_Status_Login = BD_Plataforma.value[IndexVerificado].values[0][7];
+    Usuário_Formação_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
+    Usuário_Formação_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
+    Usuário_Formação_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
+    Usuário_Formação_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
+    Usuário_Formação_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
+    Usuário_Formação_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
+    Usuário_Formação_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
+    Usuário_Formação_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
+    Usuário_Formação_NotaMódulo8 = BD_Plataforma.value[IndexVerificado].values[0][17];
+    Usuário_Formação_NotaMódulo9 = BD_Plataforma.value[IndexVerificado].values[0][18];
+    Usuário_Formação_NotaMódulo10 = BD_Plataforma.value[IndexVerificado].values[0][19];
+    Usuário_Formação_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][20];
+    Usuário_Formação_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][21];
                     
-//     res.status(200).json({ 
+    res.status(200).json({ 
         
-//         Usuário_NomeCompleto,
-//         Usuário_PrimeiroNome,
-//         Usuário_Preparatório1_Status,
-//         Usuário_Preparatório1_PrazoAcesso,
-//         Usuário_Preparatório1_NúmeroTópicosConcluídos,
-//         Usuário_Preparatório1_NotaMódulo1,
-//         Usuário_Preparatório1_NotaMódulo2,
-//         Usuário_Preparatório1_NotaMódulo3,
-//         Usuário_Preparatório1_NotaMódulo4,
-//         Usuário_Preparatório1_NotaMódulo5,
-//         Usuário_Preparatório1_NotaMódulo6,
-//         Usuário_Preparatório1_NotaMódulo7,
-//         Usuário_Preparatório1_NotaAcumulado,
-//         Usuário_Preparatório1_CertificadoID,
-//         Usuário_Preparatório2_Interesse
+        Usuário_NomeCompleto,
+        Usuário_PrimeiroNome,
+        Usuário_Email,
+        Usuário_PrazoAcesso,
+        Usuário_Status_Login,
+        Usuário_Formação_NúmeroTópicosConcluídos,
+        Usuário_Formação_NotaMódulo1,
+        Usuário_Formação_NotaMódulo2,
+        Usuário_Formação_NotaMódulo3,
+        Usuário_Formação_NotaMódulo4,
+        Usuário_Formação_NotaMódulo5,
+        Usuário_Formação_NotaMódulo6,
+        Usuário_Formação_NotaMódulo7,
+        Usuário_Formação_NotaMódulo8,
+        Usuário_Formação_NotaMódulo9,
+        Usuário_Formação_NotaMódulo10,
+        Usuário_Formação_NotaAcumulado,
+        Usuário_Formação_CertificadoID
 
-//     });
+    });
 
-// });
+});
 
-// ////////////////////////////////////////////////////////////////////////////////////////
-// // Endpoint que atualiza a BD - PLATAFORMA (com FaceID)
-// ////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que atualiza a BD - PLATAFORMA (plataforma_v2).
+////////////////////////////////////////////////////////////////////////////////////////
 
-// app.post('/updates', async (req,res) => {
+app.post('/plataforma_v2/updates', async (req,res) => {
     
-//     var { TipoAtualização, IndexVerificado, NúmeroTópicosConcluídos, NúmeroMódulo, NotaTeste, Preparatório2_Interesse } = req.body;
+    var { TipoAtualização, IndexVerificado, NúmeroTópicosConcluídos, NúmeroMódulo, NotaTeste } = req.body;
 
-//     //Atualiza o Número de Tópicos Concluídos e a Nota no Teste.
+    //Atualiza o Número de Tópicos Concluídos e a Nota no Teste.
 
-//     if(TipoAtualização === 'NúmeroTópicosConcluídos-e-NotaTeste'){
+    if(TipoAtualização === 'NúmeroTópicosConcluídos-e-NotaTeste'){
 
-//         if (NúmeroMódulo === 1){
+        if (NúmeroMódulo === 1){
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, NotaTeste, null, null, null, null, null, null, null, null, null, null, null]]});
 
-//         } else if (NúmeroMódulo === 2){
+        } else if (NúmeroMódulo === 2){
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, NotaTeste, null, null, null, null, null, null, null, null, null, null]]});
+        
+        } else if (NúmeroMódulo === 3){
 
-//         } else if (NúmeroMódulo === 3){
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null, null]]});
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
+        } else if (NúmeroMódulo === 4){
 
-//         } else if (NúmeroMódulo === 4){
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null, null]]});
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
+        } else if (NúmeroMódulo === 5){
 
-//         } else if (NúmeroMódulo === 5){
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null, null]]});
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
+        } else if (NúmeroMódulo === 6){
 
-//         } else if (NúmeroMódulo === 6){
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null, null]]});
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
+        } else if (NúmeroMódulo === 7) {
 
-//         } else {
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null, null]]});
 
-//             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
+        } else if (NúmeroMódulo === 8) {
 
-//         } 
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, NotaTeste, null, null, null, null]]});
 
-//     } else if(TipoAtualização === 'NúmeroTópicosConcluídos') {
+        } else if (NúmeroMódulo === 9) {
 
-//         //Atualiza só o Número de Tópicos Concluídos do Prep.
-//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//         await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null]]});
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, NotaTeste, null, null, null]]});
 
-//     } else if(TipoAtualização === 'Preparatório2_Interesse'){
+        } else if (NúmeroMódulo === 10) {
 
-//         //Atualiza só o Interesse no Preparatório 2.
-//         if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-//         await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, Preparatório2_Interesse]]});
+            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, NotaTeste, null, null]]});
 
-//     }
+        } 
 
-//     res.status(200).send();
+    } else if(TipoAtualização === 'NúmeroTópicosConcluídos') {
 
-// });
+        //Atualiza só o Número de Tópicos Concluídos do Prep.
+        if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+        await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
+
+    }
+
+    res.status(200).send();
+
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -1742,8 +1770,6 @@ app.post('/updates', async (req,res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 app.get('/ezdrm-playready-authorization-url', (req, res) => {
-
-  console.log(req);
   
   const token = req.query.token || "";
   const customData = req.query.CustomData || "";
@@ -1758,11 +1784,29 @@ app.get('/ezdrm-playready-authorization-url', (req, res) => {
 
 });
 
-// app.post('/ezdrm-playready-authorization-url', express.text({ type: '*/*' }), (req, res) => {
-//   res.status(200)
-//      .set("Content-Type", "text/html")
-//      .send("p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0&token=&CustomData=");
-// });
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+// Endpoint que processa o recebimento de um feedback.
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+app.post('/plataforma_v2/processa-feedback', async (req,res) => {
+    
+    let { IndexVerificado, NúmeroTópicosConcluídos, Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários } = req.body;
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Atualiza a BD - PLATAFORMA.    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null, null]]});
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Atualiza a BD - FEEDBACKS.    
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECXO7I5R6LKLXJD3VWXORUAF7J37/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({values: [[ Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários ]]});
+
+    res.status(200).send();
+
+});
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2011,7 +2055,7 @@ app.post('/alunos/envioemail02', async (req,res) => {
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB6LBE4HY3JHYZFJHV2OJWRVOW2W/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
+    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
 
     //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
     
@@ -2027,7 +2071,7 @@ app.post('/alunos/envioemail02', async (req,res) => {
     
     async function Envia_Invites_Atendimentos() {
 
-        for (let LinhaAtual = 256; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
@@ -2051,20 +2095,20 @@ app.post('/alunos/envioemail02', async (req,res) => {
                 ///////////////////////////////////////////////////////////////////////////////////////////////////
                 // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
     
-                const cal = new ICalCalendar({ domain: 'ivyroom.com.br', prodId: { company: 'Ivy | Escola de Gestão', product: 'Ivy - Atendimentos', language: 'PT-BR' } });
+                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial', product: 'Machado - Atendimentos', language: 'PT-BR' } });
                 const event = cal.createEvent({
-                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
-                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
-                    summary: 'Atendimento ao Vivo',
+                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 12, 30, 0)), // 09:30 BRT
+                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 15, 0, 0)), // 12:00 BRT
+                    summary: 'Encontro Exclusivo',
                     description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
-                    uid: `${new Date().getTime()}@ivyroom.com.br`,
+                    uid: `${new Date().getTime()}@machadogestao.com`,
                     stamp: new Date()
                 });
     
                 event.createAlarm({
                     type: 'display',
                     trigger: 1 * 60 * 60 * 1000,
-                    description: 'Atendimento ao Vivo (Ivy) - Inicia em 1 hora.'
+                    description: 'Encontro Exclusivo (Machado) - Inicia em 1 hora.'
                 });
     
                 ////////////////////////////////////////////////////////////////////////////////////////
@@ -2072,33 +2116,30 @@ app.post('/alunos/envioemail02', async (req,res) => {
     
                 if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
     
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
+                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
     
                     message: {
-                        subject: 'Ivy - Atualizações: Bônus e Atendimentos ao Vivo',
+                        subject: 'Machado: Encontro Exclusivo - Hoje: Sábado 24/jan 9h30am',
                         body: {
                             contentType: 'HTML',
                             content: `
                                 <p>Bom dia ${Aluno_PrimeiroNome},</p>
-                                <p>Passamos para atualizá-los sobre dois temas importantes:<br><br></p>
-                                <p><b>1. BÔNUS</b></p>
-                                <p>Todos os bônus já foram preparados e embalados para expedição. Para alunos com endereço cadastrado em:</p>
-                                <p><b>• Curitiba/PR e Região Metropolitana:</b> bônus será enviado via Uber Delivery ou Loggi na segunda-feira (28/abril). Fique atento! Entraremos em contato via WhatsApp para alinharmos os detalhes antes do envio.</p>
-                                <p><b>• Demais localidades:</b> bônus já expedido via Correios. Previsão de entrega entre hoje (24/abril) e segunda-feira (28/abril). Monitoramento feito automaticamente por nós via API. Entramos em contato se necessário. Basta aguardar.<br><br></p>
-                                <p><b>2. ATENDIMENTOS AO VIVO</b></p>
-                                <p>O primeiro atendimento ao vivo com o Lucas, nosso fundador, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p>Abra o arquivo .ics em anexo e adicione o evento a sua agenda.</p>
-                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.<br><br></p> 
-                                <p>Qualquer dúvida, à disposição.</p>
+                                <p>Reforçamos que dentro de uma hora, hoje, ${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 9h30am, faremos um encontro especial, repleto de conteúdos gerenciais exclusivos.</p>
+                                <p>Abordaremos temas atuais no gerenciamento científico, focando especialmente no Ger. Rotina avançado:<p>
+                                <p>• Processos Administrativos e Processos Produtivos vs. a aplicação de automação integral via Códigos de Programação.</p>
+                                <p>• Vibe Coding e Hard Coding: quando utilizar cada estratégia, principais cuidados e pontos de atenção.</p>
+                                <p>• Robôs humanóides, SDCA, Processos Produtivos e os próximos 5 anos.</p>
+                                <p>O encontro acontecerá via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>. E será conduzido por nosso fundador (Lucas Machado).</p>
+                                <p>Qualquer dúvida ou insegurança, à disposição.</p>
                                 <p>Atenciosamente,</p>
-                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
+                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" height="150"/></p>
                             `
                         },
                         toRecipients: [{ emailAddress: { address: Aluno_Email } }],
                         attachments: [
                             {
                                 "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Ivy - Atendimento ao Vivo.ics",
+                                name: "Machado - Encontro Exclusivo.ics",
                                 contentBytes: Buffer.from(cal.toString()).toString('base64')
                             }
                         ]
