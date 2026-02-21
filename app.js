@@ -1581,7 +1581,8 @@ app.post('/plataforma_v2/FaceID', async (req, res) => {
 
     var { IndexVerificado } = req.body;
     
-    let FotoReferência = readFileSync(`C:/Users/lucas/OneDrive - Machado/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg`);
+    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
+    let FotoReferência = await Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).get();
 
     let Azure_Face_API_Credential = new AzureKeyCredential(Azure_Face_API_Key);
     let Azure_Face_API_Client = FaceClient(Azure_Face_API_Endpoint, Azure_Face_API_Credential);
