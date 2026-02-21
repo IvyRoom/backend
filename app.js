@@ -19,6 +19,7 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cria a aplicação necessária para receber HTTP Requests (Express).
 // Configura a aplicação para receber as requests de diferentes origens, inclusive do Localhost (Cors).
