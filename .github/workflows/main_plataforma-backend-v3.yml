@@ -13,9 +13,6 @@ jobs:
   build:
     runs-on: windows-latest
 
-    env:
-      AZURE_FACE_API_NPM_TEMPORARY_TOKEN: ${{ secrets.AZURE_FACE_API_NPM_TEMPORARY_TOKEN }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -26,8 +23,6 @@ jobs:
 
       - name: npm install, build, and test
         run: |
-          echo "Token exists:"
-          node -e "console.log(!!process.env.AZURE_FACE_API_NPM_TEMPORARY_TOKEN)"
           npm install
           npm run build --if-present
           npm run test --if-present
