@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "preinstall": "node ./scripts/write-npmrc.js",
     "start": "node app.js"
   },
   "dependencies": {
