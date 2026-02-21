@@ -6,6 +6,3 @@ node_modules/
 
 # IDE-specific files
 .vscode/
-
-# npm auth file
-.npmrc
