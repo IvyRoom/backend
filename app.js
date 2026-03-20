@@ -167,6 +167,7 @@ const Azure_Face_API_Key = process.env.AZURE_FACE_API_KEY;
 const PagarMe_API_Latest_Version = process.env.PAGARME_API_LATEST_VERSION;
 const PagarMe_SecretKey_Base64_Encoded = process.env.PAGARME_SECRETKEY_BASE64_ENCODED;
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +175,6 @@ const PagarMe_SecretKey_Base64_Encoded = process.env.PAGARME_SECRETKEY_BASE64_EN
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Serve as imagens estáticas da pasta /img.
@@ -285,6 +285,7 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
         Solicitante_Cargo,
         Solicitante_NomeEmpresa,
         Solicitante_CNPJ,
+        Solicitante_NúmerodeParticipantes,
         Solicitante_Observações
     
     } = req.body;
@@ -308,6 +309,7 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
                     <p><b>Dados da Empresa:</b></p>
                     <p>${Solicitante_NomeEmpresa}</p>
                     <p>${Solicitante_CNPJ}</p>
+                    <p>${Solicitante_NúmerodeParticipantes}</p>
                     <p>${Solicitante_Observações}</p>
                     <p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
                 `
@@ -1813,485 +1815,40 @@ app.post('/plataforma_v2/processa-feedback', async (req,res) => {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////// PROCESSAMENTO DOS LEADS ///////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////// COMUNICAÇÃO COM CLIENTES //////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-// Declara as variáveis mestras.
+// Envia e-mail de liberação de acesso à plataforma.
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-var ProcessamentoLeads_PrimeiroNome;
-var ProcessamentoLeads_Email;
+app.post('/clientes/liberacao-acesso-plataforma', async (req,res) => {
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mail de RL em escala para os leads na BD - LEADS.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/leads/email_RL', async (req,res) => {
-    
     res.status(200).send();
-    
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - LEADS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Leads = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows').get();
-
-    const BD_Leads_Última_Linha = BD_Leads.value.length - 1;
-
-    async function Envia_Email_Leads() {
-    
-        for (let LinhaAtual = 0; LinhaAtual <= BD_Leads_Última_Linha; LinhaAtual++) {
-            
-            ProcessamentoLeads_Email = BD_Leads.value[LinhaAtual].values[0][1];
-            ProcessamentoLeads_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Envia o e-mail para o lead na LinhaAtual da BD - LEADS.
-
-            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-                message: {
-                    subject: 'Ivy - Conteúdo 🎯: A Cultura do Sugar até Espanar',
-                    body: {
-                        contentType: 'HTML',
-                        content: `
-                            <p>Olá ${ProcessamentoLeads_PrimeiroNome},</p>
-                            <p>Quem escreve é Lucas Machado, fundador da Ivy | Escola de Gestão. Tudo bem?</p>
-                            <p>Passo para compartilhar um conteúdo de extremo valor para profissionais com interesse em Gestão. Espero que traga boas reflexões.</p>
-                            <p>--------------------------------------</p>
-                            <p><b>A CULTURA DO SUGAR ATÉ ESPANAR</b></p>
-                            <p>Não seja ingênuo.</p>
-                            <p>No Brasil, infelizmente, tem muita empresa que adota a cultura do <b>sugar até espanar</b>.</p>
-                            <p>Ou seja.</p>
-                            <p>São empresas que buscam contratar gente que trabalha duro e “pede” pouco, e que sugam estas pessoas ao máximo (sem as contrapartidas coerentes, é claro) até que elas espanem e peçam demissão.</p>
-                            <p>Daí a pessoa é substituída. E o ciclo reinicia.</p>
-                            <p>Por isto, tenha segurança disto: esta é uma cultura <b>medíocre</b>. Isto é a antítese da boa Gestão. Cedo ou tarde estas empresas quebram. E se você for vítima deste ciclo, minha orientação é: não hesite em sair.</p>
-                            <p>--------------------------------------</p>
-                            <p>Caso queira se aprofundar no tema, acompanhe os stories e nosso Canal de Transmissão no Instagram amanhã (sexta, 07/mar).
-                            <p>P.S. Nas próximas semanas traremos mais conteúdos nesta linha.</p>
-                            <p>P.S.2. Idem para informações sobre a próxima turma do Preparatório em Gestão Generalista.</p>
-                            <p>Sempre à disposição</p>
-                            <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-                        `
-                    },
-                    toRecipients: [{ emailAddress: { address: ProcessamentoLeads_Email } }]
-                }
-                
-            })
-
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            console.log(`E-mail ${LinhaAtual + 1} enviado: ${ProcessamentoLeads_PrimeiroNome}`);
-
-        }
-    
-    }
-
-    Envia_Email_Leads();
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mail de CV em escala para os leads na BD - LEADS.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/leads/email_CV', async (req,res) => {
-    
-    res.status(200).send();
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - LEADS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Leads = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJBYG24NEFOMGOJCLN5FMDILTSZTC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{AC8C07F3-9A79-4ABD-8CE8-0C818B0EA1A7}/rows').get();
-
-    const BD_Leads_Última_Linha = BD_Leads.value.length - 1;
-
-    async function Envia_Email_Leads() {
-    
-        for (let LinhaAtual = 0; LinhaAtual <= BD_Leads_Última_Linha; LinhaAtual++) {
-            
-            Lead_Email = BD_Leads.value[LinhaAtual].values[0][1];
-            Lead_PrimeiroNome = BD_Leads.value[LinhaAtual].values[0][2].split(" ")[0];
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Envia o e-mail para o lead na LinhaAtual da BD - ALUNOS.
-
-            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-
-                message: {
-                    subject: 'Ivy - 🚨ÚLTIMA CHAMADA🚨',
-                    body: {
-                        contentType: 'HTML',
-                        content: `
-                            <p>Última chamada!</p>
-                            <p>As inscrições para a próxima turma do Prep. Gestão Generalista encerram em menos de 60min (<b>hoje, quarta, 16/abril às 22:00</b> via <a href="https://ivygestao.com/">Link da Bio</a>).</p>
-                            <p>Se você quer construir carreira gerencial, este é um dos momentos mais importantes em toda a sua trajetória.</p>
-                            <p>Não deixe a oportunidade passar.</p>
-                            <p>Dúvidas em resposta a este e-mail.</p>
-                            <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-                        `
-                    },
-                    toRecipients: [{ emailAddress: { address: Lead_Email } }]
-                }
-            
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            console.log(`E-mail ${LinhaAtual + 1} enviado: ${Lead_PrimeiroNome}`);
-
-        }
-    
-    }
-
-    Envia_Email_Leads();
-
-});
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////// COMUNICAÇÃO COM ALUNOS ///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Declara as variáveis mestras.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-var Aluno_PrimeiroNome;
-var Aluno_Email;
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mails individuais (em escala) para os alunos na BD - ALUNOS.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/alunos/envioemail', async (req,res) => {
-    
-    res.status(200).send();
-    
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - ALUNOS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Alunos = await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB3JXEEKH4PQDFEYODH27M4CPH77/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-    const BD_Alunos_Número_Linhas = BD_Alunos.value.length;
-
-    const BD_Alunos_Última_Linha = BD_Alunos_Número_Linhas - 1;
-    
-    for (let LinhaAtual = 0; LinhaAtual <= 2; LinhaAtual++) {
-                
-        Aluno_Email = BD_Alunos.value[LinhaAtual].values[0][2];
-        Aluno_PrimeiroNome = BD_Alunos.value[LinhaAtual].values[0][1].split(" ")[0];
-
-        if (Aluno_Email === "-") {
-
-        } else {
-
-            // ////////////////////////////////////////////////////////////////////////////////////////
-            // // Envia o e-mail para o aluno atual na BD - ALUNOS.
-
-            if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/sendMail').post({
-                message: {
-                    subject: 'Teste',
-                    body: {
-                        contentType: 'HTML',
-                        content: `
-                            <p>Bom dia ${Aluno_PrimeiroNome},</p>
-                            <p>Este é um teste.</p>
-                            <p>Atenciosamente,</p>
-                            <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.png"/></p>
-                        `
-                    },
-                    toRecipients: [{ emailAddress: { address: 'contato@ivyroom.com.br' } }]
-                }
-                
-            })
-
-        }
-
-    }
-
-});
-
-app.post('/alunos/envioemail02', async (req,res) => {
-
-    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
-    
-    //res.status(200).json({ message: "1. Request recebida." });
-
-    console.log(`1. Request recebida.`);
-
-    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
-
-    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - ATENDIMENTOS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
-    
-    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
-
-    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
-
-    let Número_Invite_Enviado = 0;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
-    // Então envia um invite a cada 2s.
-    
-    async function Envia_Invites_Atendimentos() {
-
-        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
-    
-            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
-            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
-    
-            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
-    
-                Número_Invite_Enviado++;
-    
-                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
-    
-                console.log(`3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
-                
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-                
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
-    
-                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial', product: 'Machado - Atendimentos', language: 'PT-BR' } });
-                const event = cal.createEvent({
-                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 12, 30, 0)), // 09:30 BRT
-                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 15, 0, 0)), // 12:00 BRT
-                    summary: 'Encontro Exclusivo',
-                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
-                    uid: `${new Date().getTime()}@machadogestao.com`,
-                    stamp: new Date()
-                });
-    
-                event.createAlarm({
-                    type: 'display',
-                    trigger: 1 * 60 * 60 * 1000,
-                    description: 'Encontro Exclusivo (Machado) - Inicia em 1 hora.'
-                });
-    
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-    
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
-    
-                    message: {
-                        subject: 'Machado: Encontro Exclusivo - Hoje: Sábado 24/jan 9h30am',
-                        body: {
-                            contentType: 'HTML',
-                            content: `
-                                <p>Bom dia ${Aluno_PrimeiroNome},</p>
-                                <p>Reforçamos que dentro de uma hora, hoje, ${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 9h30am, faremos um encontro especial, repleto de conteúdos gerenciais exclusivos.</p>
-                                <p>Abordaremos temas atuais no gerenciamento científico, focando especialmente no Ger. Rotina avançado:<p>
-                                <p>• Processos Administrativos e Processos Produtivos vs. a aplicação de automação integral via Códigos de Programação.</p>
-                                <p>• Vibe Coding e Hard Coding: quando utilizar cada estratégia, principais cuidados e pontos de atenção.</p>
-                                <p>• Robôs humanóides, SDCA, Processos Produtivos e os próximos 5 anos.</p>
-                                <p>O encontro acontecerá via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>. E será conduzido por nosso fundador (Lucas Machado).</p>
-                                <p>Qualquer dúvida ou insegurança, à disposição.</p>
-                                <p>Atenciosamente,</p>
-                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" height="150"/></p>
-                            `
-                        },
-                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
-                        attachments: [
-                            {
-                                "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Machado - Encontro Exclusivo.ics",
-                                contentBytes: Buffer.from(cal.toString()).toString('base64')
-                            }
-                        ]
-                    }
-                
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-    
-            } else {
-
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-            }
-    
-        }
-
-    }
-
-    setTimeout(Envia_Invites_Atendimentos, 1000);
-
-});
-
-app.post('/alunos/envioemail03', async (req,res) => {
-
     console.log(`1. Request recebida.`);
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - ATENDIMENTOS.
+    // Obtém os dados da BD - PLATAFORMA.
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
-
-    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
-
-    let Número_Email_Enviado = 0;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
-    // Então envia um invite a cada 2s.
-    
-    async function Envia_Invites_Atendimentos() {
-
-        for (let LinhaAtual = 139; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
-    
-            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
-    
-            if (Aluno_Email !== "-") {
-    
-                Número_Email_Enviado++;
-    
-                console.log(`3. E-mail #${Número_Email_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
-                
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-    
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
-    
-                    message: {
-                        subject: 'Machado (antiga Ivy) - Novo Link de Acesso à Plataforma',
-                        body: {
-                            contentType: 'HTML',
-                            content: `
-                                <p>Boa tarde ${Aluno_PrimeiroNome},</p>
-                                <p>Quem escreve é Lucas Machado, fundador da Machado (antiga Ivy). Como vai?</p>
-                                <p>Sinalizo que, a partir de hoje (22/ago/2025 às 15h30) o acesso ao Preparatório em Gestão Generalista deve realizado por meio do link:</p>
-                                <p><b><a href="https://machadogestao.com/plataforma/login">https://machadogestao.com/plataforma/login</a></b></p>
-                                <p>O link anterior (https://ivygestao.com/plataforma/login) está sendo desativado de forma definitiva.</p>
-                                <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
-                                <p>Atenciosamente,</p>
-                                <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
-                            `
-                        },
-                        toRecipients: [{ emailAddress: { address: Aluno_Email } }]
-                    }
-                
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-    
-            } else {
-
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-            }
-    
-        }
-
-    }
-
-    setTimeout(Envia_Invites_Atendimentos, 1000);
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia e-mails individuais para clientes na BD - PLATAFORMA.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/alunos/envioemail04', async (req,res) => {
-
-    console.log(`1. Request recebida.`);
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - PLATAFORMA.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-
-    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRBV4WKTQCI2ZAKCY56VL6IF7ZM/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
+    const BD_Plataforma = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
     if (BD_Plataforma !== null) console.log(`2. BD_Plataforma obtida.`);
 
-    const BD_Plataforma_Última_Linha = BD_Plataforma.value.length - 1;
+    ////////////////////////////////////////////////////////////////////////////////////////
+    // Envia os e-mails, um a cada 2s.
 
     let Número_Email_Enviado = 0;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Então envia um email a cada 2s.
+    let Linha_Inicial = 5;
+    let Linha_Final = 16;
     
     async function Envia_Email_Clientes() {
 
-        for (let LinhaAtual = 287; LinhaAtual <= BD_Plataforma_Última_Linha; LinhaAtual++) {
+        for (let LinhaAtual = (Linha_Inicial - 4); LinhaAtual <= (Linha_Final - 4); LinhaAtual++) {
 
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - PLATAFORMA.
-    
             let Cliente_PrimeiroNome = BD_Plataforma.value[LinhaAtual].values[0][1];
             let Cliente_Email = BD_Plataforma.value[LinhaAtual].values[0][2];
             let Cliente_Senha = BD_Plataforma.value[LinhaAtual].values[0][3];
@@ -2300,35 +1857,34 @@ app.post('/alunos/envioemail04', async (req,res) => {
 
             console.log(`3. E-mail #${Número_Email_Enviado} enviado para: ${Cliente_PrimeiroNome}`);
             
-            if (LinhaAtual === BD_Plataforma_Última_Linha) console.log(`--- fim ---`);
-
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
+            if (LinhaAtual === (Linha_Final - 4)) console.log(`--- fim ---`);
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
 
             await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
 
                 message: {
-                    subject: 'Instruções Iniciais e Acesso à Plataforma - Machado | Método Gerencial para Empresas',
+                    subject: 'Machado | Método Gerencial para Empresas - Instruções de Acesso à Plataforma',
                     body: {
                         contentType: 'HTML',
                         content: `
                             <p>Bom dia ${Cliente_PrimeiroNome},</p>
-                            <p>Quem escreve é Lucas Machado, fundador da Machado | Método Gerencial para Empresas. Como vai?</p>
-                            <p>Recentemente a MGF contratou nosso serviço, a Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você é um dos profissionais selecionados para participar!</p>
-                            <p>Nosso trabalho conjunto terá duas grandes etapas:</p>
-                            <p><b>• Preparatório em Gestão Generalista:</b> etapa de formação em gerenciamento científico (Método Gerencial), que acontece por meio de nossa plataforma de ensino em formato assíncrono (com vídeos, ferramentas para download e estudos de caso reais). Esta etapa dura cerca de 60 dias e o acompanhamento do progresso de vocês (percentual de evolução nos estudos e resultados nos testes ao final de cada um dos 7 módulos) será gerenciado via Status Reports enviados ao grupo de WhatsApp que criaremos ao longo do dia de hoje.</p>
-                            <p><b>• Encontros Presenciais:</b> etapa posterior à formação. Aqui iremos tirar dúvidas, revisar conceitos e de fato fazer o ataque consultivo à MGF. Nesta fase, eu irei até vocês para 3 dias inteiros de encontros presenciais (das 9h às 18h). A data destes encontros será definida junto à diretoria, posteriormente.</p>
-                            <p>Amanhã (quarta-feira, 17/set às 9h) faremos um <a href="https://teams.microsoft.com/l/meetup-join/19%3ameeting_Y2VkYTQ3NzktZmQ0NS00M2U0LWFhM2ItZGEyMmI2ZGYxYzgx%40thread.v2/0?context=%7b%22Tid%22%3a%2249342d16-0605-4267-b540-d1fe7756dbac%22%2c%22Oid%22%3a%22a8f570ff-a292-4b2f-a1e4-629ccd7a26be%22%7d">encontro via Microsoft Teams</a> para passarmos por todos estes pontos em detalhes. Por favor entre na reunião no horário. Começaremos pontualmente.</p>
-                            <p>Dito isto, por favor utilize as credenciais abaixo para acessar o Preparatório:</p>
-                            <span><b>Link:</b> <a href="https://machadogestao.com/plataforma/login">https://machadogestao.com/plataforma/login</a><br></span>
+                            <p>Escrevemos da equipe de suporte da Machado | Método Gerencial para Empresas. Tudo bem?</p>
+                            <p>Recentemente, a ABN contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos gestores selecionados para participar do trabalho!</p>
+                            <p>A Solução possui duas grandes porções:</p>
+                            <p><b>• Formação em Método Gerencial:</b> acontece em nossa plataforma de ensino, de maneira online e assíncrona, durante 10 semanas. Esta é a etapa que estamos começando agora.</p>
+                            <p><b>• Encontros ao Vivo:</b> posteriormente, nosso fundador (Lucas Machado) irá até a ABN para conduzir junto a vocês o choque de Gestão na empresa, durante 3 dias.</p>
+                            <p>Dito isto, compartilhamos as instruções de acesso à Formação:</p>
+                            <span><b>Link:</b> <a href="https://machadogestao.com/plataforma_v2/login">https://machadogestao.com/plataforma_v2/login</a><br></span>
                             <span><b>Login:</b> ${Cliente_Email}<br></span>
                             <span><b>Senha:</b> ${Cliente_Senha}<br></span>
-                            <p><b>Observações Importantes:</b></p>
-                            <p>• Caso tenha qualquer dificuldade de acesso à plataforma, envie em resposta a este e-mail ou via inbox no WhatsApp para +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente.</p>
-                            <p>• Já preparamos e estamos expedindo amanhã (17/set, via Sedex) <b>materiais impressos</b> que darão suporte aos estudos. Cada um de vocês receberá, no endereço da empresa, uma caixa personalizada com apostilas, guias de aplicação rápida do conhecimento e um compilado com todos os estudos de caso. <b>Sugerimos aguardar a chegada dos materiais antes de iniciarem os estudos.</b></p>
-                            <p>• Estamos passando por um processo de rebranding de nossa empresa (nossa marca original é Ivy | Escola de Gestão). Por isto, parte do Preparatório e dos materiais impressos ainda remetem a esta marca. Tudo certo neste ponto. Não há impacto nos conteúdos.</p>
+                            <p>*Suas credenciais de acesso são individuais e instransferíveis.</p>
+                            <p>**Nossa plataforma possui várias camadas de segurança e monitoramento. Por isto, o acesso deve ser realizado exclusivamente pelo navegador <b>Microsoft Edge</b>, via laptop ou desktop.</p>
+                            <p>A meta de início dos estudos será encaminhada pelo grupo do WhatsApp assim que os materiais impressos de vocês chegarem à ABN (data prevista: terça, 10/mar/2026). <b>Sugerimos fortemente que você aguarde a chegada dos materiais para avançar nos estudos.</b></p>
+                            <p>Porém, <b>sugerimos também que você já faça seu primeiro login na plataforma</b>, incluindo cadastramento no sistema de reconhecimento facial e familiarização inicial com a plataforma.</p>
+                            <p>Observações Importantes:</p>
+                            <p>• Como esta é uma versão nova de nosso serviço, caso você encontre qualquer dificuldade de acesso ou observe eventuais falhas/bugs, sinalize para nós via inbox ao WhatsApp +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente. </p>
+                            <p>• Além disso, se tiver dúvidas sobre a estrutura do serviço em si ou sobre as metas de estudos semanais, encaminhe-as ao grupo de WhatsApp da turma.</p>
                             <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
@@ -2349,278 +1905,13 @@ app.post('/alunos/envioemail04', async (req,res) => {
 
 });
 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia convites para os atendimentos ao vivo.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/alunos/convite-atendimentos', async (req,res) => {
-
-    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
-    
-    //res.status(200).json({ message: "1. Request recebida." });
-
-    console.log(`1. Request recebida.`);
-
-    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
-
-    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - ATENDIMENTOS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
-    
-    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
-    
-    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
-
-    let Número_Invite_Enviado = 0;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
-    // Então envia um invite a cada 2s.
-    
-    async function Envia_Invites_Atendimentos() {
-
-        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
-    
-            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
-            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
-    
-            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
-    
-                Número_Invite_Enviado++;
-    
-                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
-    
-                console.log(`3. Invite #${Número_Invite_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
-                
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-                
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
-    
-                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial para Empresas', product: 'Machado - Atendimento ao Vivo', language: 'PT-BR' } });
-                const event = cal.createEvent({
-                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
-                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
-                    summary: 'Atendimento ao Vivo',
-                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
-                    uid: `${new Date().getTime()}@machadogestao.com`,
-                    stamp: new Date()
-                });
-    
-                event.createAlarm({
-                    type: 'display',
-                    trigger: 1 * 60 * 60 * 1000,
-                    description: 'Atendimento ao Vivo (Machado) - Inicia em 1 hora.'
-                });
-    
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-    
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
-    
-                    message: {
-                        subject: 'Machado - Convite: Atendimento ao Vivo',
-                        body: {
-                            contentType: 'HTML',
-                            content: `
-                                <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Informamos que o próximo atendimento ao vivo com o Lucas Machado, acontecerá <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
-                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.</p> 
-                                <p>Qualquer dúvida, à disposição.</p>
-                                <p>Atenciosamente,</p>
-                                <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
-                            `
-                        },
-                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
-                        attachments: [
-                            {
-                                "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Machado - Atendimento ao Vivo.ics",
-                                contentBytes: Buffer.from(cal.toString()).toString('base64')
-                            }
-                        ]
-                    }
-                
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-    
-            } else {
-
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-            }
-    
-        }
-
-    }
-
-    setTimeout(Envia_Invites_Atendimentos, 1000);
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Envia lembretes para os atendimentos ao vivo.
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/alunos/lembrete-atendimentos', async (req,res) => {
-
-    let { Data_Início_Atendimentos, Link_Microsoft_Teams } = req.body;
-    
-    //res.status(200).json({ message: "1. Request recebida." });
-
-    console.log(`1. Request recebida.`);
-
-    let [Dia_Início_Atendimentos,Mês_Início_Atendimentos,Ano_Início_Atendimentos] = Data_Início_Atendimentos.split("/").map(num => parseInt(num, 10));
-
-    let Dia_da_Semana_Data_Início_Atendimentos = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos));
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - ATENDIMENTOS.
-    
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    const BD_Atendimentos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECTOY3PC2EDNIJG2C4B7OWMAJL7J/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get();
-
-    //if (BD_Atendimentos !== null && client) client.send(JSON.stringify({ message: `2. BD - ATENDIMENTOS obtida.`, origin: "ConviteAtendimentos" }));
-    
-    if (BD_Atendimentos !== null) console.log(`2. BD - ATENDIMENTOS obtida.`);
-    
-    const BD_Atendimentos_Última_Linha = BD_Atendimentos.value.length - 1;
-
-    let Número_Lembrete_Enviado = 0;
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // Aguarda 1s para iniciar o envio dos e-mails, para que o WebSocket possa enviar os dados de volta ao frontend.
-    // Então envia um invite a cada 2s.
-    
-    async function Envia_Lembretes_Atendimentos() {
-
-        for (let LinhaAtual = 204; LinhaAtual <= BD_Atendimentos_Última_Linha; LinhaAtual++) {
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Puxa as variáveis do aluno da BD - ATENDIMENTOS.
-    
-            Aluno_PrimeiroNome = BD_Atendimentos.value[LinhaAtual].values[0][1].split(" ")[0];
-            Aluno_Email = BD_Atendimentos.value[LinhaAtual].values[0][2];
-            Aluno_Status_Envio_Convite_Atendimentos = BD_Atendimentos.value[LinhaAtual].values[0][3];
-    
-            if (Aluno_Status_Envio_Convite_Atendimentos === "SIM") {
-    
-                Número_Lembrete_Enviado++;
-    
-                //if (client) client.send(JSON.stringify({ message: `3. Invite #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`, origin: "ConviteAtendimentos" }));
-    
-                console.log(`3. Invite #${Número_Lembrete_Enviado} enviado para: ${Aluno_PrimeiroNome}`);
-                
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-                
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Cria o evento iCalendar para os Atendimentos, com alerta de 1 hora antes do início do encontro.
-    
-                const cal = new ICalCalendar({ domain: 'machadogestao.com', prodId: { company: 'Machado | Método Gerencial para Empresas', product: 'Machado - Atendimento ao Vivo', language: 'PT-BR' } });
-                const event = cal.createEvent({
-                    start: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 21, 30, 0)), // 18:30 BRT
-                    end: new Date(Date.UTC(Ano_Início_Atendimentos, Mês_Início_Atendimentos - 1, Dia_Início_Atendimentos, 23, 0, 0)), // 20:00 BRT
-                    summary: 'Atendimento ao Vivo',
-                    description: ` Link do Encontro (Microsoft Teams): ${Link_Microsoft_Teams}`,
-                    uid: `${new Date().getTime()}@machadogestao.com`,
-                    stamp: new Date()
-                });
-    
-                event.createAlarm({
-                    type: 'display',
-                    trigger: 1 * 60 * 60 * 1000,
-                    description: 'Atendimento ao Vivo (Machado) - Inicia em 1 hora.'
-                });
-    
-                ////////////////////////////////////////////////////////////////////////////////////////
-                // Envia o e-mail para o aluno na LinhaAtual da BD - ATENDIMENTOS.
-    
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-                await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({
-    
-                    message: {
-                        subject: 'Machado - Lembrete: Atendimento ao Vivo',
-                        body: {
-                            contentType: 'HTML',
-                            content: `
-                                <p>Olá ${Aluno_PrimeiroNome},</p>
-                                <p>Lembramos que o próximo atendimento ao vivo com o Lucas Machado acontecerá hoje, <b>${Dia_da_Semana_Data_Início_Atendimentos} (${Data_Início_Atendimentos}) às 18:30</b>, via Microsoft Teams, por meio <a href=${Link_Microsoft_Teams} target="_blank">deste link</a>.</p>
-                                <p><b>Por favor abra o arquivo .ics em anexo e adicione o evento a sua agenda.</b></p>
-                                <p>Reforçamos que você é o protagonista destes encontros. Por isto, se prepare previamente e tenha em mãos suas dúvidas, anotações e materiais de suporte ao Prep.</p> 
-                                <p>Qualquer dúvida, à disposição.</p>
-                                <p>Atenciosamente,</p>
-                                <p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>
-                            `
-                        },
-                        toRecipients: [{ emailAddress: { address: Aluno_Email } }],
-                        attachments: [
-                            {
-                                "@odata.type": "#microsoft.graph.fileAttachment",
-                                name: "Machado - Atendimento ao Vivo.ics",
-                                contentBytes: Buffer.from(cal.toString()).toString('base64')
-                            }
-                        ]
-                    }
-                
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-    
-            } else {
-
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-                //if (LinhaAtual === BD_Atendimentos_Última_Linha && client) client.send(JSON.stringify({ message: `--- fim ---`, origin: "ConviteAtendimentos" }));
-
-                if (LinhaAtual === BD_Atendimentos_Última_Linha) console.log(`--- fim ---`);
-
-            }
-    
-        }
-
-    }
-
-    setTimeout(Envia_Lembretes_Atendimentos, 1000);
-
-});
-
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////////////////////////// META GRAPH API INTERFACE /////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////// META GRAPH API INTERFACE /////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
