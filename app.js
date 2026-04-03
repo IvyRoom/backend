@@ -148,9 +148,6 @@ const { v4: uuidv4 } = require('uuid');
 const Meta_Graph_API_Latest_Version = process.env.META_GRAPH_API_LATEST_VERSION;
 const Meta_Graph_API_Access_Token = process.env.META_GRAPH_API_ACCESS_TOKEN;
 const Meta_Graph_API_Instagram_Business_Account_ID = process.env.META_GRAPH_API_INSTAGRAM_BUSINESS_ACCOUNT_ID;
-const Meta_Graph_API_Facebook_Page_ID = process.env.META_GRAPH_API_FACEBOOK_PAGE_ID;
-const Meta_Graph_API_Ad_Account_ID = process.env.META_GRAPH_API_AD_ACCOUNT_ID;
-const Meta_Graph_API_Custom_Audience_ID_Seguidores = process.env.META_GRAPH_API_CUSTOM_AUDIENCE_ID_SEGUIDORES;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Cria as variáveis de interface com o Azure Face API.
@@ -1825,7 +1822,7 @@ app.post('/plataforma_v2/processa-feedback', async (req,res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/clientes/liberacao-acesso-plataforma', async (req,res) => {
+app.post('/clientes/liberacao-acesso-plataforma', async (res) => {
 
     res.status(200).send();
     console.log(`1. Request recebida.`);
@@ -1841,8 +1838,8 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req,res) => {
     // Envia os e-mails, um a cada 2s.
 
     let Número_Email_Enviado = 0;
-    let Linha_Inicial = 5;
-    let Linha_Final = 16;
+    let Linha_Inicial = 17;
+    let Linha_Final = 24;
     
     async function Envia_Email_Clientes() {
 
@@ -1867,22 +1864,22 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req,res) => {
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>Bom dia ${Cliente_PrimeiroNome},</p>
-                            <p>Escrevemos da equipe de suporte da Machado | Método Gerencial para Empresas. Tudo bem?</p>
-                            <p>Recentemente, a ABN contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos gestores selecionados para participar do trabalho!</p>
+                            <p>Boa tarde ${Cliente_PrimeiroNome},</p>
+                            <p>Escrevemos do suporte da Machado | Método Gerencial para Empresas. Tudo bem?</p>
+                            <p>Recentemente, a Sion contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos profissionais selecionados para participar do trabalho!</p>
                             <p>A Solução possui duas grandes porções:</p>
-                            <p><b>• Formação em Método Gerencial:</b> acontece em nossa plataforma de ensino, de maneira online e assíncrona, durante 10 semanas. Esta é a etapa que estamos começando agora.</p>
-                            <p><b>• Encontros ao Vivo:</b> posteriormente, nosso fundador (Lucas Machado) irá até a ABN para conduzir junto a vocês o choque de Gestão na empresa, durante 3 dias.</p>
+                            <p><b>• Formação em Método Gerencial:</b> acontece em nossa plataforma de ensino, de maneira online e assíncrona, durante 5 a 10 semanas. Esta é a etapa que estamos começando agora.</p>
+                            <p><b>• Encontros ao Vivo:</b> posteriormente, nosso fundador (Lucas Machado) irá até a Sion para conduzir junto a vocês o choque de Gestão na empresa, durante 3 dias.</p>
                             <p>Dito isto, compartilhamos as instruções de acesso à Formação:</p>
                             <span><b>Link:</b> <a href="https://machadogestao.com/plataforma_v2/login">https://machadogestao.com/plataforma_v2/login</a><br></span>
                             <span><b>Login:</b> ${Cliente_Email}<br></span>
                             <span><b>Senha:</b> ${Cliente_Senha}<br></span>
                             <p>*Suas credenciais de acesso são individuais e instransferíveis.</p>
                             <p>**Nossa plataforma possui várias camadas de segurança e monitoramento. Por isto, o acesso deve ser realizado exclusivamente pelo navegador <b>Microsoft Edge</b>, via laptop ou desktop.</p>
-                            <p>A meta de início dos estudos será encaminhada pelo grupo do WhatsApp assim que os materiais impressos de vocês chegarem à ABN (data prevista: terça, 10/mar/2026). <b>Sugerimos fortemente que você aguarde a chegada dos materiais para avançar nos estudos.</b></p>
-                            <p>Porém, <b>sugerimos também que você já faça seu primeiro login na plataforma</b>, incluindo cadastramento no sistema de reconhecimento facial e familiarização inicial com a plataforma.</p>
+                            <p>A meta de início dos estudos será encaminhada pelo grupo do WhatsApp assim que os materiais impressos de vocês chegarem à Sion (data prevista: quarta, 25/mar/2026). <b>Sugerimos fortemente que você aguarde a chegada dos materiais para avançar nos estudos.</b></p>
+                            <p>Porém, <b>sugerimos também que você já faça seu primeiro login na plataforma</b>, incluindo cadastramento no sistema de reconhecimento facial e familiarização inicial com nossos sistemas.</p>
                             <p>Observações Importantes:</p>
-                            <p>• Como esta é uma versão nova de nosso serviço, caso você encontre qualquer dificuldade de acesso ou observe eventuais falhas/bugs, sinalize para nós via inbox ao WhatsApp +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente. </p>
+                            <p>• Como esta é uma versão nova de nosso serviço, caso você encontre qualquer dificuldade de acesso ou observe eventuais falhas/bugs, sinalize para nós via inbox ao WhatsApp +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente.</p>
                             <p>• Além disso, se tiver dúvidas sobre a estrutura do serviço em si ou sobre as metas de estudos semanais, encaminhe-as ao grupo de WhatsApp da turma.</p>
                             <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                             <p>Atenciosamente,</p>
@@ -1918,82 +1915,35 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req,res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/meta/registrar-novo-post', async (req, res) => {
+app.post('/meta/registrar-novo-post', async (req) => {
 
-    let { Reel_Código } = req.body;
+    let { Post_Código } = req.body;
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // Obtém o IG Media ID.
-    ////////////////////////////////////////////////////////////////////////////////////////
     
-    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media?fields=id,timestamp&limit=1&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+    fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media?fields=id,timestamp&limit=1&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
-    .then(response => response.json()).then(async data => {
+        let Post_IG_Media_ID = data.data[0].id;
+        let Post_Data_Hora_Postagem = data.data[0].timestamp;
 
-        let Reel_IG_Media_ID = data.data[0].id;
-        let Reel_Data_Hora_Postagem = data.data[0].timestamp;
-
-        if (Reel_IG_Media_ID !== null) console.log(`1. IG Media ID obtido: ${Reel_IG_Media_ID}`);
-        if (Reel_Data_Hora_Postagem !== null) console.log(`2. Data e Hora da postagem obtidos: ${Reel_Data_Hora_Postagem}`);
+        if (Post_IG_Media_ID !== null) console.log(`1. IG Media ID obtido.`);
+        if (Post_Data_Hora_Postagem !== null) console.log(`2. Data e Hora da postagem obtidos.`);
 
         ////////////////////////////////////////////////////////////////////////////////////////
         // Obtém o Número de Seguidores atualizado.
-        ////////////////////////////////////////////////////////////////////////////////////////
 
-        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
-
-        .then(response => response.json()).then(async data => {
+        fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
             let Número_Seguidores = data.followers_count;
 
-            if (Número_Seguidores !== null) console.log(`3. Número de Seguidores obtido: ${Número_Seguidores}`);
+            if (Número_Seguidores !== null) console.log(`3. Número de Seguidores obtido.`);
         
             ///////////////////////////////////////////////////////////////////////////////////////
-            // Adiciona as informações à BD - RESULTADOS (RELACIONAMENTO).
-            ///////////////////////////////////////////////////////////////////////////////////////
+            // Adiciona as informações à BD - RESULTADOS ORGÂNICOS.
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-            await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/drive/items/0172BBJB5JTOTCSWCLGBB2HKLEFJVR7AUC/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows')
-            
-            .post({"values": [[ Reel_Código, `'${Reel_IG_Media_ID}`, ConverteData2(new Date()), Número_Seguidores, null, null, null, null, null, null, null ]]})
-            
-            .then(async response => {
-
-                console.log(`4. BD - RESULTADOS atualizada.`);
-                
-                /////////////////////////////////////////////////////////////////////////////////////////////////////
-                // Cria o evento na agenda (calendário) para criação da campanha de DB (72h depois).
-                /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-                let Horário_Início_Criação_Campanha_DB = new Date(new Date().setMinutes(0, 0, 0) + 3 * 24 * 60 * 60 * 1000);
-                let Horário_Término_Criação_Campanha_DB = new Date(Horário_Início_Criação_Campanha_DB.getTime() + 60 * 60 * 1000);
-
-                if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                await Microsoft_Graph_API_Client.api('/users/b4a93dcf-5946-4cb2-8368-5db4d242a236/calendar/events').post({
-                    
-                    subject: "CAMPANHA DB - " + Reel_Código,
-                    
-                    start: {
-                        "dateTime": Horário_Início_Criação_Campanha_DB,
-                        "timeZone": "UTC"
-                    },
-                    
-                    end: {
-                        "dateTime": Horário_Término_Criação_Campanha_DB,
-                        "timeZone": "UTC"
-                    }
-                    
-                })
-
-                .then(async () => {
-
-                    console.log(`5. Criação da campanha de DB agendada.`);
-                    
-                });
-
-            });
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').post({ "values": [[Post_Código, `'${Post_IG_Media_ID}`, ConverteData2(new Date(Post_Data_Hora_Postagem)), Número_Seguidores, "-", "-", null, "-", null, "-", null, "A iniciar" ]]}).then(async () => { console.log(`4. BD - RESULTADOS ORGÂNICOS atualizada.`); console.log('----- Fim -----'); });
 
         });
 
@@ -2008,65 +1958,50 @@ app.post('/meta/registrar-novo-post', async (req, res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
+app.post('/meta/registrar-desempenhos-organicos', async (req, res) => {
 
     res.status(200).send();
 
     let Data_e_Hora_Atual = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
 
-    console.log(`Endpoint /meta/RegistraDesempenhosOrganicos acionado agora (${Data_e_Hora_Atual}) pela function01.js.`);
+    console.log(`Endpoint /meta/registrar-desempenhos-organicos acionado agora (${ConverteData3(Data_e_Hora_Atual)}) pela function01.js.`);
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Puxa os dados da BD - RESULTADOS do OneDrive do contato@machadogestao.com.
+    // Obtém a BD - RESULTADOS ORGÂNICOS e passa pelos dados linha a linha.
     
     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-    let BD_Resultados_RL = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Verifica se há criativos com:
-    // --> O número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) em branco.
-    // --> O número de CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h) em branco.
-
-    let BD_Resultados_RL_Número_Linhas = BD_Resultados_RL.value.length;
-    let BD_Resultados_RL_Última_Linha = BD_Resultados_RL_Número_Linhas - 1;
+    let BD_Resultados_Orgânicos = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').get();
+    let BD_Resultados_Orgânicos_Última_Linha = BD_Resultados_Orgânicos.value.length - 1;
     
-    for (let LinhaVerificada = 0; LinhaVerificada <= BD_Resultados_RL_Última_Linha; LinhaVerificada++) {
+    for (let LinhaVerificada = 0; LinhaVerificada <= BD_Resultados_Orgânicos_Última_Linha; LinhaVerificada++) {
 
-        let Reel_IG_Media_ID = BD_Resultados_RL.value[LinhaVerificada].values[0][1];
-        let Reel_Data_e_Hora_Postagem = ConverteData4(BD_Resultados_RL.value[LinhaVerificada].values[0][2]);
-        let Reel_Número_de_Seguidores_Momento_Postagem = BD_Resultados_RL.value[LinhaVerificada].values[0][3];
-        let Reel_Contas_Alcançadas_5Porcento_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][4];
-        let Reel_Contas_Alcançadas_72Horas_Registrado = BD_Resultados_RL.value[LinhaVerificada].values[0][7];
+        let Post_IG_Media_ID = BD_Resultados_Orgânicos.value[LinhaVerificada].values[0][1];
+        let Post_Data_e_Hora_Postagem = ConverteData4(BD_Resultados_Orgânicos.value[LinhaVerificada].values[0][2]);
+        let Post_Número_de_Seguidores_Momento_Postagem = BD_Resultados_Orgânicos.value[LinhaVerificada].values[0][3];
+        let Post_Contas_Alcançadas_5Porcento_Registrado = BD_Resultados_Orgânicos.value[LinhaVerificada].values[0][4];
+        let Post_Contas_Alcançadas_72Horas_Registrado = BD_Resultados_Orgânicos.value[LinhaVerificada].values[0][7];
 
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) esteja em branco.
-        // E tenham passado menos de 72h desde a postagem.
-        // --> Puxa os dados do Meta Graph API.
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Caso o número de CONTAS ALCANÇADAS (5%) seja "-" e tenham passado menos de 72h desde a postagem, obtém os dados orgânicos atualizados do post.
         
-        if (Reel_Contas_Alcançadas_5Porcento_Registrado === "" && Data_e_Hora_Atual - Reel_Data_e_Hora_Postagem < 72 * 60 * 60 * 1000){
+        if (Post_Contas_Alcançadas_5Porcento_Registrado === "-" && Data_e_Hora_Atual - Post_Data_e_Hora_Postagem < 72 * 60 * 60 * 1000){
 
-            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Post_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
-            .then(response => response.json()).then(async data => {
+                let Post_Contas_Alcançadas_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
 
-                let Reel_Organic_Reach_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
+                /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso o Post_Contas_Alcançadas_Atual seja maior ou igual a 5% do Post_Número_de_Seguidores_Momento_Postagem, registra o número de CONTAS ALCANÇADAS (5%) e o número de INTERAÇÕES (5%) na BD - RESULTADOS ORGÂNICOS.
 
-                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // Caso o Reel_Organic_Reach_5_Porcento seja >= 5% do Criativo_Número_de_Seguidores_Momento_Postagem:
-                // --> Registra as informações do criativo na BD - RESULTADOS.
+                if (Post_Contas_Alcançadas_Atual >= Math.ceil(Post_Número_de_Seguidores_Momento_Postagem * 0.005)) {
 
-                if (Reel_Organic_Reach_Atual >= Math.ceil(Reel_Número_de_Seguidores_Momento_Postagem * 0.05)) {
-
-                    let Reel_Organic_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
-                    let Reel_Organic_Saved_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
-                    let Reel_Organic_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-                    let Reel_Organic_Interactions_Atual = Reel_Organic_Likes_Atual + Reel_Organic_Saved_Atual + Reel_Organic_Shares_Atual;
+                    let Post_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
+                    let Post_Saves_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
+                    let Post_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
+                    let Post_Interações_Atual = Post_Likes_Atual + Post_Saves_Atual + Post_Shares_Atual;
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, null, null, null, null ]]})
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({ values: [[null, null, null, null, Post_Contas_Alcançadas_Atual, Post_Interações_Atual, null, null, null, null, null, null ]]})
 
                 } 
 
@@ -2074,48 +2009,38 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
 
         }
 
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Caso número de CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h) em branco.
-        // E tenham passado mais ou igual a 72h desde a postagem.
-        // --> Puxa os dados do Meta Graph API.
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Caso o número de CONTAS ALCANÇADAS (72h) seja "-" e tenham passado menos de 72h desde a postagem, obtém os dados orgânicos atualizados do post.
 
-        if (Reel_Contas_Alcançadas_72Horas_Registrado === "" && Data_e_Hora_Atual - Reel_Data_e_Hora_Postagem >= 72 * 60 * 60 * 1000){
+        if (Post_Contas_Alcançadas_72Horas_Registrado === "-" && Data_e_Hora_Atual - Post_Data_e_Hora_Postagem >= 72 * 60 * 60 * 1000) {
+            
+            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Post_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
-            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Reel_IG_Media_ID}/insights?metric=reach,likes,saved,shares&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'})
+                let Post_Contas_Alcançadas_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
+                let Post_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
+                let Post_Saves_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
+                let Post_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
+                let Post_Interações_Atual = Post_Likes_Atual + Post_Saves_Atual + Post_Shares_Atual;
 
-            .then(response => response.json()).then(async data => {
+                /////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso número de CONTAS ALCANÇADAS (5%) também seja "-", registra os dados na BD - RESULTADOS ORGÂNICOS:
+                // - Tanto nas colunas CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%).
+                // - Quanto nas colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
 
-                let Reel_Organic_Reach_Atual = data.data.find(metric => metric.name === 'reach').values[0].value;
-                let Reel_Organic_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
-                let Reel_Organic_Saved_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
-                let Reel_Organic_Shares_Atual = data.data.find(metric => metric.name === 'shares').values[0].value;
-
-                let Reel_Organic_Interactions_Atual = Reel_Organic_Likes_Atual + Reel_Organic_Saved_Atual + Reel_Organic_Shares_Atual;
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) também esteja em branco.
-                // --> Registra as informações do criativo na BD - RESULTADOS:
-                //       - Tanto nas colunas CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%).
-                //       - Quanto nas colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
-
-                if ( Reel_Contas_Alcançadas_5Porcento_Registrado === "" ) {
+                if (Post_Contas_Alcançadas_5Porcento_Registrado === "-" ) {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, Reel_Organic_Reach_Atual, Reel_Organic_Interactions_Atual, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({ values: [[null, null, null, null, Post_Contas_Alcançadas_Atual, Post_Interações_Atual, null, Post_Contas_Alcançadas_Atual, null, Post_Interações_Atual, null, null ]]});
                     
                 } 
                 
-                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // Caso número de CONTAS ALCANÇADAS (5%) e INTERAÇÕES (5%) não esteja em branco.
-                // --> Registra as informações do criativo na BD - RESULTADOS:
-                //       - Somente nas colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                // Caso número de CONTAS ALCANÇADAS (5%) não seja "-", registra somente os dados das colunas CONTAS ALCANÇADAS (72h) e INTERAÇÕES (72h).
                 
                 else {
 
                     if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-                    
-                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({values: [[null, null, null, null, null, null, null, Reel_Organic_Reach_Atual, null, Reel_Organic_Interactions_Atual, null ]]});
+                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows/itemAt(index=' + LinhaVerificada + ')').update({ values: [[null, null, null, null, null, null, null, Post_Contas_Alcançadas_Atual, null, Post_Interações_Atual, null, null ]]});
                     
                 }
 
@@ -2124,100 +2049,5 @@ app.post('/meta/RegistraDesempenhosOrganicos', async (req,res) => {
         }
 
     };
-
-});
-
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-// Endpoint: Registra Desempenho - Campanhas DB.
-// ---> Acionado pela function02.js às 00:01 AM, todos os dias <--- 
-////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-app.post('/meta/RegistraDesempenhosCampanhasDB', async (req,res) => {
-
-    let Data_Hoje_Formatada_Meta_Graph_API = (new Date()).toISOString().split('T')[0];
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Obtém a BD - STATUS CAMPANHAS do OneDrive do contato@machadogestao.com.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-    
-    let BD_Status_Campanhas_DB = await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECUCH2N5WBZ3MJHJRSW3UAV6PDRX/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows').get();
-
-    const BD_Status_Campanhas_DB_Última_Linha = BD_Status_Campanhas_DB.value.length - 1;
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    // Registra um de desempenho de Campanha de DB a cada 2s.
-    ///////////////////////////////////////////////////////////////////////////////////////
-
-    for (let LinhaAtual = 0; LinhaAtual <= BD_Status_Campanhas_DB_Última_Linha; LinhaAtual++) {
-
-        let Campanha_DB_Status = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][4];
-
-        if (Campanha_DB_Status === "ATIVA") {
-
-            let Campanha_DB_Reel_Código = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][0];
-            let Campanha_DB_Ad_ID = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][1];
-            let Campanha_DB_Descrição = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][2];
-            let Campanha_DB_Qualidade_Clique = BD_Status_Campanhas_DB.value[LinhaAtual].values[0][3];
-            
-            ///////////////////////////////////////////////////////////////////////////////////////////////////
-            // Obtém as variáveis de desempenho do Ad junto ao Meta Graph API.
-
-            fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Ad_ID}/insights?fields=campaign_id,spend,reach,impressions,actions&time_range={"since":"2022-08-31","until":"${Data_Hoje_Formatada_Meta_Graph_API}"}&filtering=[{field: "action_type",operator:"IN", value: ['link_click']}]`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                }
-            })
-
-            .then(response => response.json()).then(async data => {
-
-                let Campanha_DB_Campaign_ID = data.data[0].campaign_id;
-                let Campanha_DB_Ad_Spend = data.data[0].spend;
-                let Campanha_DB_Ad_Reach = data.data[0].reach;
-                let Campanha_DB_Ad_Impressions = data.data[0].impressions;
-                let Campanha_DB_Ad_Link_Clicks = data.data[0].actions[0].value;
-
-                ///////////////////////////////////////////////////////////////////////////////////////////////////
-                // Obtém o orçamento da campanha junto ao Meta Graph API.
-
-                fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Campanha_DB_Campaign_ID}?fields=daily_budget`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${Meta_Graph_API_Access_Token}`
-                    }
-                })
-
-                .then(response => response.json()).then(async data => {
-
-                    let Campanha_DB_Campaign_Daily_Budget = data.daily_budget;
-                    
-                    ////////////////////////////////////////////////////////////////////////////////////////
-                    // Adiciona as informações à BD - RESULTADOS CAMPANHAS do OneDrive do contato@machadogestao.com.
-
-                    if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-
-                    await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECVHHGFYL55S4NBKGCBC43AZB3SY/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{93C2A633-D78C-42B0-9A68-937848657884}/rows')
-                    
-                    .post({"values": [[ "-", ConverteData2(new Date(new Date().setDate(new Date().getDate() - 1))), Campanha_DB_Reel_Código, `'${Campanha_DB_Ad_ID}`, Campanha_DB_Descrição, Campanha_DB_Qualidade_Clique, Campanha_DB_Ad_Spend, Campanha_DB_Ad_Reach, Campanha_DB_Ad_Impressions, Campanha_DB_Ad_Link_Clicks, "-", "-", `=${Campanha_DB_Campaign_Daily_Budget}/100`, "-", "-", "-", "-", "-", "-", "-" ]]})
-
-                });
-
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-        } else {
-
-            await new Promise(resolve => setTimeout(resolve, 0));
-
-        }
-
-    }
 
 });
