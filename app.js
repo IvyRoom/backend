@@ -1990,7 +1990,7 @@ app.post('/meta/registrar-desempenhos-organicos', async (req, res) => {
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 // Caso o Post_Contas_Alcançadas_Atual seja maior ou igual a 5% do Post_Número_de_Seguidores_Momento_Postagem, registra o número de CONTAS ALCANÇADAS (5%) e o número de INTERAÇÕES (5%) na BD - RESULTADOS ORGÂNICOS.
 
-                if (Post_Contas_Alcançadas_Atual >= Math.ceil(Post_Número_de_Seguidores_Momento_Postagem * 0.005)) {
+                if (Post_Contas_Alcançadas_Atual >= Math.ceil(Post_Número_de_Seguidores_Momento_Postagem * 0.05)) {
 
                     let Post_Likes_Atual = data.data.find(metric => metric.name === 'likes').values[0].value;
                     let Post_Saves_Atual = data.data.find(metric => metric.name === 'saved').values[0].value;
