@@ -1915,20 +1915,19 @@ app.post('/clientes/liberacao-acesso-plataforma', async (res) => {
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-app.post('/meta/registrar-novo-post', async (req) => {
+app.post('/meta/registrar-novo-post', async (req, res) => {
+
+    res.status(200).send();
 
     let { Post_Código } = req.body;
 
     ////////////////////////////////////////////////////////////////////////////////////////
-    // Obtém o IG Media ID.
+    // Obtém o Post_IG_Media_ID e o Post_Data_Hora_Postagem.
     
     fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}/media?fields=id,timestamp&limit=1&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
         let Post_IG_Media_ID = data.data[0].id;
         let Post_Data_Hora_Postagem = data.data[0].timestamp;
-
-        if (Post_IG_Media_ID !== null) console.log(`1. IG Media ID obtido.`);
-        if (Post_Data_Hora_Postagem !== null) console.log(`2. Data e Hora da postagem obtidos.`);
 
         ////////////////////////////////////////////////////////////////////////////////////////
         // Obtém o Número de Seguidores atualizado.
@@ -1936,14 +1935,12 @@ app.post('/meta/registrar-novo-post', async (req) => {
         fetch(`https://graph.facebook.com/${Meta_Graph_API_Latest_Version}/${Meta_Graph_API_Instagram_Business_Account_ID}?fields=followers_count&access_token=${Meta_Graph_API_Access_Token}`, { method: 'GET'}).then(response => response.json()).then(async data => {
 
             let Número_Seguidores = data.followers_count;
-
-            if (Número_Seguidores !== null) console.log(`3. Número de Seguidores obtido.`);
         
             ///////////////////////////////////////////////////////////////////////////////////////
             // Adiciona as informações à BD - RESULTADOS ORGÂNICOS.
 
             if (!Microsoft_Graph_API_Client) await Conecta_ao_Microsoft_Graph_API();
-            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').post({ "values": [[Post_Código, `'${Post_IG_Media_ID}`, ConverteData2(new Date(Post_Data_Hora_Postagem)), Número_Seguidores, "-", "-", null, "-", null, "-", null, "A iniciar" ]]}).then(async () => { console.log(`4. BD - RESULTADOS ORGÂNICOS atualizada.`); console.log('----- Fim -----'); });
+            await Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECT6SJFAPWNDHZAZ4NX5CRUWSUQG/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{122865F8-2E2D-4B60-A34C-E02E001E835E}/rows').post({ "values": [[Post_Código, `'${Post_IG_Media_ID}`, ConverteData2(new Date(Post_Data_Hora_Postagem)), Número_Seguidores, "-", "-", null, "-", null, "-", null, "A iniciar" ]]});
 
         });
 
