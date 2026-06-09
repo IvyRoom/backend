@@ -133,8 +133,8 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req, res) => {
     if (BD_Plataforma !== null) console.log(`2. BD_Plataforma obtida.`);
 
     let Número_Email_Enviado = 0;
-    let Linha_Inicial = 23;
-    let Linha_Final = 24;
+    let Linha_Inicial = 26;
+    let Linha_Final = 38;
 
     async function Envia_Email_Clientes() {
 
@@ -157,29 +157,29 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req, res) => {
                     body: {
                         contentType: 'HTML',
                         content: `
-                            <p>Boa tarde ${Cliente_PrimeiroNome},</p>
+                            <p>Boa noite ${Cliente_PrimeiroNome},</p>
                             <p>Escrevemos do suporte da Machado | Método Gerencial para Empresas. Tudo bem?</p>
-                            <p>Recentemente, a Sion contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos profissionais selecionados para participar do trabalho!</p>
+                            <p>Recentemente a MGF contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos profissionais selecionados para participar do trabalho!</p>
                             <p>A Solução possui duas grandes porções:</p>
-                            <p><b>• Formação em Método Gerencial:</b> acontece em nossa plataforma de ensino, de maneira online e assíncrona, durante 5 a 10 semanas. Esta é a etapa que estamos começando agora.</p>
-                            <p><b>• Encontros ao Vivo:</b> posteriormente, nosso fundador (Lucas Machado) irá até a Sion para conduzir junto a vocês o choque de Gestão na empresa, durante 3 dias.</p>
+                            <p><b>• Formação em Método Gerencial:</b> acontece em nossa plataforma de ensino, de maneira online e assíncrona, durante 5 semanas. Esta é a etapa que estamos começando agora.</p>
+                            <p><b>• Encontros ao Vivo:</b> posteriormente, nosso fundador (Lucas Machado) irá até a MGF para conduzir junto a vocês o choque de Gestão na empresa, durante 2 dias.</p>
                             <p>Dito isto, compartilhamos as instruções de acesso à Formação:</p>
                             <span><b>Link:</b> <a href="https://machadogestao.com/plataforma_v2/login">https://machadogestao.com/plataforma_v2/login</a><br></span>
                             <span><b>Login:</b> ${Cliente_Email}<br></span>
                             <span><b>Senha:</b> ${Cliente_Senha}<br></span>
                             <p>*Suas credenciais de acesso são individuais e instransferíveis.</p>
-                            <p>**Nossa plataforma possui várias camadas de segurança e monitoramento. Por isto, o acesso deve ser realizado exclusivamente pelo navegador <b>Microsoft Edge</b>, via laptop ou desktop.</p>
-                            <p>A meta de início dos estudos será encaminhada pelo grupo do WhatsApp assim que os materiais impressos de vocês chegarem à Sion (data prevista: quarta, 25/mar/2026). <b>Sugerimos fortemente que você aguarde a chegada dos materiais para avançar nos estudos.</b></p>
-                            <p>Porém, <b>sugerimos também que você já faça seu primeiro login na plataforma</b>, incluindo cadastramento no sistema de reconhecimento facial e familiarização inicial com nossos sistemas.</p>
+                            <p>**Nossa plataforma possui várias camadas de segurança e monitoramento. Por isto, o acesso deve ser realizado exclusivamente pelo navegador <b>Microsoft Edge</b>, via laptop ou desktop com <b>sistema Windows</b>. Computadores Apple/Mac são incompatíveis com nossos sistemas.</p>
+                            <p>A meta de início dos estudos será encaminhada pelo grupo do WhatsApp amanhã, logo após a reunião de kick-off. <b>Sugerimos fortemente que você aguarde o recebimento dos materiais para avançar nos estudos.</b></p>
+                            <p>Porém, <b>sugerimos também que você já faça seu primeiro login</b>, incluindo cadastramento no sistema de reconhecimento facial e familiarização inicial com a plataforma.</p>
                             <p>Observações Importantes:</p>
-                            <p>• Como esta é uma versão nova de nosso serviço, caso você encontre qualquer dificuldade de acesso ou observe eventuais falhas/bugs, sinalize para nós via inbox ao WhatsApp +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente.</p>
-                            <p>• Além disso, se tiver dúvidas sobre a estrutura do serviço em si ou sobre as metas de estudos semanais, encaminhe-as ao grupo de WhatsApp da turma.</p>
+                            <p>• Caso você encontre qualquer dificuldade de acesso ou observe eventuais bugs, sinalize para nós via inbox ao WhatsApp +55 41 99679 9092. Iremos auxiliá-lo(a) prontamente.</p>
+                            <p>• Além disso, se tiver dúvidas sobre a estrutura do serviço em si ou sobre as metas de estudos semanais, acompanhe o grupo de WhatsApp da turma.</p>
                             <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
                         `
                     },
-                    toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }]
+                    toRecipients: [{ emailAddress: { address: Cliente_Email } }]
                 }
 
             });
@@ -346,5 +346,19 @@ app.get('/ezdrm-playready-authorization-url', (req, res) => {
   const response = "p1=5&p2=&p3=&p4=1&p5=0&p6=1&p7=0&p8=0" + "&token=" + encodeURIComponent(token) + "&CustomData=" + encodeURIComponent(customData);
   res.set("Content-Type", "text/html");
   res.status(200).send(response);
+
+});
+
+app.post('/plataforma_v2/statusreport', async (req, res) => {
+
+    let { linha_inicial, linha_final } = req.body;
+    
+    let BD_Plataforma;
+    try { BD_Plataforma = await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get()) }
+    catch (err) { return res.status(500).json({ error: 'Erro_001' }) }
+
+    const Dados_Extraídos_BD_Plataforma = BD_Plataforma.value.slice(linha_inicial, linha_final + 1).map(({ values }) => [ values[0][0], values[0][8], ...values[0].slice(10, 22) ]);
+    
+    return res.status(200).json({ Dados_Extraídos_BD_Plataforma });
 
 });
