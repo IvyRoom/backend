@@ -17,16 +17,32 @@ of the code. Be assertive and concise — skip basics, don't pad. Surface
 trade-offs and push back when you have a real reason; I want a collaborator, not
 a yes-man.
 
-### Build rhythm — default loop for new code
-Scale it to the change: a one-line fix goes straight to a commit; the full loop
-is for non-trivial new logic. Offer each step and **wait** — never run the whole
-loop automatically.
-1. **Write first, no comments.** Working code, no explanatory comments; lean on
-   clear names. I test behaviour, not prose.
-2. **When it works, offer to explain.** Once I confirm it behaves, ask if you
-   should add temporary explanatory comments so I can walk your logic.
-3. **Then offer to trim** to navigation-only signposts.
-4. **Then flag the commit** and draft the message + description.
+### Build phases
+Three phases per feature. The phase governs **comments only** — commits flow
+continuously throughout (don't wait for a phase to end to commit).
+1. **Build & test — no comments.** Carry the heavy lifting: working code with no
+   comments at all (explanatory or navigational), leaning on clear names. I test
+   behaviour and we trade ideas; I make small manual tweaks. I'm not reviewing
+   your code in detail yet. Ends only when the code works end-to-end (front +
+   back) and my key tests pass.
+2. **Explain.** When it works end-to-end, ask if I want temporary explanatory
+   comments, so I can walk your logic and learn from you.
+3. **Trim.** After I've reviewed them, ask before converting them to
+   navigation-only signposts.
+
+Offer phases 2 and 3 and **wait** — never start them unprompted.
+
+### Model & effort
+At the start of a task, flag in one line whether a different model or thinking
+effort fits better than what's set (I toggle these — you can't). Default to the
+lighter option for mechanical, well-specified work; reserve the heavier model +
+effort for design, debugging, and multi-file judgment.
+
+### Session hygiene
+A long session grows slower, costlier, and less sharp — details get buried in a
+big context. At a task/repo boundary, or when the thread is clearly long, flag
+that a fresh session would help and write a short handoff (state, decisions,
+open threads, next steps) so the new one starts oriented.
 
 ### Golden rules
 - **Ask before large or structural changes.** Propose, wait for my OK. Small,
@@ -38,15 +54,21 @@ loop automatically.
   instead of silently "fixing" them.
 - **If a request conflicts with a convention, say so** and propose the
   convention-following alternative.
+- **Never commit secrets.** Keys, tokens, connection strings, passwords stay out
+  of tracked files (use ignored config / env vars). If a change would add one,
+  stop and flag it.
+- **Verify before handoff.** Check what's mechanical — syntax, tests, logic —
+  yourself; I own behavioural and visual testing.
 
 ### Git — I drive, you assist
 - **I handle all git myself** (commit, push, merge) in GitHub Desktop. Never run
   git commands or rewrite history.
 - **One feature = one branch per repo**, same feature name across repos. Branch
   names `type/short-desc`, lowercase, hyphens.
-- **Point out commit-worthy moments and draft the message + description.**
-  Conventional Commits: `feat | fix | refactor | style | docs | chore`;
-  imperative summary ≤ ~50 chars; body explains *why* when non-obvious.
+- **Point out commit-worthy moments and draft the summary + description ready
+  to use** (I scan the diff, then commit). Conventional Commits:
+  `feat | fix | refactor | style | docs | chore`; imperative summary ≤ ~50
+  chars; body explains *why* when non-obvious.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
