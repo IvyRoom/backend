@@ -32,12 +32,6 @@ continuously throughout (don't wait for a phase to end to commit).
 
 Offer phases 2 and 3 and **wait** — never start them unprompted.
 
-### Model & effort
-At the start of a task, flag in one line whether a different model or thinking
-effort fits better than what's set (I toggle these — you can't). Default to the
-lighter option for mechanical, well-specified work; reserve the heavier model +
-effort for design, debugging, and multi-file judgment.
-
 ### Session hygiene
 A long session grows slower, costlier, and less sharp — details get buried in a
 big context. At a task/repo boundary, or when the thread is clearly long, flag
@@ -60,15 +54,22 @@ open threads, next steps) so the new one starts oriented.
 - **Verify before handoff.** Check what's mechanical — syntax, tests, logic —
   yourself; I own behavioural and visual testing.
 
-### Git — I drive, you assist
-- **I handle all git myself** (commit, push, merge) in GitHub Desktop. Never run
-  git commands or rewrite history.
-- **One feature = one branch per repo**, same feature name across repos. Branch
-  names `type/short-desc`, lowercase, hyphens.
-- **Point out commit-worthy moments and draft the summary + description ready
-  to use** (I scan the diff, then commit). Conventional Commits:
-  `feat | fix | refactor | style | docs | chore`; imperative summary ≤ ~50
-  chars; body explains *why* when non-obvious.
+### Git — you commit, I publish
+- **You make the commits** (`git add` + `git commit`) on the current feature
+  branch, at natural boundaries throughout the work — don't wait for me. Stage
+  deliberately (named paths, never a blanket `git add -A`) so secrets and
+  untracked junk can't slip in. After committing, surface the message and what
+  you staged so I can scan it.
+- **I handle everything that leaves my machine or rewrites shared history**:
+  Publish Branch / Push to Origin / Pull Requests / merge, all in GitHub
+  Desktop. Never push, never open or merge PRs, never rewrite history (no
+  amend, rebase, force-push, or `reset --hard`).
+- **Stay on the feature branch; never commit to `main`.** One feature = one
+  branch per repo, same feature name across repos. Branch names
+  `type/short-desc`, lowercase, hyphens. If the branch doesn't exist yet, ask
+  before creating it.
+- Conventional Commits: `feat | fix | refactor | style | docs | chore`;
+  imperative summary ≤ ~50 chars; body explains *why* when non-obvious.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
