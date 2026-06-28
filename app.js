@@ -371,27 +371,11 @@ function accessDeadlineSerial(daysFromToday) {
     return Math.floor(utcMidnight / 86400000) + 25569 + daysFromToday;
 }
 
-app.post('/clientes/cadastro-plataforma', async (req, res) => {
+app.post('/clientes/processa-formulario', async (req, res) => {
 
     const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
     const isValid = participants.length > 0 && participants.every((participant) => participant && participant.fullName && participant.email);
-    if (!isValid) return res.status(400).json({ error: 'Erro_010' });
-
-    const tableEndpoint = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
-
-    let existingRows;
-    try { existingRows = await retry(() => Microsoft_Graph_API_Client.api(`${tableEndpoint}/rows`).get()); }
-    catch (err) { return res.status(500).json({ error: 'Erro_011' }); }
-
-    const usedPasswords = new Set(existingRows.value.map((row) => String(row.values[0][3])));
-
-    function uniquePassword() {
-        let password;
-        do { password = Math.floor(100000000000 + Math.random() * 900000000000); }
-        while (usedPasswords.has(String(password)));
-        usedPasswords.add(String(password));
-        return password;
-    }
+    if (!isValid) return res.status(400).json({ error: 'Erro_000' });
 
     const deadline = accessDeadlineSerial(60);
 
@@ -399,7 +383,7 @@ app.post('/clientes/cadastro-plataforma', async (req, res) => {
         const cells = new Array(22).fill(null);
         cells[0] = participant.fullName;
         cells[2] = participant.email;
-        cells[3] = uniquePassword();
+        cells[3] = Math.floor(100000000000 + Math.random() * 900000000000);
         cells[4] = 'Ativo';
         cells[5] = 'Não';
         cells[6] = deadline;
@@ -408,8 +392,8 @@ app.post('/clientes/cadastro-plataforma', async (req, res) => {
         return cells;
     });
 
-    try { await retry(() => Microsoft_Graph_API_Client.api(`${tableEndpoint}/rows/add`).post({ values: rows })); }
-    catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: rows })); }
+    catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
 
     return res.status(200).json({});
 
