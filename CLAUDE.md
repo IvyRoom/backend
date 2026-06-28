@@ -58,8 +58,8 @@ open threads, next steps) so the new one starts oriented.
 - **You make the commits** (`git add` + `git commit`) on the current feature
   branch, at natural boundaries throughout the work — don't wait for me. Stage
   deliberately (named paths, never a blanket `git add -A`) so secrets and
-  untracked junk can't slip in. After committing, surface the message and what
-  you staged so I can scan it.
+  untracked junk can't slip in. No need to surface intermediate commits — I
+  review at the Pull Request / merge level.
 - **I handle everything that leaves my machine or rewrites shared history**:
   Publish Branch / Push to Origin / Pull Requests / merge, all in GitHub
   Desktop. Never push, never open or merge PRs, never rewrite history (no
@@ -69,7 +69,9 @@ open threads, next steps) so the new one starts oriented.
   `type/short-desc`, lowercase, hyphens. If the branch doesn't exist yet, ask
   before creating it.
 - Conventional Commits: `feat | fix | refactor | style | docs | chore`;
-  imperative summary ≤ ~50 chars; body explains *why* when non-obvious.
+  imperative summary ≤ ~50 chars; body explains *why* when non-obvious. End
+  every commit with a `Co-Authored-By: Claude <noreply@anthropic.com>` trailer —
+  a footer line after a blank line, never on the summary.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
