@@ -122,13 +122,24 @@ function accessDeadlineSerial(daysFromToday) {
     return Math.floor(utcMidnight / 86400000) + 25569 + daysFromToday;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////// FORMULÁRIO DE INFORMAÇÕES INICIAIS: PROCESSA SUBMISSÃO DO FORMULÁRIO ////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 app.post('/clientes/processa-formulario', async (req, res) => {
 
     const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
+    const company = (req.body && req.body.company) || {};
+    const shipping = (req.body && req.body.shippingAddress) || {};
 
     const deadline = accessDeadlineSerial(60);
 
-    const rows = participants.map((participant) => {
+    const plataformaRows = participants.map((participant) => {
         const cells = new Array(22).fill(null);
         cells[0] = participant.fullName;
         cells[2] = participant.email;
@@ -141,8 +152,26 @@ app.post('/clientes/processa-formulario', async (req, res) => {
         return cells;
     });
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: rows })); }
+    const clientesRows = participants.map((participant) => {
+        const cells = new Array(13).fill(null);
+        cells[0] = company.legalName;
+        cells[3] = participant.fullName;
+        cells[4] = participant.cpf;
+        cells[5] = shipping.street;
+        cells[6] = shipping.number;
+        cells[7] = shipping.complement || '-';
+        cells[8] = shipping.neighborhood;
+        cells[9] = shipping.city;
+        cells[10] = shipping.state;
+        cells[12] = shipping.postalCode;
+        return cells;
+    });
+
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: plataformaRows })); }
     catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: clientesRows })); }
+    catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
 
     return res.status(200).json({});
 
