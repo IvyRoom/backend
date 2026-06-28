@@ -137,41 +137,73 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     const company = (req.body && req.body.company) || {};
     const shipping = (req.body && req.body.shippingAddress) || {};
 
+    const plataformaTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+    const clientesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+
+    let plataformaData, clientesData;
+    try { plataformaData = await retry(() => Microsoft_Graph_API_Client.api(`${plataformaTable}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
+    try { clientesData = await retry(() => Microsoft_Graph_API_Client.api(`${clientesTable}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_011' }); }
+
+    const onlyDigits = (value) => String(value == null ? '' : value).replace(/\D/g, '');
+    const existingEmails = new Set(plataformaData.value.map((row) => String(row.values[0][2] == null ? '' : row.values[0][2]).trim().toLowerCase()));
+    const existingCpfs = new Set(clientesData.value.map((row) => onlyDigits(row.values[0][4])));
+
     const deadline = accessDeadlineSerial(60);
+    const addressNumber = /^\d+$/.test(shipping.number) ? Number(shipping.number) : shipping.number;
 
-    const plataformaRows = participants.map((participant) => {
-        const cells = new Array(22).fill(null);
-        cells[0] = participant.fullName;
-        cells[2] = participant.email;
-        cells[3] = Math.floor(100000000000 + Math.random() * 900000000000);
-        cells[4] = 'Ativo';
-        cells[5] = 'Não';
-        cells[6] = deadline;
-        cells[8] = 0;
-        for (let module = 10; module <= 19; module++) cells[module] = 0;
-        return cells;
-    });
+    const plataformaRows = participants
+        .filter((participant) => {
+            const email = String(participant.email || '').trim().toLowerCase();
+            if (existingEmails.has(email)) return false;
+            existingEmails.add(email);
+            return true;
+        })
+        .map((participant) => {
+            const cells = new Array(22).fill(null);
+            cells[0] = participant.fullName;
+            cells[2] = participant.email;
+            cells[3] = Math.floor(100000000000 + Math.random() * 900000000000);
+            cells[4] = 'Ativo';
+            cells[5] = 'Não';
+            cells[6] = deadline;
+            cells[8] = 0;
+            for (let module = 10; module <= 19; module++) cells[module] = 0;
+            return cells;
+        });
 
-    const clientesRows = participants.map((participant) => {
-        const cells = new Array(13).fill(null);
-        cells[0] = company.legalName;
-        cells[3] = participant.fullName;
-        cells[4] = participant.cpf;
-        cells[5] = shipping.street;
-        cells[6] = shipping.number;
-        cells[7] = shipping.complement || '-';
-        cells[8] = shipping.neighborhood;
-        cells[9] = shipping.city;
-        cells[10] = shipping.state;
-        cells[12] = shipping.postalCode;
-        return cells;
-    });
+    const clientesRows = participants
+        .filter((participant) => {
+            const cpf = onlyDigits(participant.cpf);
+            if (existingCpfs.has(cpf)) return false;
+            existingCpfs.add(cpf);
+            return true;
+        })
+        .map((participant) => {
+            const cells = new Array(13).fill(null);
+            cells[0] = company.legalName;
+            cells[3] = participant.fullName;
+            cells[4] = participant.cpf;
+            cells[5] = shipping.street;
+            cells[6] = addressNumber;
+            cells[7] = shipping.complement || '-';
+            cells[8] = shipping.neighborhood;
+            cells[9] = shipping.city;
+            cells[10] = shipping.state;
+            cells[12] = shipping.postalCode;
+            return cells;
+        });
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: plataformaRows })); }
-    catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+    if (plataformaRows.length > 0) {
+        try { await Microsoft_Graph_API_Client.api(`${plataformaTable}/rows/add`).post({ values: plataformaRows }); }
+        catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+    }
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: clientesRows })); }
-    catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
+    if (clientesRows.length > 0) {
+        try { await Microsoft_Graph_API_Client.api(`${clientesTable}/rows/add`).post({ values: clientesRows }); }
+        catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
+    }
 
     return res.status(200).json({});
 
