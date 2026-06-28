@@ -360,7 +360,57 @@ app.post('/plataforma_v2/statusreport', async (req, res) => {
     catch (err) { return res.status(500).json({ error: 'Erro_001' }) }
 
     const Dados_Extraídos_BD_Plataforma = BD_Plataforma.value.slice(linha_inicial, linha_final + 1).map(({ values }) => [ values[0][0], values[0][8], ...values[0].slice(10, 22) ]);
-    
+
     return res.status(200).json({ Dados_Extraídos_BD_Plataforma });
+
+});
+
+function accessDeadlineSerial(daysFromToday) {
+    const today = new Date();
+    const utcMidnight = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor(utcMidnight / 86400000) + 25569 + daysFromToday;
+}
+
+app.post('/clientes/cadastro-plataforma', async (req, res) => {
+
+    const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
+    const isValid = participants.length > 0 && participants.every((participant) => participant && participant.fullName && participant.email);
+    if (!isValid) return res.status(400).json({ error: 'Erro_010' });
+
+    const tableEndpoint = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+
+    let existingRows;
+    try { existingRows = await retry(() => Microsoft_Graph_API_Client.api(`${tableEndpoint}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_011' }); }
+
+    const usedPasswords = new Set(existingRows.value.map((row) => String(row.values[0][3])));
+
+    function uniquePassword() {
+        let password;
+        do { password = Math.floor(100000000000 + Math.random() * 900000000000); }
+        while (usedPasswords.has(String(password)));
+        usedPasswords.add(String(password));
+        return password;
+    }
+
+    const deadline = accessDeadlineSerial(60);
+
+    const rows = participants.map((participant) => {
+        const cells = new Array(22).fill(null);
+        cells[0] = participant.fullName;
+        cells[2] = participant.email;
+        cells[3] = uniquePassword();
+        cells[4] = 'Ativo';
+        cells[5] = 'Não';
+        cells[6] = deadline;
+        cells[8] = 0;
+        for (let module = 10; module <= 19; module++) cells[module] = 0;
+        return cells;
+    });
+
+    try { await retry(() => Microsoft_Graph_API_Client.api(`${tableEndpoint}/rows/add`).post({ values: rows })); }
+    catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
+
+    return res.status(200).json({});
 
 });
