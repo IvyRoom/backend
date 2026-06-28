@@ -374,8 +374,6 @@ function accessDeadlineSerial(daysFromToday) {
 app.post('/clientes/processa-formulario', async (req, res) => {
 
     const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
-    const isValid = participants.length > 0 && participants.every((participant) => participant && participant.fullName && participant.email);
-    if (!isValid) return res.status(400).json({ error: 'Erro_000' });
 
     const deadline = accessDeadlineSerial(60);
 
