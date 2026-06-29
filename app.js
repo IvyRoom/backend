@@ -208,11 +208,10 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     }
 
     const companyAddress = company.address || {};
-    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome: ${p.fullName}</p><p>CPF: ${p.cpf}</p><p>Cargo: ${p.role}</p><p>WhatsApp: (${p.areaCode}) ${p.whatsapp}</p><p>E-mail: ${p.email}</p>`;
-    const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${p.fullName} — Cargo: ${p.role} · WhatsApp: (${p.areaCode}) ${p.whatsapp}</p>`).join('');
-    const emailContent = `<p>Um novo formulário de informações iniciais foi enviado.</p><p><b>Empresa</b></p><p>Razão Social: ${company.legalName}</p><p>CNPJ: ${company.cnpj}</p><p><b>Endereço da Empresa</b></p><p>CEP: ${companyAddress.postalCode}</p><p>Logradouro: ${companyAddress.street}, ${companyAddress.number}</p><p>Complemento: ${companyAddress.complement || '-'}</p><p>Bairro: ${companyAddress.neighborhood}</p><p>Cidade/UF: ${companyAddress.city}/${companyAddress.state}</p>${pessoaHTML('Representante Legal', legalRep)}${pessoaHTML('Assistente Administrativo', adminAssistant)}<p><b>Participantes — dados complementares</b></p>${participantesHTML}`;
+    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome Completo: ${p.fullName}</p><p>CPF: ${p.cpf}</p><p>Cargo: ${p.role}</p><p>DDD: ${p.areaCode}</p><p>WhatsApp: ${p.whatsapp}</p><p>E-mail: ${p.email}</p>`;
+    const emailContent = `<p>Um novo Formulário de Informações Iniciais foi preenchido.</p><p><b>Pessoa Jurídica Contratante</b></p><p>Razão Social: ${company.legalName}</p><p>CNPJ: ${company.cnpj}</p><p>CEP: ${companyAddress.postalCode}</p><p>Rua: ${companyAddress.street}</p><p>Número: ${companyAddress.number}</p><p>Complemento: ${companyAddress.complement}</p><p>Bairro: ${companyAddress.neighborhood}</p><p>Cidade: ${companyAddress.city}</p><p>Estado: ${companyAddress.state}</p>${pessoaHTML('Representante Jurídico', legalRep)}${pessoaHTML('Auxiliar Administrativo Financeiro', adminAssistant)}<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>`;
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado - Novo Formulário de Informações Iniciais', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado: novo Formulário de Informações Iniciais preenchido', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
     catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
 
     return res.status(200).json({});
