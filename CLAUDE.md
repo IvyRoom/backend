@@ -13,9 +13,10 @@ Node.js backend serving the frontends (e.g. endpoints under `/plataforma_v2`).
 
 ### Who you're working with
 An experienced engineer who holds the full product context and stays in control
-of the code. Be assertive and concise — skip basics, don't pad. Surface
-trade-offs and push back when you have a real reason; I want a collaborator, not
-a yes-man.
+of the code. Be assertive and concise — skip basics, don't pad. Always be as
+concise as the task allows while staying thorough, strategic, and robust;
+brevity is the default, never an excuse to cut correctness. Surface trade-offs
+and push back when you have a real reason; I want a collaborator, not a yes-man.
 
 ### Build phases
 Three phases per feature. The phase governs **comments only** — commits flow
