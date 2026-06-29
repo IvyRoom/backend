@@ -116,6 +116,109 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
 
 });
 
+function accessDeadlineSerial(daysFromToday) {
+    const today = new Date();
+    const utcMidnight = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor(utcMidnight / 86400000) + 25569 + daysFromToday;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////// FORMULÁRIO DE INFORMAÇÕES INICIAIS: PROCESSA SUBMISSÃO DO FORMULÁRIO ////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+app.post('/clientes/processa-formulario', async (req, res) => {
+
+    const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
+    const company = (req.body && req.body.company) || {};
+    const shipping = (req.body && req.body.shippingAddress) || {};
+    const legalRep = (req.body && req.body.legalRepresentative) || {};
+    const adminAssistant = (req.body && req.body.adminAssistant) || {};
+
+    const plataformaTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+    const clientesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+
+    let plataformaData, clientesData;
+    try { plataformaData = await retry(() => Microsoft_Graph_API_Client.api(`${plataformaTable}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
+    try { clientesData = await retry(() => Microsoft_Graph_API_Client.api(`${clientesTable}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_011' }); }
+
+    const onlyDigits = (value) => String(value == null ? '' : value).replace(/\D/g, '');
+    const existingEmails = new Set(plataformaData.value.map((row) => String(row.values[0][2] == null ? '' : row.values[0][2]).trim().toLowerCase()));
+    const existingCpfs = new Set(clientesData.value.map((row) => onlyDigits(row.values[0][4])));
+
+    const deadline = accessDeadlineSerial(60);
+    const addressNumber = /^\d+$/.test(shipping.number) ? Number(shipping.number) : shipping.number;
+
+    const plataformaRows = participants
+        .filter((participant) => {
+            const email = String(participant.email || '').trim().toLowerCase();
+            if (existingEmails.has(email)) return false;
+            existingEmails.add(email);
+            return true;
+        })
+        .map((participant) => {
+            const cells = new Array(22).fill(null);
+            cells[0] = participant.fullName;
+            cells[2] = participant.email;
+            cells[3] = Math.floor(100000000000 + Math.random() * 900000000000);
+            cells[4] = 'Ativo';
+            cells[5] = 'Não';
+            cells[6] = deadline;
+            cells[8] = 0;
+            for (let module = 10; module <= 19; module++) cells[module] = 0;
+            return cells;
+        });
+
+    const clientesRows = participants
+        .filter((participant) => {
+            const cpf = onlyDigits(participant.cpf);
+            if (existingCpfs.has(cpf)) return false;
+            existingCpfs.add(cpf);
+            return true;
+        })
+        .map((participant) => {
+            const cells = new Array(13).fill(null);
+            cells[0] = company.legalName;
+            cells[3] = participant.fullName;
+            cells[4] = participant.cpf;
+            cells[5] = shipping.street;
+            cells[6] = addressNumber;
+            cells[7] = shipping.complement || '-';
+            cells[8] = shipping.neighborhood;
+            cells[9] = shipping.city;
+            cells[10] = shipping.state;
+            cells[12] = shipping.postalCode;
+            return cells;
+        });
+
+    if (plataformaRows.length > 0) {
+        try { await Microsoft_Graph_API_Client.api(`${plataformaTable}/rows/add`).post({ values: plataformaRows }); }
+        catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+    }
+
+    if (clientesRows.length > 0) {
+        try { await Microsoft_Graph_API_Client.api(`${clientesTable}/rows/add`).post({ values: clientesRows }); }
+        catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
+    }
+
+    const companyAddress = company.address || {};
+    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome Completo: ${p.fullName}</p><p>CPF: ${p.cpf}</p><p>Cargo: ${p.role}</p><p>DDD: ${p.areaCode}</p><p>WhatsApp: ${p.whatsapp}</p><p>E-mail: ${p.email}</p>`;
+    const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${p.fullName} — Cargo: ${p.role} · DDD: ${p.areaCode} · WhatsApp: ${p.whatsapp}</p>`).join('');
+    const emailContent = `<p>Um novo Formulário de Informações Iniciais foi preenchido.</p><p><b>Pessoa Jurídica Contratante</b></p><p>Razão Social: ${company.legalName}</p><p>CNPJ: ${company.cnpj}</p><p>CEP: ${companyAddress.postalCode}</p><p>Rua: ${companyAddress.street}</p><p>Número: ${companyAddress.number}</p><p>Complemento: ${companyAddress.complement}</p><p>Bairro: ${companyAddress.neighborhood}</p><p>Cidade: ${companyAddress.city}</p><p>Estado: ${companyAddress.state}</p>${pessoaHTML('Representante Jurídico', legalRep)}${pessoaHTML('Auxiliar Administrativo Financeiro', adminAssistant)}<p><b>Participantes</b></p>${participantesHTML}<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>`;
+
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado: novo Formulário de Informações Iniciais preenchido', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
+    catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
+
+    return res.status(200).json({});
+
+});
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -360,7 +463,7 @@ app.post('/plataforma_v2/statusreport', async (req, res) => {
     catch (err) { return res.status(500).json({ error: 'Erro_001' }) }
 
     const Dados_Extraídos_BD_Plataforma = BD_Plataforma.value.slice(linha_inicial, linha_final + 1).map(({ values }) => [ values[0][0], values[0][8], ...values[0].slice(10, 22) ]);
-    
+
     return res.status(200).json({ Dados_Extraídos_BD_Plataforma });
 
 });
