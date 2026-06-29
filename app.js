@@ -136,6 +136,8 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
     const company = (req.body && req.body.company) || {};
     const shipping = (req.body && req.body.shippingAddress) || {};
+    const legalRep = (req.body && req.body.legalRepresentative) || {};
+    const adminAssistant = (req.body && req.body.adminAssistant) || {};
 
     const plataformaTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
     const clientesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
@@ -204,6 +206,14 @@ app.post('/clientes/processa-formulario', async (req, res) => {
         try { await Microsoft_Graph_API_Client.api(`${clientesTable}/rows/add`).post({ values: clientesRows }); }
         catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
     }
+
+    const companyAddress = company.address || {};
+    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome: ${p.fullName}</p><p>CPF: ${p.cpf}</p><p>Cargo: ${p.role}</p><p>WhatsApp: (${p.areaCode}) ${p.whatsapp}</p><p>E-mail: ${p.email}</p>`;
+    const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${p.fullName} — Cargo: ${p.role} · WhatsApp: (${p.areaCode}) ${p.whatsapp}</p>`).join('');
+    const emailContent = `<p>Um novo formulário de informações iniciais foi enviado.</p><p><b>Empresa</b></p><p>Razão Social: ${company.legalName}</p><p>CNPJ: ${company.cnpj}</p><p><b>Endereço da Empresa</b></p><p>CEP: ${companyAddress.postalCode}</p><p>Logradouro: ${companyAddress.street}, ${companyAddress.number}</p><p>Complemento: ${companyAddress.complement || '-'}</p><p>Bairro: ${companyAddress.neighborhood}</p><p>Cidade/UF: ${companyAddress.city}/${companyAddress.state}</p>${pessoaHTML('Representante Legal', legalRep)}${pessoaHTML('Assistente Administrativo', adminAssistant)}<p><b>Participantes — dados complementares</b></p>${participantesHTML}`;
+
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado - Novo Formulário de Informações Iniciais', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
+    catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
 
     return res.status(200).json({});
 
