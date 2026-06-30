@@ -145,7 +145,7 @@ function accessDeadlineSerial(daysFromToday) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-app.get('/landingpage/validacaocertificados/:Solicitante_CertificadoID', async (req, res) => {
+app.get('/validacaocertificados/:Solicitante_CertificadoID', async (req, res) => {
 
     const Solicitante_CertificadoID = String(req.params.Solicitante_CertificadoID || '').trim().toUpperCase();
 
