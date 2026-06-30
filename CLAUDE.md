@@ -18,20 +18,15 @@ concise as the task allows while staying thorough, strategic, and robust;
 brevity is the default, never an excuse to cut correctness. Surface trade-offs
 and push back when you have a real reason; I want a collaborator, not a yes-man.
 
-### Build phases
-Three phases per feature. The phase governs **comments only** — commits flow
-continuously throughout (don't wait for a phase to end to commit).
-1. **Build & test — no comments.** Carry the heavy lifting: working code with no
-   comments at all (explanatory or navigational), leaning on clear names. I test
-   behaviour and we trade ideas; I make small manual tweaks. I'm not reviewing
-   your code in detail yet. Ends only when the code works end-to-end (front +
-   back) and my key tests pass.
-2. **Explain.** When it works end-to-end, ask if I want temporary explanatory
-   comments, so I can walk your logic and learn from you.
-3. **Trim.** After I've reviewed them, ask before converting them to
-   navigation-only signposts.
-
-Offer phases 2 and 3 and **wait** — never start them unprompted.
+### Comments — default to none
+Working code that leans on clear names; no explanatory or navigational comments.
+We trade ideas, you implement, I eyeball and test, and once it's
+production-ready I open the PR and merge — so the old staged "explain / trim"
+passes are gone. Commits still flow continuously throughout (don't batch them).
+Narrow exception: a single line is fine when it captures what a name can't — a
+non-obvious *why*, a security-critical invariant, a browser/API quirk, or a
+documented contract (e.g. an HTML↔JS interface). When editing a file that's
+already commented (e.g. backend `app.js`), match its existing style.
 
 ### Session hygiene
 A long session grows slower, costlier, and less sharp — details get buried in a
@@ -61,14 +56,17 @@ open threads, next steps) so the new one starts oriented.
   deliberately (named paths, never a blanket `git add -A`) so secrets and
   untracked junk can't slip in. No need to surface intermediate commits — I
   review at the Pull Request / merge level.
+- **Commit my uncommitted manual edits too.** When I've hand-edited files and
+  left them uncommitted, commit them as their own commit, with a summary and
+  description you infer from the diff — don't fold them into your own work.
 - **I handle everything that leaves my machine or rewrites shared history**:
   Publish Branch / Push to Origin / Pull Requests / merge, all in GitHub
   Desktop. Never push, never open or merge PRs, never rewrite history (no
   amend, rebase, force-push, or `reset --hard`).
 - **Stay on the feature branch; never commit to `main`.** One feature = one
   branch per repo, same feature name across repos. Branch names
-  `type/short-desc`, lowercase, hyphens. If the branch doesn't exist yet, ask
-  before creating it.
+  `type/short-desc`, lowercase, hyphens. Starting a new feature while on `main`
+  with no branch yet: create and name it yourself — no need to ask — then tell me.
 - Conventional Commits: `feat | fix | refactor | style | docs | chore`;
   imperative summary ≤ ~50 chars; body explains *why* when non-obvious. End
   every commit with a `Co-Authored-By: Claude <noreply@anthropic.com>` trailer —
