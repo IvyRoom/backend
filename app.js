@@ -158,6 +158,13 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     const legalRep = (req.body && req.body.legalRepresentative) || {};
     const adminAssistant = (req.body && req.body.adminAssistant) || {};
 
+    // Limite de 25 espelha MAX_PARTICIPANTS do formulário (sistemas/formulario/main.js).
+    const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+    const validPayload = isNonEmptyString(company.legalName)
+        && participants.length >= 1 && participants.length <= 25
+        && participants.every((p) => p && isNonEmptyString(p.fullName) && isNonEmptyString(p.email) && isNonEmptyString(p.cpf));
+    if (!validPayload) return res.status(400).json({ error: 'Erro_013' });
+
     const plataformaTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
     const clientesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
 
