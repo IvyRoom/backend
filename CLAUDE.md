@@ -51,7 +51,12 @@ open threads, next steps) so the new one starts oriented.
   of tracked files (use ignored config / env vars). If a change would add one,
   stop and flag it.
 - **Verify before handoff.** Check what's mechanical — syntax, tests, logic —
-  yourself; I own behavioural and visual testing.
+  yourself. When it adds real signal, also exercise the change yourself in a
+  local preview (serve the frontend, drive it in a browser). Before running
+  anything, map what it touches: never exercise paths that reach production —
+  Graph API, live spreadsheets, real e-mail — or anything else with side
+  effects beyond this machine, without my explicit OK. I still own final
+  behavioural and visual testing.
 
 ### Git — you commit, I publish
 - **You make the commits** (`git add` + `git commit`) on the current feature
