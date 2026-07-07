@@ -38,7 +38,10 @@ open threads, next steps) so the new one starts oriented.
 - **Ask before large or structural changes.** Propose, wait for my OK. Small,
   obvious fixes: just do them.
 - **One concern per change.** No unrelated refactors in passing.
-- **Never invent scope.** No fields, endpoints, or copy I didn't ask for.
+- **Never invent scope.** No fields or endpoints I didn't ask for. When a
+  change genuinely requires new user-facing copy (labels, messages), write it
+  to fit the surrounding tone and language, and list it in your handoff so I
+  can review the wording.
 - **Match the surrounding code** of whichever repo/folder you're in — its
   naming, language, and structure win over your defaults. Flag mismatches
   instead of silently "fixing" them.
