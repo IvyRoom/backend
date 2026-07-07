@@ -38,7 +38,10 @@ open threads, next steps) so the new one starts oriented.
 - **Ask before large or structural changes.** Propose, wait for my OK. Small,
   obvious fixes: just do them.
 - **One concern per change.** No unrelated refactors in passing.
-- **Never invent scope.** No fields, endpoints, or copy I didn't ask for.
+- **Never invent scope.** No fields or endpoints I didn't ask for. When a
+  change genuinely requires new user-facing copy (labels, messages), write it
+  to fit the surrounding tone and language, and list it in your handoff so I
+  can review the wording.
 - **Match the surrounding code** of whichever repo/folder you're in — its
   naming, language, and structure win over your defaults. Flag mismatches
   instead of silently "fixing" them.
@@ -48,7 +51,12 @@ open threads, next steps) so the new one starts oriented.
   of tracked files (use ignored config / env vars). If a change would add one,
   stop and flag it.
 - **Verify before handoff.** Check what's mechanical — syntax, tests, logic —
-  yourself; I own behavioural and visual testing.
+  yourself. When it adds real signal, also exercise the change yourself in a
+  local preview (serve the frontend, drive it in a browser). Before running
+  anything, map what it touches: never exercise paths that reach production —
+  Graph API, live spreadsheets, real e-mail — or anything else with side
+  effects beyond this machine, without my explicit OK. I still own final
+  behavioural and visual testing.
 
 ### Git — you commit, I publish
 - **You make the commits** (`git add` + `git commit`) on the current feature
@@ -69,20 +77,36 @@ open threads, next steps) so the new one starts oriented.
   with no branch yet: create and name it yourself — no need to ask — then tell me.
 - Conventional Commits: `feat | fix | refactor | style | docs | chore`;
   imperative summary ≤ ~50 chars; body explains *why* when non-obvious. End
-  every commit with a `Co-Authored-By: Claude <noreply@anthropic.com>` trailer —
-  a footer line after a blank line, never on the summary.
+  every commit with a `Co-Authored-By:` trailer naming the model that wrote it
+  (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`) — a footer
+  line after a blank line, never on the summary.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
 <!-- ========================================================= -->
 <!-- REPO SPECIFICS — backend only                             -->
 <!-- ========================================================= -->
-## Conventions — to be defined
-We haven't built here together yet. Fill this in when we start, then keep it
-honest about what's actually in the repo.
+## Conventions — current state
+Single `app.js` Express app; banner comments split it into sections. Data lives
+in Excel workbooks reached through the Microsoft Graph API — tables addressed
+by drive-item ID + table GUID, columns by numeric index. The column maps exist
+only in the sheets, so verify indexes against the sheet before writing. Legacy
+sections use Portuguese identifiers; the `formulario` endpoint
+(`/clientes/processa-formulario`) uses English camelCase — match the section
+you're editing.
 
-From what I've seen so far (your example endpoint): Express-style routes, a
-Microsoft Graph API client (with retry), JSON responses, coded error strings
-(e.g. `Erro_008`). **Existing backend code uses Portuguese identifiers** — match
-the surrounding code when editing existing files. For brand-new code we write
-together, we'll decide the naming convention explicitly before starting.
+### Error codes — user-visible contract with `sistemas` frontends
+`Erro_001` read BD Plataforma · `Erro_008` write BD Plataforma · `Erro_010`
+write BD Clientes · `Erro_011` read BD Clientes · `Erro_012` sendMail ·
+`Erro_013` invalid formulario payload (400). New code = next free number, plus
+a message in whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
+`formulario/main.js`).
+
+### processa-formulario design notes
+- Whole-form retry is safe by design: new rows are deduped against existing
+  table data (BD Plataforma by e-mail, BD Clientes by CPF), so a
+  failed-then-retried submission doesn't duplicate rows.
+- The two `rows/add` calls are deliberately not wrapped in `retry()`: an
+  ambiguous failure after a successful insert would double-insert.
+- Cells left `null` in new rows are columns the sheet itself fills (formulas /
+  manual entry) — don't populate them from code.

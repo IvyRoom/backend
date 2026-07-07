@@ -145,6 +145,11 @@ function GeraCertificadoID() {
 }
 
 
+function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+
 app.post('/clientes/processa-formulario', async (req, res) => {
 
     const participants = Array.isArray(req.body && req.body.participants) ? req.body.participants : [];
@@ -152,6 +157,13 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     const shipping = (req.body && req.body.shippingAddress) || {};
     const legalRep = (req.body && req.body.legalRepresentative) || {};
     const adminAssistant = (req.body && req.body.adminAssistant) || {};
+
+    // Limite de 25 espelha MAX_PARTICIPANTS do formulário (sistemas/formulario/main.js).
+    const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+    const validPayload = isNonEmptyString(company.legalName)
+        && participants.length >= 1 && participants.length <= 25
+        && participants.every((p) => p && isNonEmptyString(p.fullName) && isNonEmptyString(p.email) && isNonEmptyString(p.cpf));
+    if (!validPayload) return res.status(400).json({ error: 'Erro_013' });
 
     const plataformaTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
     const clientesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
@@ -181,7 +193,7 @@ app.post('/clientes/processa-formulario', async (req, res) => {
             const cells = new Array(22).fill(null);
             cells[0] = participant.fullName;
             cells[2] = participant.email;
-            cells[3] = Math.floor(100000000000 + Math.random() * 900000000000);
+            cells[3] = crypto.randomInt(100000000000, 1000000000000);
             cells[4] = 'Ativo';
             cells[5] = 'Não';
             cells[6] = deadline;
@@ -227,9 +239,9 @@ app.post('/clientes/processa-formulario', async (req, res) => {
     }
 
     const companyAddress = company.address || {};
-    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome Completo: ${p.fullName}</p><p>CPF: ${p.cpf}</p><p>Cargo: ${p.role}</p><p>DDD: ${p.areaCode}</p><p>WhatsApp: ${p.whatsapp}</p><p>E-mail: ${p.email}</p>`;
-    const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${p.fullName} — Cargo: ${p.role} · DDD: ${p.areaCode} · WhatsApp: ${p.whatsapp}</p>`).join('');
-    const emailContent = `<p>Um novo Formulário de Informações Iniciais foi preenchido.</p><p><b>Pessoa Jurídica Contratante</b></p><p>Razão Social: ${company.legalName}</p><p>CNPJ: ${company.cnpj}</p><p>CEP: ${companyAddress.postalCode}</p><p>Rua: ${companyAddress.street}</p><p>Número: ${companyAddress.number}</p><p>Complemento: ${companyAddress.complement}</p><p>Bairro: ${companyAddress.neighborhood}</p><p>Cidade: ${companyAddress.city}</p><p>Estado: ${companyAddress.state}</p>${pessoaHTML('Representante Jurídico', legalRep)}${pessoaHTML('Auxiliar Administrativo Financeiro', adminAssistant)}<p><b>Participantes</b></p>${participantesHTML}<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>`;
+    const pessoaHTML = (rotulo, p) => `<p><b>${rotulo}</b></p><p>Nome Completo: ${escapeHtml(p.fullName)}</p><p>CPF: ${escapeHtml(p.cpf)}</p><p>Cargo: ${escapeHtml(p.role)}</p><p>DDD: ${escapeHtml(p.areaCode)}</p><p>WhatsApp: ${escapeHtml(p.whatsapp)}</p><p>E-mail: ${escapeHtml(p.email)}</p>`;
+    const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${escapeHtml(p.fullName)} — Cargo: ${escapeHtml(p.role)} · DDD: ${escapeHtml(p.areaCode)} · WhatsApp: ${escapeHtml(p.whatsapp)}</p>`).join('');
+    const emailContent = `<p>Um novo Formulário de Informações Iniciais foi preenchido.</p><p><b>Pessoa Jurídica Contratante</b></p><p>Razão Social: ${escapeHtml(company.legalName)}</p><p>CNPJ: ${escapeHtml(company.cnpj)}</p><p>CEP: ${escapeHtml(companyAddress.postalCode)}</p><p>Rua: ${escapeHtml(companyAddress.street)}</p><p>Número: ${escapeHtml(companyAddress.number)}</p><p>Complemento: ${escapeHtml(companyAddress.complement)}</p><p>Bairro: ${escapeHtml(companyAddress.neighborhood)}</p><p>Cidade: ${escapeHtml(companyAddress.city)}</p><p>Estado: ${escapeHtml(companyAddress.state)}</p>${pessoaHTML('Representante Jurídico', legalRep)}${pessoaHTML('Auxiliar Administrativo Financeiro', adminAssistant)}<p><b>Participantes</b></p>${participantesHTML}<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>`;
 
     try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado: novo Formulário de Informações Iniciais preenchido', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
     catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
