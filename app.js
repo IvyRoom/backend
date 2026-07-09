@@ -536,3 +536,108 @@ app.get('/validacaocertificados/:Solicitante_CertificadoID', async (req, res) =>
     });
 
 });
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////// MACHADO CONECTA: PROCESSA NOVA RECOMENDAÇÃO /////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+const recomendacoesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRAQXJDB7TBYFGKA5YQJXO3YAOS/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
+
+// Mapa de colunas da BD - RECOMENDAÇÕES (0-based). PENDENTE: verificar contra a planilha antes do primeiro teste real, inclusive o GUID da tabela acima.
+const RECOMENDACOES_COLUMNS = { recommenderFullName: 0, recommenderEmail: 1, benefitedCompany: 2, recommendedCompany: 3, recommendedProfessional: 4, recommendedWhatsapp: 5, status: 6, contractSize: 7 };
+const RECOMENDACOES_ROW_WIDTH = 8;
+
+function normalizeMatchKey(value) {
+    return String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isPlaceholderCell(value) {
+    return String(value == null ? '' : value).trim() === '-';
+}
+
+
+app.post('/conecta/processa-recomendacao', async (req, res) => {
+
+    const body = req.body || {};
+    const isNonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
+    const requiredFields = ['recommenderFullName', 'benefitedCompany', 'recommendedCompany', 'recommendedProfessional', 'recommendedWhatsapp'];
+    if (!requiredFields.every((field) => isNonEmptyString(body[field]))) return res.status(400).json({ error: 'Erro_014' });
+
+    let recomendacoesData;
+    try { recomendacoesData = await retry(() => Microsoft_Graph_API_Client.api(`${recomendacoesTable}/rows`).get()); }
+    catch (err) { return res.status(500).json({ error: 'Erro_015' }); }
+
+    const columns = RECOMENDACOES_COLUMNS;
+    const recommenderNameKey = normalizeMatchKey(body.recommenderFullName);
+    const benefitedCompanyKey = normalizeMatchKey(body.benefitedCompany);
+
+    const recommenderRows = recomendacoesData.value
+        .map((row, index) => ({ index, cells: row.values[0] }))
+        .filter(({ cells }) => normalizeMatchKey(cells[columns.recommenderFullName]) === recommenderNameKey && normalizeMatchKey(cells[columns.benefitedCompany]) === benefitedCompanyKey);
+
+    if (recommenderRows.length === 0) return res.status(404).json({ error: 'Erro_016' });
+
+    // Reenvio idêntico (ex.: retry após falha de e-mail) não duplica linha; e-mails seguem adiante mesmo assim.
+    const isDuplicate = recommenderRows.some(({ cells }) =>
+        normalizeMatchKey(cells[columns.recommendedCompany]) === normalizeMatchKey(body.recommendedCompany)
+        && normalizeMatchKey(cells[columns.recommendedProfessional]) === normalizeMatchKey(body.recommendedProfessional)
+        && normalizeMatchKey(cells[columns.recommendedWhatsapp]) === normalizeMatchKey(body.recommendedWhatsapp));
+
+    const recommenderCells = recommenderRows[0].cells;
+
+    if (!isDuplicate) {
+
+        const slotColumns = [columns.recommendedCompany, columns.recommendedProfessional, columns.recommendedWhatsapp, columns.status, columns.contractSize];
+        const slotRow = recommenderRows.find(({ cells }) => slotColumns.every((column) => isPlaceholderCell(cells[column])));
+
+        // Escritas deliberadamente sem retry(): uma falha ambígua após inserção bem-sucedida duplicaria a linha.
+        try {
+
+            if (slotRow) {
+                const cells = new Array(RECOMENDACOES_ROW_WIDTH).fill(null);
+                cells[columns.recommendedCompany] = body.recommendedCompany.trim();
+                cells[columns.recommendedProfessional] = body.recommendedProfessional.trim();
+                cells[columns.recommendedWhatsapp] = body.recommendedWhatsapp.trim();
+                cells[columns.status] = 'NOVA RECOMENDAÇÃO';
+                await Microsoft_Graph_API_Client.api(`${recomendacoesTable}/rows/itemAt(index=${slotRow.index})`).update({ values: [cells] });
+            }
+
+            else {
+                const cells = new Array(RECOMENDACOES_ROW_WIDTH).fill(null);
+                cells[columns.recommenderFullName] = recommenderCells[columns.recommenderFullName];
+                cells[columns.recommenderEmail] = recommenderCells[columns.recommenderEmail];
+                cells[columns.benefitedCompany] = recommenderCells[columns.benefitedCompany];
+                cells[columns.recommendedCompany] = body.recommendedCompany.trim();
+                cells[columns.recommendedProfessional] = body.recommendedProfessional.trim();
+                cells[columns.recommendedWhatsapp] = body.recommendedWhatsapp.trim();
+                cells[columns.status] = 'NOVA RECOMENDAÇÃO';
+                cells[columns.contractSize] = '-';
+                await Microsoft_Graph_API_Client.api(`${recomendacoesTable}/rows/add`).post({ values: [cells] });
+            }
+
+        } catch (err) { return res.status(500).json({ error: 'Erro_017' }); }
+
+    }
+
+    const recommenderEmail = String(recommenderCells[columns.recommenderEmail] == null ? '' : recommenderCells[columns.recommenderEmail]).trim();
+    const recommenderFirstName = String(recommenderCells[columns.recommenderFullName]).trim().split(/\s+/)[0];
+    const signatureHTML = '<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>';
+
+    const internalEmailContent = `<p><b>Dados do Recomendante:</b></p><p>Nome Completo: ${escapeHtml(recommenderCells[columns.recommenderFullName])}</p><p>E-mail: ${escapeHtml(recommenderEmail)}</p><p>Empresa Beneficiada: ${escapeHtml(recommenderCells[columns.benefitedCompany])}</p><p><b>Dados da Recomendação:</b></p><p>Empresa Recomendada: ${escapeHtml(body.recommendedCompany.trim())}</p><p>Profissional Contatado: ${escapeHtml(body.recommendedProfessional.trim())}</p><p>WhatsApp do Profissional: ${escapeHtml(body.recommendedWhatsapp.trim())}</p>${signatureHTML}`;
+
+    const confirmationEmailContent = `<p>Olá ${escapeHtml(recommenderFirstName)},</p><p>Recebemos sua recomendação da Machado para a empresa <b>${escapeHtml(body.recommendedCompany.trim())}</b>. Muito obrigado pela confiança!</p><p>Nos próximos dias, entraremos em contato com ${escapeHtml(body.recommendedProfessional.trim())}. E assim que houver novidades sobre esta recomendação, você será avisado(a).</p><p>Atenciosamente,</p>${signatureHTML}`;
+
+    try {
+        await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado Conecta - Nova Recomendação Recebida', body: { contentType: 'HTML', content: internalEmailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } }));
+        await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado Conecta - Recomendação Registrada', body: { contentType: 'HTML', content: confirmationEmailContent }, toRecipients: [{ emailAddress: { address: recommenderEmail } }] } }));
+    } catch (err) { return res.status(500).json({ error: 'Erro_018' }); }
+
+    return res.status(200).json({});
+
+});
