@@ -98,9 +98,27 @@ you're editing.
 ### Error codes — user-visible contract with `sistemas` frontends
 `Erro_001` read BD Plataforma · `Erro_008` write BD Plataforma · `Erro_010`
 write BD Clientes · `Erro_011` read BD Clientes · `Erro_012` sendMail ·
-`Erro_013` invalid formulario payload (400). New code = next free number, plus
-a message in whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
-`formulario/main.js`).
+`Erro_013` invalid formulario payload (400) · `Erro_014` invalid conecta
+payload (400) · `Erro_015` read BD Recomendações · `Erro_016` recomendante not
+found in BD Recomendações (404) · `Erro_017` write BD Recomendações ·
+`Erro_018` conecta sendMail. New code = next free number, plus a message in
+whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
+`formulario/main.js` and `conecta/main.js`).
+
+### conecta (processa-recomendacao) design notes
+- The recommender is identified by matching URL-borne name + company against
+  BD - RECOMENDAÇÕES (normalized: trim, collapsed spaces, lowercase). No match
+  = `Erro_016`, so a tampered or mistyped link cannot write anything.
+- Fill-or-append: a recommender row whose recommendation columns are all `-`
+  is a free slot left by the manual invite process — fill it; otherwise append
+  a full new row copying the recommender columns from the matched row.
+- An identical pending recommendation (same recommender + company +
+  professional + WhatsApp) skips the write but still sends the e-mails, so a
+  retry after a failed sendMail stays safe.
+- Writes are deliberately not `retry()`-wrapped (same double-insert rationale
+  as processa-formulario).
+- `RECOMENDACOES_COLUMNS` in `app.js` is an ASSUMED column map — verify it and
+  the table GUID against the live sheet before the first real test.
 
 ### processa-formulario design notes
 - Whole-form retry is safe by design: new rows are deduped against existing
