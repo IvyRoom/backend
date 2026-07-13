@@ -96,14 +96,31 @@ sections use Portuguese identifiers; the `formulario` endpoint
 you're editing.
 
 ### Error codes — user-visible contract with `sistemas` frontends
-`Erro_001` read BD Plataforma · `Erro_008` write BD Plataforma · `Erro_010`
-write BD Clientes · `Erro_011` read BD Clientes · `Erro_012` sendMail ·
-`Erro_013` invalid formulario payload (400) · `Erro_014` invalid conecta
-payload (400) · `Erro_015` read BD Recomendações · `Erro_016` recomendante not
-found in BD Recomendações (404) · `Erro_017` write BD Recomendações ·
-`Erro_018` conecta sendMail. New code = next free number, plus a message in
-whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
-`formulario/main.js` and `conecta/main.js`).
+Canonical registry — moved here from the old dictionary at the top of
+`sistemas/plataforma_v2/login/main.js`. New code = next free number, plus a
+message in whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
+`formulario/main.js` and `conecta/main.js`). `Erro_000` and `Erro_006` are
+emitted by the frontends themselves, never by the backend.
+
+- `Erro_000` — frontend fallback: network/unknown failure reaching the backend
+- `Erro_001` — read BD Plataforma
+- `Erro_002` — upload FotoReferência to OneDrive
+- `Erro_003` — flag FotoReferência as registered in BD Plataforma
+- `Erro_004` — create Azure Face liveness session (authToken/sessionID)
+- `Erro_005` — read FotoReferência from OneDrive
+- `Erro_006` — frontend: FaceLivenessDetector failed to run
+- `Erro_007` — read Azure Face liveness session results
+- `Erro_008` — write BD Plataforma
+- `Erro_009` — write BD Feedbacks
+- `Erro_010` — write BD Clientes
+- `Erro_011` — read BD Clientes
+- `Erro_012` — formulario sendMail
+- `Erro_013` — invalid formulario payload (400)
+- `Erro_014` — invalid conecta payload (400)
+- `Erro_015` — read BD Recomendações
+- `Erro_016` — recomendante not found in BD Recomendações (404)
+- `Erro_017` — write BD Recomendações
+- `Erro_018` — conecta sendMail
 
 ### conecta (processa-recomendacao) design notes
 - The recommender is identified by matching URL-borne name + company against
@@ -117,8 +134,17 @@ whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
   retry after a failed sendMail stays safe.
 - Writes are deliberately not `retry()`-wrapped (same double-insert rationale
   as processa-formulario).
-- `RECOMENDACOES_COLUMNS` in `app.js` is an ASSUMED column map — verify it and
-  the table GUID against the live sheet before the first real test.
+- `RECOMENDACOES_COLUMNS` verified against the sheet on 13/Jul/2026 (13
+  columns, table `BD`). `PRIMEIRO NOME` is a calculated column — leave it
+  `null` on `rows/add` so the table formula fills it.
+- New-recommendation defaults: `DATA` / `DATA ATUALIZAÇÃO` /
+  `DATA PRÓXIMO CONTATO` = today (America/Sao_Paulo, `dd/mmm/aaaa` like
+  `ConverteData` output), `ETAPA` = `1. REALIZAR CONTATO INICIAL`, `STATUS` =
+  `A INICIAR`, `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must
+  mirror the sheet's AUXILIAR tab lists — renaming there requires updating the
+  constants in `app.js`.
+- WhatsApp payload must match `+XX XX XXXXX-XXXX` (mirrors the frontend mask);
+  anything else is `Erro_014`.
 
 ### processa-formulario design notes
 - Whole-form retry is safe by design: new rows are deduped against existing
