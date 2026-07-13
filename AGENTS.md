@@ -144,15 +144,15 @@ emitted by the frontends themselves, never by the backend.
 - `RECOMENDACOES_COLUMNS` verified against the sheet on 13/Jul/2026 (13
   columns, table `BD`). `PRIMEIRO NOME` is a calculated column — leave it
   `null` on `rows/add` so the table formula fills it.
-- New-recommendation defaults: `DATA` / `DATA ATUALIZAÇÃO` /
-  `DATA PRÓXIMO CONTATO` = today as an **Excel date serial** (America/
-  Sao_Paulo day); the `dd/mmm/aaaa` display is the sheet's number formatting.
+- New-recommendation defaults: `DATA E HORA` / `DATA E HORA ATUALIZAÇÃO` /
+  `DATA E HORA PRÓXIMO CONTATO` = now as an **Excel datetime serial**
+  (America/Sao_Paulo); the display is the sheet's number formatting.
   `ETAPA` = `1. REALIZAR CONTATO INICIAL`, `STATUS` = `A INICIAR`,
   `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must mirror the
   sheet's AUXILIAR tab lists — renaming there requires updating the constants
   in `app.js`.
-- WhatsApp payload must match `+XX XX XXXXX-XXXX` (mirrors the frontend mask);
-  anything else is `Erro_014`.
+- WhatsApp payload must match `+55 XX XXXXX-XXXX` (mirrors the frontend mask,
+  pinned to Brazilian numbers); anything else is `Erro_014`.
 
 ### processa-formulario design notes
 - Whole-form retry is safe by design: new rows are deduped against existing
