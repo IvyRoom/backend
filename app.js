@@ -129,19 +129,21 @@ app.post('/landingpage/solicitacaoorcamento', async (req, res) => {
 const recomendacoesTable = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRAQXJDB7TBYFGKA5YQJXO3YAOS/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
 
 // Colunas da BD - RECOMENDAÇÕES (0-based), verificadas contra a planilha em 13/jul/2026. PRIMEIRO NOME é coluna calculada — deixar null em linhas novas.
-const RECOMENDACOES_COLUMNS = { benefitedCompany: 0, recommenderFullName: 1, recommenderFirstName: 2, recommenderEmail: 3, date: 4, recommendedCompany: 5, recommendedProfessional: 6, recommendedWhatsapp: 7, stage: 8, status: 9, updateDate: 10, nextContactDate: 11, participantsCount: 12 };
+const RECOMENDACOES_COLUMNS = { benefitedCompany: 0, recommenderFullName: 1, recommenderFirstName: 2, recommenderEmail: 3, dateTime: 4, recommendedCompany: 5, recommendedProfessional: 6, recommendedWhatsapp: 7, stage: 8, status: 9, updateDateTime: 10, nextContactDateTime: 11, participantsCount: 12 };
 const RECOMENDACOES_ROW_WIDTH = 13;
 
 // Valores devem espelhar as listas da aba AUXILIAR da planilha.
 const RECOMENDACOES_INITIAL_STAGE = '1. REALIZAR CONTATO INICIAL';
 const RECOMENDACOES_INITIAL_STATUS = 'A INICIAR';
 
-const CONECTA_WHATSAPP_PATTERN = /^\+\d{2} \d{2} \d{5}-\d{4}$/;
+const CONECTA_WHATSAPP_PATTERN = /^\+55 \d{2} \d{5}-\d{4}$/;
 
-// Serial Excel do dia atual no fuso de Brasília — a exibição dd/mmm/aaaa fica na formatação da planilha.
-function todayBrazilSerial() {
-    const [day, month, year] = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').map(Number);
-    return Math.floor(Date.UTC(year, month - 1, day) / 86400000) + 25569;
+// Serial Excel de data e hora atuais no fuso de Brasília — a exibição fica na formatação da planilha.
+function nowBrazilSerial() {
+    const [datePart, timePart] = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false }).split(', ');
+    const [day, month, year] = datePart.split('/').map(Number);
+    const [hour, minute, second] = timePart.split(':').map(Number);
+    return Math.floor(Date.UTC(year, month - 1, day) / 86400000) + 25569 + (hour * 3600 + minute * 60 + second) / 86400;
 }
 
 function normalizeMatchKey(value) {
@@ -184,19 +186,19 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
 
     if (!isDuplicate) {
 
-        const recommendationColumns = [columns.date, columns.recommendedCompany, columns.recommendedProfessional, columns.recommendedWhatsapp, columns.stage, columns.status, columns.updateDate, columns.nextContactDate, columns.participantsCount];
+        const recommendationColumns = [columns.dateTime, columns.recommendedCompany, columns.recommendedProfessional, columns.recommendedWhatsapp, columns.stage, columns.status, columns.updateDateTime, columns.nextContactDateTime, columns.participantsCount];
         const slotRow = recommenderRows.find(({ cells }) => recommendationColumns.every((column) => isPlaceholderCell(cells[column])));
 
-        const today = todayBrazilSerial();
+        const now = nowBrazilSerial();
         const cells = new Array(RECOMENDACOES_ROW_WIDTH).fill(null);
-        cells[columns.date] = today;
+        cells[columns.dateTime] = now;
         cells[columns.recommendedCompany] = body.recommendedCompany.trim();
         cells[columns.recommendedProfessional] = body.recommendedProfessional.trim();
         cells[columns.recommendedWhatsapp] = body.recommendedWhatsapp.trim();
         cells[columns.stage] = RECOMENDACOES_INITIAL_STAGE;
         cells[columns.status] = RECOMENDACOES_INITIAL_STATUS;
-        cells[columns.updateDate] = today;
-        cells[columns.nextContactDate] = today;
+        cells[columns.updateDateTime] = now;
+        cells[columns.nextContactDateTime] = now;
 
         // Escritas deliberadamente sem retry(): uma falha ambígua após inserção bem-sucedida duplicaria a linha.
         try {
