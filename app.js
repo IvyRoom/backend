@@ -138,8 +138,10 @@ const RECOMENDACOES_INITIAL_STATUS = 'A INICIAR';
 
 const CONECTA_WHATSAPP_PATTERN = /^\+\d{2} \d{2} \d{5}-\d{4}$/;
 
-function todayBrazilFormatted() {
-    return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\bde\b|\./g, '').replace(/\s+/g, '/');
+// Serial Excel do dia atual no fuso de Brasília — a exibição dd/mmm/aaaa fica na formatação da planilha.
+function todayBrazilSerial() {
+    const [day, month, year] = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').map(Number);
+    return Math.floor(Date.UTC(year, month - 1, day) / 86400000) + 25569;
 }
 
 function normalizeMatchKey(value) {
@@ -160,7 +162,7 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
 
     let recomendacoesData;
     try { recomendacoesData = await retry(() => Microsoft_Graph_API_Client.api(`${recomendacoesTable}/rows`).get()); }
-    catch (err) { return res.status(500).json({ error: 'Erro_015' }); }
+    catch (err) { console.error('conecta Erro_015:', err); return res.status(500).json({ error: 'Erro_015' }); }
 
     const columns = RECOMENDACOES_COLUMNS;
     const recommenderNameKey = normalizeMatchKey(body.recommenderFullName);
@@ -185,7 +187,7 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
         const recommendationColumns = [columns.date, columns.recommendedCompany, columns.recommendedProfessional, columns.recommendedWhatsapp, columns.stage, columns.status, columns.updateDate, columns.nextContactDate, columns.participantsCount];
         const slotRow = recommenderRows.find(({ cells }) => recommendationColumns.every((column) => isPlaceholderCell(cells[column])));
 
-        const today = todayBrazilFormatted();
+        const today = todayBrazilSerial();
         const cells = new Array(RECOMENDACOES_ROW_WIDTH).fill(null);
         cells[columns.date] = today;
         cells[columns.recommendedCompany] = body.recommendedCompany.trim();
@@ -211,7 +213,7 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
                 await Microsoft_Graph_API_Client.api(`${recomendacoesTable}/rows/add`).post({ values: [cells] });
             }
 
-        } catch (err) { return res.status(500).json({ error: 'Erro_017' }); }
+        } catch (err) { console.error('conecta Erro_017:', err); return res.status(500).json({ error: 'Erro_017' }); }
 
     }
 
@@ -227,7 +229,7 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
     try {
         await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado Conecta - Nova Recomendação Recebida', body: { contentType: 'HTML', content: internalEmailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } }));
         await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado Conecta - Recomendação Registrada', body: { contentType: 'HTML', content: confirmationEmailContent }, toRecipients: [{ emailAddress: { address: recommenderEmail } }] } }));
-    } catch (err) { return res.status(500).json({ error: 'Erro_018' }); }
+    } catch (err) { console.error('conecta Erro_018:', err); return res.status(500).json({ error: 'Erro_018' }); }
 
     return res.status(200).json({});
 
