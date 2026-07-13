@@ -220,11 +220,11 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
     const recommenderEmail = String(recommenderCells[columns.recommenderEmail] == null ? '' : recommenderCells[columns.recommenderEmail]).trim();
     const recommenderFirstNameCell = String(recommenderCells[columns.recommenderFirstName] == null ? '' : recommenderCells[columns.recommenderFirstName]).trim();
     const recommenderFirstName = recommenderFirstNameCell && recommenderFirstNameCell !== '-' ? recommenderFirstNameCell : String(recommenderCells[columns.recommenderFullName]).trim().split(/\s+/)[0];
-    const signatureHTML = '<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>';
+    const signatureHTML = '<p><img width="600" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>';
 
     const internalEmailContent = `<p><b>Dados do Recomendante:</b></p><p>Nome Completo: ${escapeHtml(recommenderCells[columns.recommenderFullName])}</p><p>E-mail: ${escapeHtml(recommenderEmail)}</p><p>Empresa Beneficiada: ${escapeHtml(recommenderCells[columns.benefitedCompany])}</p><p><b>Dados da Recomendação:</b></p><p>Empresa Recomendada: ${escapeHtml(body.recommendedCompany.trim())}</p><p>Profissional Contatado: ${escapeHtml(body.recommendedProfessional.trim())}</p><p>WhatsApp do Profissional: ${escapeHtml(body.recommendedWhatsapp.trim())}</p>${signatureHTML}`;
 
-    const confirmationEmailContent = `<p>Olá ${escapeHtml(recommenderFirstName)},</p><p>Recebemos sua recomendação da Machado para a empresa <b>${escapeHtml(body.recommendedCompany.trim())}</b>. Muito obrigado pela confiança!</p><p>Nos próximos dias, entraremos em contato com ${escapeHtml(body.recommendedProfessional.trim())}. E assim que houver novidades sobre esta recomendação, você será avisado(a).</p><p>Atenciosamente,</p>${signatureHTML}`;
+    const confirmationEmailContent = `<p>Olá ${escapeHtml(recommenderFirstName)},</p><p>Recebemos sua recomendação da Machado para a empresa <b>${escapeHtml(body.recommendedCompany.trim())}</b>. Obrigado pela confiança.</p><p>Logo entraremos em contato com ${escapeHtml(body.recommendedProfessional.trim())}. Assim que houver atualizações relevantes, sinalizaremos a você.</p><p>Atenciosamente,</p>${signatureHTML}`;
 
     try {
         await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail').post({ message: { subject: 'Machado Conecta - Nova Recomendação Recebida', body: { contentType: 'HTML', content: internalEmailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } }));
