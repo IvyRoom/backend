@@ -55,7 +55,12 @@ open threads, next steps) so the new one starts oriented.
   local preview (serve the frontend, drive it in a browser). Before running
   anything, map what it touches: never exercise paths that reach production —
   Graph API, live spreadsheets, real e-mail — or anything else with side
-  effects beyond this machine, without my explicit OK. I still own final
+  effects beyond this machine, without my explicit OK. Standing exception:
+  **read-only** Graph reads of our workbooks are pre-approved — always verify
+  a sheet's real schema (columns, table GUID, AUXILIAR-style lists) by reading
+  it before writing endpoint code against it; writes and e-mails stay gated.
+  When the task wraps, stop any local preview/stub servers you started so
+  their ports (e.g. 3000) are free for my own runs. I still own final
   behavioural and visual testing.
 
 ### Git — you commit, I publish
@@ -90,7 +95,9 @@ open threads, next steps) so the new one starts oriented.
 Single `app.js` Express app; banner comments split it into sections. Data lives
 in Excel workbooks reached through the Microsoft Graph API — tables addressed
 by drive-item ID + table GUID, columns by numeric index. The column maps exist
-only in the sheets, so verify indexes against the sheet before writing. Legacy
+only in the sheets, so verify indexes by reading the sheet (read-only Graph
+reads are pre-approved — see the working agreement) before writing code
+against it. Legacy
 sections use Portuguese identifiers; the `formulario` endpoint
 (`/clientes/processa-formulario`) uses English camelCase — match the section
 you're editing.
@@ -138,11 +145,12 @@ emitted by the frontends themselves, never by the backend.
   columns, table `BD`). `PRIMEIRO NOME` is a calculated column — leave it
   `null` on `rows/add` so the table formula fills it.
 - New-recommendation defaults: `DATA` / `DATA ATUALIZAÇÃO` /
-  `DATA PRÓXIMO CONTATO` = today (America/Sao_Paulo, `dd/mmm/aaaa` like
-  `ConverteData` output), `ETAPA` = `1. REALIZAR CONTATO INICIAL`, `STATUS` =
-  `A INICIAR`, `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must
-  mirror the sheet's AUXILIAR tab lists — renaming there requires updating the
-  constants in `app.js`.
+  `DATA PRÓXIMO CONTATO` = today as an **Excel date serial** (America/
+  Sao_Paulo day); the `dd/mmm/aaaa` display is the sheet's number formatting.
+  `ETAPA` = `1. REALIZAR CONTATO INICIAL`, `STATUS` = `A INICIAR`,
+  `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must mirror the
+  sheet's AUXILIAR tab lists — renaming there requires updating the constants
+  in `app.js`.
 - WhatsApp payload must match `+XX XX XXXXX-XXXX` (mirrors the frontend mask);
   anything else is `Erro_014`.
 
