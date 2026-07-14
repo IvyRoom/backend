@@ -62,6 +62,14 @@ open threads, next steps) so the new one starts oriented.
   When the task wraps, stop any local preview/stub servers you started so
   their ports (e.g. 3000) are free for my own runs. I still own final
   behavioural and visual testing.
+- **Approved prompts feed the allowlist.** The permission allowlist lives
+  outside the repos, in the workspace-level `.claude/settings.json` (the
+  folder that contains both repos, next to `launch.json`). Whenever a command
+  prompts and I approve it, generalize the rule behind that approval (a
+  prefix pattern, not the literal one-off string) and add it to that file in
+  the same session. Never allowlist what the deny floor forbids (push /
+  rebase / amend / hard reset) or anything with side effects beyond this
+  machine.
 
 ### Git — you commit, I publish
 - **You make the commits** (`git add` + `git commit`) on the current feature
