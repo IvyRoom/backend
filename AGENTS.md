@@ -8,8 +8,8 @@ Node.js backend serving the frontends (e.g. endpoints under `/plataforma_v2`).
 ## Working agreement — KEEP IN SYNC across repos
 > This section is mirrored **verbatim** in `sistemas/AGENTS.md` and
 > `backend/AGENTS.md`. If it changes in one, make the identical change in the
-> other in the same edit. The agent can access both repos and edits both
-> together, then flags each for its own commit.
+> other in the same edit. The agent can access both repos, edit both together,
+> and commit each repo separately.
 
 ### Who you're working with
 An experienced engineer who holds the full product context and stays in control
@@ -62,17 +62,15 @@ open threads, next steps) so the new one starts oriented.
   When the task wraps, stop any local preview/stub servers you started so
   their ports (e.g. 3000) are free for my own runs. For interaction features,
   verify the human experience, not only DOM state: where the viewport lands
-  after a click, what gains focus, whether text people need to copy is
-  actually selectable — at desktop and mobile widths. I still own final
-  behavioural and visual testing.
-- **Approved prompts feed the allowlist.** The permission allowlist lives
-  outside the repos, in the workspace-level `.claude/settings.json` (the
-  folder that contains both repos, next to `launch.json`). Whenever a command
-  prompts and I approve it, generalize the rule behind that approval (a
-  prefix pattern, not the literal one-off string) and add it to that file in
-  the same session. Never allowlist what the deny floor forbids (push /
-  rebase / amend / hard reset) or anything with side effects beyond this
-  machine.
+  after a click, what gains focus, and whether content people need to copy can
+  actually be copied (through selection or a copy control, including success
+  feedback and a usable failure fallback) — at desktop and mobile widths. I
+  still own final behavioural and visual testing.
+- **Keep permission approvals agent-specific.** When a command prompts and I
+  approve it, prefer a reusable, narrowly scoped rule in the active agent's
+  own permission system when supported. Never allowlist what the deny floor
+  forbids (push / rebase / amend / hard reset) or anything with side effects
+  beyond this machine.
 
 ### Git — you commit, I publish
 - **You make the commits** (`git add` + `git commit`) on the current feature
@@ -93,9 +91,9 @@ open threads, next steps) so the new one starts oriented.
   with no branch yet: create and name it yourself — no need to ask — then tell me.
 - Conventional Commits: `feat | fix | refactor | style | docs | chore`;
   imperative summary ≤ ~50 chars; body explains *why* when non-obvious. End
-  every commit with a `Co-Authored-By:` trailer naming the model that wrote it
-  (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`) — a footer
-  line after a blank line, never on the summary.
+  every commit with a `Co-Authored-By:` trailer naming the agent/model that
+  wrote it, using the matching provider identity — a footer line after a blank
+  line, never on the summary.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
