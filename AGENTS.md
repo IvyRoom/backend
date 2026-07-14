@@ -8,8 +8,8 @@ Node.js backend serving the frontends (e.g. endpoints under `/plataforma_v2`).
 ## Working agreement — KEEP IN SYNC across repos
 > This section is mirrored **verbatim** in `sistemas/AGENTS.md` and
 > `backend/AGENTS.md`. If it changes in one, make the identical change in the
-> other in the same edit. The agent can access both repos and edits both
-> together, then flags each for its own commit.
+> other in the same edit. The agent can access both repos, edit both together,
+> and commit each repo separately.
 
 ### Who you're working with
 An experienced engineer who holds the full product context and stays in control
@@ -45,6 +45,10 @@ open threads, next steps) so the new one starts oriented.
 - **Match the surrounding code** of whichever repo/folder you're in — its
   naming, language, and structure win over your defaults. Flag mismatches
   instead of silently "fixing" them.
+- **Keep names true to every use.** When reusing a token, helper, or abstraction
+  for a new role, verify its name still describes all uses. Prefer one neutral,
+  accurate name over a role-specific name used out of context or duplicate
+  aliases for the same value.
 - **If a request conflicts with a convention, say so** and propose the
   convention-following alternative.
 - **Never commit secrets.** Keys, tokens, connection strings, passwords stay out
@@ -55,8 +59,22 @@ open threads, next steps) so the new one starts oriented.
   local preview (serve the frontend, drive it in a browser). Before running
   anything, map what it touches: never exercise paths that reach production —
   Graph API, live spreadsheets, real e-mail — or anything else with side
-  effects beyond this machine, without my explicit OK. I still own final
-  behavioural and visual testing.
+  effects beyond this machine, without my explicit OK. Standing exception:
+  **read-only** Graph reads of our workbooks are pre-approved — always verify
+  a sheet's real schema (columns, table GUID, AUXILIAR-style lists) by reading
+  it before writing endpoint code against it; writes and e-mails stay gated.
+  When the task wraps, stop any local preview/stub servers you started so
+  their ports (e.g. 3000) are free for my own runs. For interaction features,
+  verify the human experience, not only DOM state: where the viewport lands
+  after a click, what gains focus, and whether content people need to copy can
+  actually be copied (through selection or a copy control, including success
+  feedback and a usable failure fallback) — at desktop and mobile widths. I
+  still own final behavioural and visual testing.
+- **Keep permission approvals agent-specific.** When a command prompts and I
+  approve it, prefer a reusable, narrowly scoped rule in the active agent's
+  own permission system when supported. Never allowlist what the deny floor
+  forbids (push / rebase / amend / hard reset) or anything with side effects
+  beyond this machine.
 
 ### Git — you commit, I publish
 - **You make the commits** (`git add` + `git commit`) on the current feature
@@ -77,9 +95,9 @@ open threads, next steps) so the new one starts oriented.
   with no branch yet: create and name it yourself — no need to ask — then tell me.
 - Conventional Commits: `feat | fix | refactor | style | docs | chore`;
   imperative summary ≤ ~50 chars; body explains *why* when non-obvious. End
-  every commit with a `Co-Authored-By:` trailer naming the model that wrote it
-  (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`) — a footer
-  line after a blank line, never on the summary.
+  every commit with a `Co-Authored-By:` trailer naming the agent/model that
+  wrote it, using the matching provider identity — a footer line after a blank
+  line, never on the summary.
 - Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
   say so.
 
@@ -90,17 +108,64 @@ open threads, next steps) so the new one starts oriented.
 Single `app.js` Express app; banner comments split it into sections. Data lives
 in Excel workbooks reached through the Microsoft Graph API — tables addressed
 by drive-item ID + table GUID, columns by numeric index. The column maps exist
-only in the sheets, so verify indexes against the sheet before writing. Legacy
+only in the sheets, so verify indexes by reading the sheet (read-only Graph
+reads are pre-approved — see the working agreement) before writing code
+against it. Legacy
 sections use Portuguese identifiers; the `formulario` endpoint
 (`/clientes/processa-formulario`) uses English camelCase — match the section
 you're editing.
 
 ### Error codes — user-visible contract with `sistemas` frontends
-`Erro_001` read BD Plataforma · `Erro_008` write BD Plataforma · `Erro_010`
-write BD Clientes · `Erro_011` read BD Clientes · `Erro_012` sendMail ·
-`Erro_013` invalid formulario payload (400). New code = next free number, plus
-a message in whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
-`formulario/main.js`).
+Canonical registry — moved here from the old dictionary at the top of
+`sistemas/plataforma_v2/login/main.js`. New code = next free number, plus a
+message in whichever frontend consumes it (e.g. `SUBMIT_ERROR_MESSAGES` in
+`formulario/main.js` and `conecta/main.js`). `Erro_000` and `Erro_006` are
+emitted by the frontends themselves, never by the backend.
+
+- `Erro_000` — frontend fallback: network/unknown failure reaching the backend
+- `Erro_001` — read BD Plataforma
+- `Erro_002` — upload FotoReferência to OneDrive
+- `Erro_003` — flag FotoReferência as registered in BD Plataforma
+- `Erro_004` — create Azure Face liveness session (authToken/sessionID)
+- `Erro_005` — read FotoReferência from OneDrive
+- `Erro_006` — frontend: FaceLivenessDetector failed to run
+- `Erro_007` — read Azure Face liveness session results
+- `Erro_008` — write BD Plataforma
+- `Erro_009` — write BD Feedbacks
+- `Erro_010` — write BD Clientes
+- `Erro_011` — read BD Clientes
+- `Erro_012` — formulario sendMail
+- `Erro_013` — invalid formulario payload (400)
+- `Erro_014` — invalid conecta payload (400)
+- `Erro_015` — read BD Recomendações
+- `Erro_016` — recomendante not found in BD Recomendações (404)
+- `Erro_017` — write BD Recomendações
+- `Erro_018` — conecta sendMail
+
+### conecta (processa-recomendacao) design notes
+- The recommender is identified by matching URL-borne name + company against
+  BD - RECOMENDAÇÕES (normalized: trim, collapsed spaces, lowercase). No match
+  = `Erro_016`, so a tampered or mistyped link cannot write anything.
+- Fill-or-append: a recommender row whose recommendation columns are all `-`
+  is a free slot left by the manual invite process — fill it; otherwise append
+  a full new row copying the recommender columns from the matched row.
+- An identical pending recommendation (same recommender + company +
+  professional + WhatsApp) skips the write but still sends the e-mails, so a
+  retry after a failed sendMail stays safe.
+- Writes are deliberately not `retry()`-wrapped (same double-insert rationale
+  as processa-formulario).
+- `RECOMENDACOES_COLUMNS` verified against the sheet on 13/Jul/2026 (13
+  columns, table `BD`). `PRIMEIRO NOME` is a calculated column — leave it
+  `null` on `rows/add` so the table formula fills it.
+- New-recommendation defaults: `DATA E HORA` / `DATA E HORA ATUALIZAÇÃO` /
+  `DATA E HORA PRÓXIMO CONTATO` = now as an **Excel datetime serial**
+  (America/Sao_Paulo); the display is the sheet's number formatting.
+  `ETAPA` = `1. REALIZAR CONTATO INICIAL`, `STATUS` = `A INICIAR`,
+  `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must mirror the
+  sheet's AUXILIAR tab lists — renaming there requires updating the constants
+  in `app.js`.
+- WhatsApp payload must match `+XX XX XXXXX-XXXX` (mirrors the frontend mask);
+  anything else is `Erro_014`.
 
 ### processa-formulario design notes
 - Whole-form retry is safe by design: new rows are deduped against existing
