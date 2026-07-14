@@ -60,7 +60,10 @@ open threads, next steps) so the new one starts oriented.
   a sheet's real schema (columns, table GUID, AUXILIAR-style lists) by reading
   it before writing endpoint code against it; writes and e-mails stay gated.
   When the task wraps, stop any local preview/stub servers you started so
-  their ports (e.g. 3000) are free for my own runs. I still own final
+  their ports (e.g. 3000) are free for my own runs. For interaction features,
+  verify the human experience, not only DOM state: where the viewport lands
+  after a click, what gains focus, whether text people need to copy is
+  actually selectable — at desktop and mobile widths. I still own final
   behavioural and visual testing.
 - **Approved prompts feed the allowlist.** The permission allowlist lives
   outside the repos, in the workspace-level `.claude/settings.json` (the
