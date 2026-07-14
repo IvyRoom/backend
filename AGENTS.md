@@ -45,6 +45,10 @@ open threads, next steps) so the new one starts oriented.
 - **Match the surrounding code** of whichever repo/folder you're in — its
   naming, language, and structure win over your defaults. Flag mismatches
   instead of silently "fixing" them.
+- **Keep names true to every use.** When reusing a token, helper, or abstraction
+  for a new role, verify its name still describes all uses. Prefer one neutral,
+  accurate name over a role-specific name used out of context or duplicate
+  aliases for the same value.
 - **If a request conflicts with a convention, say so** and propose the
   convention-following alternative.
 - **Never commit secrets.** Keys, tokens, connection strings, passwords stay out
