@@ -151,8 +151,8 @@ emitted by the frontends themselves, never by the backend.
   `NÚMERO PARTICIPANTES` stays `-`. Stage/status strings must mirror the
   sheet's AUXILIAR tab lists — renaming there requires updating the constants
   in `app.js`.
-- WhatsApp payload must match `+55 XX XXXXX-XXXX` (mirrors the frontend mask,
-  pinned to Brazilian numbers); anything else is `Erro_014`.
+- WhatsApp payload must match `+XX XX XXXXX-XXXX` (mirrors the frontend mask);
+  anything else is `Erro_014`.
 
 ### processa-formulario design notes
 - Whole-form retry is safe by design: new rows are deduped against existing

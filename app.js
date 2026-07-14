@@ -136,7 +136,7 @@ const RECOMENDACOES_ROW_WIDTH = 13;
 const RECOMENDACOES_INITIAL_STAGE = '1. REALIZAR CONTATO INICIAL';
 const RECOMENDACOES_INITIAL_STATUS = 'A INICIAR';
 
-const CONECTA_WHATSAPP_PATTERN = /^\+55 \d{2} \d{5}-\d{4}$/;
+const CONECTA_WHATSAPP_PATTERN = /^\+\d{2} \d{2} \d{5}-\d{4}$/;
 
 // Serial Excel de data e hora atuais no fuso de Brasília — a exibição fica na formatação da planilha.
 function nowBrazilSerial() {
