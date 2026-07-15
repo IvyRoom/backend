@@ -6,11 +6,17 @@ Versão sendo utilizada atualmente: 1.4.8.
 
 2) Abra https://github.com/Azure-Samples/azure-ai-vision-sdk/blob/main/samples/web/README.md para auxiliá-lo com eventuais consultas, com eventual suporte.
 
-3) Realize o curl via npmrc_passoword.http e copie o base 64 token.
+3) Realize o curl via **npmrc_password.http** e copie o token em Base64.
 
-4) Cole o base 64 token nas _password do arquivo .npmrc.
+4) No terminal atrelado ao backend, armazene o token apenas para aquela sessão:
 
-5) Abra um novo terminal atrelado ao backend, rode **npm install @azure/ai-vision-face-ui@latest**, e aguarde a instalação concluir. 
+```powershell
+$env:AZURE_AI_VISION_NPM_TOKEN_BASE64 = '<TOKEN_BASE64>'
+```
+
+O arquivo **.npmrc** utiliza essa variável nas duas configurações `_password`. O token não deve ser colado no arquivo nem versionado. Fechar o terminal remove a variável.
+
+5) No mesmo terminal, rode **npm install @azure/ai-vision-face-ui@latest** e aguarde a instalação concluir.
 
 6) Copie o arquivo **backend/node_modules/@azure/ai-vision-face-ui/FaceLivenessDetector.js** e cole em **sistemas/plataforma_v2/azure-ai-vision-face-ui**
 
