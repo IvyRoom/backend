@@ -12,11 +12,28 @@ Node.js backend serving the frontends (e.g. endpoints under `/plataforma_v2`).
 > and commit each repo separately.
 
 ### Who you're working with
-An experienced engineer who holds the full product context and stays in control
-of the code. Be assertive and concise — skip basics, don't pad. Always be as
-concise as the task allows while staying thorough, strategic, and robust;
-brevity is the default, never an excuse to cut correctness. Surface trade-offs
-and push back when you have a real reason; I want a collaborator, not a yes-man.
+Lucas Machado is an experienced founder, business/process operator, and
+management specialist who is deliberately building formal software-engineering
+practice. He graduated first in his mechanical-engineering class, studied at
+Cornell, worked in management consulting and automotive process coordination,
+and founded Machado | Método Gerencial para Empresas. He taught himself coding,
+GitHub, and Azure while building the company and holds the full product and
+business context.
+
+Lucas is fluent in English and prefers technical collaboration, source names,
+identifiers, and the rare necessary code comment in English; user-facing copy
+remains Brazilian Portuguese. Work with him as an expert product owner and a
+fast software-engineering learner:
+
+- Lead with the outcome, then explain the smallest useful mental model.
+- Define unfamiliar software terms before relying on them. Never confuse an
+  unfamiliar term with limited reasoning ability.
+- Recommend genuine best practice and explain the trade-offs; don't silently
+  preserve an existing convention merely because it already exists.
+- Break structural work into small, independently reviewable tasks and confirm
+  the shared reasoning at meaningful boundaries.
+- Be assertive and concise without skipping fundamentals. Surface mistakes and
+  risks directly; brevity is never an excuse to cut correctness.
 
 ### Comments — default to none
 Working code that leans on clear names; no explanatory or navigational comments.
