@@ -183,6 +183,19 @@ emitted by the frontends themselves, never by the backend.
 - `Erro_017` — write BD Recomendações
 - `Erro_018` — conecta sendMail
 
+### plataforma_v2 row authorization invariant
+- `IndexVerificado` is a legacy wire-field name. Its value is a signed,
+  four-hour authorization handle, never a raw workbook row index.
+- Mint handles only after valid credentials for an active account. Treat the
+  frontend value as untrusted and derive `platformRowIndex` only through the
+  verifier before any row-scoped Graph or Face operation.
+- `CadastroFoto_e_FaceID`, `FaceID`, `refresh`, `updates`, and
+  `processa-feedback` must all use the verified index. Never interpolate the
+  request value directly into a Graph path, file path, or array lookup.
+- `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` is a required, stable 32-byte key
+  stored in ignored local configuration and Azure App Service settings. Never
+  commit it or substitute another application credential.
+
 ### conecta (processa-recomendacao) design notes
 - The recommender is identified by matching URL-borne name + company against
   BD - RECOMENDAÇÕES (normalized: trim, collapsed spaces, lowercase). No match
