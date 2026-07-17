@@ -181,4 +181,4 @@ Before committing, confirm:
 5. If the version record in this backend runbook is merged, note that the current backend workflow still performs a production deployment even for documentation-only changes.
 6. Repeat the FaceID smoke test in production.
 
-If a pre-merge test fails, do not merge the SDK update. If the production smoke test fails, revert the frontend SDK update commit or pull request and redeploy the previous known-good assets.
+If a pre-merge test fails, do not merge the SDK update. If the production smoke test fails, create and merge a new revert PR for the frontend SDK update, then redeploy the previous known-good assets.
