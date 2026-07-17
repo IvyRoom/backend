@@ -37,9 +37,9 @@ fast software-engineering learner:
 
 ### Comments — default to none
 Working code that leans on clear names; no explanatory or navigational comments.
-We trade ideas, you implement, I eyeball and test, and once it's
-production-ready I open the PR and merge — so the old staged "explain / trim"
-passes are gone. Commits still flow continuously throughout (don't batch them).
+We trade ideas; you implement, verify, publish the branch, and open the PR; I
+review, test when useful, and merge. The old staged "explain / trim" passes are
+gone. Commits still flow continuously throughout (don't batch them).
 Narrow exception: a single line is fine when it captures what a name can't — a
 non-obvious *why*, a security-critical invariant, a browser/API quirk, or a
 documented contract (e.g. an HTML↔JS interface). When editing a file that's
@@ -90,22 +90,45 @@ open threads, next steps) so the new one starts oriented.
 - **Keep permission approvals agent-specific.** When a command prompts and I
   approve it, prefer a reusable, narrowly scoped rule in the active agent's
   own permission system when supported. Never allowlist what the deny floor
-  forbids (push / rebase / amend / hard reset) or anything with side effects
-  beyond this machine.
+  forbids (merge / rebase / amend / force-push / hard reset) or anything with
+  side effects beyond this machine. A normal push of an agreed, verified
+  feature branch is allowed as part of the publishing workflow below.
 
-### Git — you commit, I publish
-- **You make the commits** (`git add` + `git commit`) on the current feature
-  branch, at natural boundaries throughout the work — don't wait for me. Stage
-  deliberately (named paths, never a blanket `git add -A`) so secrets and
-  untracked junk can't slip in. No need to surface intermediate commits — I
-  review at the Pull Request / merge level.
+### Git — you publish, I merge
+- **You own feature-branch implementation and publication.** Make commits
+  (`git add` + `git commit`) at natural boundaries throughout the work — don't
+  wait for me. Stage deliberately (named paths, never a blanket `git add -A`)
+  so secrets and untracked junk can't slip in. No need to surface intermediate
+  commits — I review at the Pull Request / merge level.
 - **Commit my uncommitted manual edits too.** When I've hand-edited files and
   left them uncommitted, commit them as their own commit, with a summary and
   description you infer from the diff — don't fold them into your own work.
-- **I handle everything that leaves my machine or rewrites shared history**:
-  Publish Branch / Push to Origin / Pull Requests / merge, all in GitHub
-  Desktop. Never push, never open or merge PRs, never rewrite history (no
-  amend, rebase, force-push, or `reset --hard`).
+- **Before publishing, self-review the complete diff and run the relevant
+  checks.** Once the agreed scope is complete and the worktree is clean, push
+  the current feature branch normally (never force-push) and open a Pull
+  Request targeting `main`. Summarize what changed and why, verification,
+  risks or deployment impact, and any related PR in the other repo.
+- **Open a ready-for-review PR when the work is complete and verified.** Use a
+  draft only for intentionally incomplete work, early architectural feedback,
+  or known failing checks. Never merge or enable auto-merge; I own the final
+  merge decision.
+- **Before merge, correct the same PR instead of reverting.** If I request
+  changes, add correction commits to the same feature branch, push them, let
+  checks rerun, and ask me to review the updated diff. Do not rewrite published
+  history. If we abandon the approach, close the PR without merging. Reverting
+  is for changes already merged to `main`, normally through a new revert PR.
+- **After I merge, verify before cleanup.** Confirm the PR is merged and the
+  resulting `main` CI/deployment completed successfully; perform only safe,
+  proportionate smoke checks with no production writes or messages. If
+  verification fails, keep the branch and task context intact and diagnose it.
+- **Clean up only after successful verification.** Require a clean worktree;
+  fetch/prune `origin`; switch to `main`; pull with `--ff-only`; verify local
+  `main` matches `origin/main`; then delete the local branch with
+  `git branch -d`. GitHub deleting the remote branch automatically at merge is
+  an accepted exception; otherwise delete it manually only after successful
+  verification and confirmation that its PR is merged or closed. If `main` is
+  dirty or diverged, stop instead of overwriting anything. Never use
+  `git branch -D`, amend, rebase, force-push, or `reset --hard`.
 - **Stay on the feature branch; never commit to `main`.** One feature = one
   branch per repo, same feature name across repos. Branch names
   `type/short-desc`, lowercase, hyphens. Starting a new feature while on `main`
@@ -115,8 +138,9 @@ open threads, next steps) so the new one starts oriented.
   every commit with a `Co-Authored-By:` trailer naming the agent/model that
   wrote it, using the matching provider identity — a footer line after a blank
   line, never on the summary.
-- Branches are workspaces; merging to `main` deploys. Nothing's "ready" until I
-  say so.
+- Branches are workspaces; merging to `main` deploys. A ready PR means your
+  implementation is complete, not that it is approved; only I decide whether
+  to merge.
 
 <!-- ========================================================= -->
 <!-- REPO SPECIFICS — backend only                             -->
