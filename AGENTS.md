@@ -112,6 +112,11 @@ open threads, next steps) so the new one starts oriented.
   draft only for intentionally incomplete work, early architectural feedback,
   or known failing checks. Never merge or enable auto-merge; I own the final
   merge decision.
+- **Before asking me to merge, provide one concise briefing.** Cover why the
+  change exists, what changed, how the pieces work together, validation
+  performed, deployment effect and risk, and exactly what you are asking me to
+  decide. Deliver the updated roadmap and following-task handoff only after
+  merge, unless I request them earlier.
 - **Before merge, correct the same PR instead of reverting.** If I request
   changes, add correction commits to the same feature branch, push them, let
   checks rerun, and ask me to review the updated diff. Do not rewrite published
