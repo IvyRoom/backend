@@ -126,6 +126,14 @@ open threads, next steps) so the new one starts oriented.
   resulting `main` CI/deployment completed successfully; perform only safe,
   proportionate smoke checks with no production writes or messages. If
   verification fails, keep the branch and task context intact and diagnose it.
+- **Post-merge cleanup is mandatory and blocks the next task.** When I report
+  that a PR was merged, immediately complete the verification and cleanup
+  sequence below before starting new feature work. This rule is standing
+  authorization to delete that PR's local and remote feature branches after
+  every prerequisite succeeds; no separate confirmation is required. If a
+  tool or permission blocks any step, report cleanup as incomplete and keep it
+  open until resolved. Finish by verifying that only `main` and genuinely
+  active branches remain.
 - **Clean up only after successful verification.** Require a clean worktree;
   fetch/prune `origin`; switch to `main`; pull with `--ff-only`; verify local
   `main` matches `origin/main`; then delete the local branch with
