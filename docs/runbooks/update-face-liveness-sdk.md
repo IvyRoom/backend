@@ -27,7 +27,7 @@ This procedure changes both repositories:
 2. Read the target version's release and migration notes. Choose the exact version before installing it.
 3. Confirm that `backend` and `sistemas` have clean working trees.
 4. Create the same feature branch in both repositories, for example `chore/update-face-liveness-sdk`.
-5. Confirm that Node.js 20, npm, the ignored `backend/npmrc_password.http` request file, and the backend's ignored `.env` are available.
+5. Confirm that Node.js 24, npm, the ignored `backend/npmrc_password.http` request file, and the backend's ignored `.env` are available.
 6. Confirm that the test browser has webcam permission and that the frontend can be served locally from the `sistemas` repository root.
 7. Use an approved test account for the final FaceID test. A locally running backend can still reach live Microsoft Graph and Azure resources.
 
