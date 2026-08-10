@@ -18,7 +18,7 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 
 ## Technology stack
 
-- Node.js 20
+- Node.js 24
 - Express 4
 - Microsoft Graph API
 - Microsoft Authentication Library (MSAL)
@@ -40,7 +40,7 @@ The application currently uses CommonJS and runs from a single `app.js` entry po
 
 ## Prerequisites
 
-- Node.js 20
+- Node.js 24
 - npm
 - Access to the project's Microsoft Entra application credentials
 - Access to the project's Azure AI Face resource
@@ -84,7 +84,7 @@ The project does not currently define automated test, lint, or build scripts.
 
 ## Deployment
 
-Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 20 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
+Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 24 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
 
 The workflow also supports manual execution through GitHub Actions. Its build and test commands run only when corresponding package scripts exist.
 
