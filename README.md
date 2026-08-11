@@ -121,6 +121,7 @@ The workflow's path filters exclude Markdown and `docs/**`, so documentation-onl
 
 ## Maintenance and contributor documentation
 
+- [Current API contract inventory](docs/api-contracts.md)
 - [Update the Face Liveness Web SDK](docs/runbooks/update-face-liveness-sdk.md)
 - [Repository collaboration guidance](AGENTS.md)
 
