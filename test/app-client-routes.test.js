@@ -256,7 +256,7 @@ function accessReleaseRows() {
     const recipients = Array.from({ length: 7 }, (_, index) => ({
         firstName: `Cliente ${index + 1}`,
         email: `cliente${index + 1}@example.test`,
-        password: `senha-${index + 1}`,
+        accessCode: `senha-${index + 1}`,
     }));
     const rows = Array.from({ length: 42 }, (_, index) => {
         const cells = new Array(22).fill(null);
@@ -268,13 +268,13 @@ function accessReleaseRows() {
         const cells = rows[index + 35].values[0];
         cells[1] = recipient.firstName;
         cells[2] = recipient.email;
-        cells[3] = recipient.password;
+        cells[3] = recipient.accessCode;
     });
 
     return { data: { value: rows }, recipients };
 }
 
-function accessReleaseMailBody({ firstName, email, password }) {
+function accessReleaseMailBody({ firstName, email, accessCode }) {
     const content = [
         '',
         `                            <p>Bom dia ${firstName},</p>`,
@@ -286,7 +286,7 @@ function accessReleaseMailBody({ firstName, email, password }) {
         '                            <p>Dito isto, compartilhamos as instruções de acesso à Formação:</p>',
         '                            <span><b>Link:</b> <a href="https://machadogestao.com/plataforma_v2/login">https://machadogestao.com/plataforma_v2/login</a><br></span>',
         `                            <span><b>Login:</b> ${email}<br></span>`,
-        `                            <span><b>Senha:</b> ${password}<br></span>`,
+        `                            <span><b>Senha:</b> ${accessCode}<br></span>`,
         '                            <p>*Suas credenciais de acesso são individuais e instransferíveis.</p>',
         '                            <p>**Nossa plataforma possui várias camadas de segurança e monitoramento. Por isto, o acesso deve ser realizado exclusivamente pelo navegador <b>Microsoft Edge</b>, via laptop ou desktop com <b>sistema Windows</b>. Computadores Apple/Mac são incompatíveis com nossos sistemas.</p>',
         '                            <p>Orientações Adicionais:</p>',
