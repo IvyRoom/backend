@@ -314,9 +314,25 @@ test('authorizes a valid legacy wire handle and exposes only its verified row in
 
 test('rejects an unverified legacy wire value before the downstream handler', () => {
     const authorizePlatformRow = createPlatformRowAuthorizer(SIGNING_KEY);
+    const expiredHandle = createPlatformRowAuthorizationHandle(
+        42,
+        SIGNING_KEY,
+        Date.now() - (PLATFORM_ROW_AUTHORIZATION_DURATION_SECONDS + 1) * 1000,
+    );
+    const validHandle = createPlatformRowAuthorizationHandle(42, SIGNING_KEY);
+    const [payloadSegment, signatureSegment] = validHandle.split('.');
+    const forgedHandle = `${payloadSegment}.${changeCharacter(signatureSegment)}`;
+    const requests = [
+        {},
+        { body: {} },
+        { body: { IndexVerificado: 42 } },
+        { body: { IndexVerificado: '42' } },
+        { body: { IndexVerificado: 'tampered.handle' } },
+        { body: { IndexVerificado: forgedHandle } },
+        { body: { IndexVerificado: expiredHandle } },
+    ];
 
-    for (const IndexVerificado of [undefined, 42, '42', 'tampered.handle']) {
-        const req = { body: { IndexVerificado } };
+    for (const req of requests) {
         const res = {
             locals: {},
             statusCode: null,
