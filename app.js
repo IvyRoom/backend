@@ -13,6 +13,15 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+const {
+    createPlatformRowAuthorizationHandle,
+    createPlatformRowAuthorizer,
+    decodePlatformRowAuthorizationKey,
+} = require('./platform-row-authorization');
+
+const PLATFORM_ROW_AUTHORIZATION_KEY = decodePlatformRowAuthorizationKey(process.env.PLATFORM_ROW_AUTHORIZATION_KEY_BASE64);
+const authorizePlatformRow = createPlatformRowAuthorizer(PLATFORM_ROW_AUTHORIZATION_KEY);
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Configura comunicação com HTTP Requests.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -467,7 +476,9 @@ app.post('/plataforma_v2/login-FaceID', async (req, res) => {
     for (let i = 0; i < BD_Plataforma.value.length; i++) {
         let LinhaVerificada = BD_Plataforma.value[i].values[0];
         if (Usuário_Login === LinhaVerificada[2] && Usuário_Senha === LinhaVerificada[3].toString()) { 
-            return res.status(200).json({ IndexVerificado: i, Usuário_Status_FaceID: LinhaVerificada[4], Usuário_Foto_Cadastrada: LinhaVerificada[5], Usuário_PrazoAcesso: ConverteData(LinhaVerificada[6]), Usuário_Status_Login: LinhaVerificada[7] })
+            const RespostaLogin = { Usuário_Status_FaceID: LinhaVerificada[4], Usuário_Foto_Cadastrada: LinhaVerificada[5], Usuário_PrazoAcesso: ConverteData(LinhaVerificada[6]), Usuário_Status_Login: LinhaVerificada[7] };
+            if (LinhaVerificada[7] === 'Ativo') RespostaLogin.IndexVerificado = createPlatformRowAuthorizationHandle(i, PLATFORM_ROW_AUTHORIZATION_KEY);
+            return res.status(200).json(RespostaLogin);
         }
     }
 
@@ -475,15 +486,15 @@ app.post('/plataforma_v2/login-FaceID', async (req, res) => {
 
 });
 
-app.post('/plataforma_v2/CadastroFoto_e_FaceID', multer().single('file'), async (req, res) => {
+app.post('/plataforma_v2/CadastroFoto_e_FaceID', multer().single('file'), authorizePlatformRow, async (req, res) => {
     
-    let IndexVerificado = req.body.IndexVerificado;
+    const platformRowIndex = res.locals.platformRowIndex;
     let FotoReferência = req.file.buffer;
         
-    try { await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).put(FotoReferência))}
+    try { await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${platformRowIndex}.jpg:/content`).put(FotoReferência))}
     catch (err) { return res.status(500).json({ error: 'Erro_002' }) }  
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]}))}
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + platformRowIndex + ')').update({values: [[null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]}))}
     catch (err) { return res.status(500).json({ error: 'Erro_003' }) }
         
     let Azure_Face_API_LivenessSession;
@@ -497,12 +508,12 @@ app.post('/plataforma_v2/CadastroFoto_e_FaceID', multer().single('file'), async 
 
 });
 
-app.post('/plataforma_v2/FaceID', async (req, res) => {
+app.post('/plataforma_v2/FaceID', authorizePlatformRow, async (req, res) => {
 
-    let { IndexVerificado } = req.body;
+    const platformRowIndex = res.locals.platformRowIndex;
     
     let FotoReferência;
-    try { FotoReferência = await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${IndexVerificado}.jpg:/content`).get())}
+    try { FotoReferência = await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/${platformRowIndex}.jpg:/content`).get())}
     catch (err) { return res.status(500).json({ error: 'Erro_005' }) }
 
     let Azure_Face_API_LivenessSession;
@@ -532,58 +543,60 @@ app.get('/plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_session
 
 });
 
-app.post('/plataforma_v2/refresh', async (req, res) => {
+app.post('/plataforma_v2/refresh', authorizePlatformRow, async (req, res) => {
     
-    let { IndexVerificado } = req.body;
+    const platformRowIndex = res.locals.platformRowIndex;
     
     let BD_Plataforma;
     try { BD_Plataforma = await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows').get()) }
     catch (err) { return res.status(500).json({ error: 'Erro_001' }) }
 
-    let Usuário_NomeCompleto = BD_Plataforma.value[IndexVerificado].values[0][0];
-    let Usuário_PrimeiroNome = BD_Plataforma.value[IndexVerificado].values[0][1];
-    let Usuário_Email = BD_Plataforma.value[IndexVerificado].values[0][2];
-    let Usuário_PrazoAcesso = ConverteData(BD_Plataforma.value[IndexVerificado].values[0][6]);
-    let Usuário_Status_Login = BD_Plataforma.value[IndexVerificado].values[0][7];
-    let Usuário_Formação_NúmeroTópicosConcluídos = BD_Plataforma.value[IndexVerificado].values[0][8];
-    let Usuário_Formação_NotaMódulo1 = BD_Plataforma.value[IndexVerificado].values[0][10];
-    let Usuário_Formação_NotaMódulo2 = BD_Plataforma.value[IndexVerificado].values[0][11];
-    let Usuário_Formação_NotaMódulo3 = BD_Plataforma.value[IndexVerificado].values[0][12];
-    let Usuário_Formação_NotaMódulo4 = BD_Plataforma.value[IndexVerificado].values[0][13];
-    let Usuário_Formação_NotaMódulo5 = BD_Plataforma.value[IndexVerificado].values[0][14];
-    let Usuário_Formação_NotaMódulo6 = BD_Plataforma.value[IndexVerificado].values[0][15];
-    let Usuário_Formação_NotaMódulo7 = BD_Plataforma.value[IndexVerificado].values[0][16];
-    let Usuário_Formação_NotaMódulo8 = BD_Plataforma.value[IndexVerificado].values[0][17];
-    let Usuário_Formação_NotaMódulo9 = BD_Plataforma.value[IndexVerificado].values[0][18];
-    let Usuário_Formação_NotaMódulo10 = BD_Plataforma.value[IndexVerificado].values[0][19];
-    let Usuário_Formação_NotaAcumulado = BD_Plataforma.value[IndexVerificado].values[0][20];
-    let Usuário_Formação_CertificadoID = BD_Plataforma.value[IndexVerificado].values[0][21];
+    let Usuário_NomeCompleto = BD_Plataforma.value[platformRowIndex].values[0][0];
+    let Usuário_PrimeiroNome = BD_Plataforma.value[platformRowIndex].values[0][1];
+    let Usuário_Email = BD_Plataforma.value[platformRowIndex].values[0][2];
+    let Usuário_PrazoAcesso = ConverteData(BD_Plataforma.value[platformRowIndex].values[0][6]);
+    let Usuário_Status_Login = BD_Plataforma.value[platformRowIndex].values[0][7];
+    let Usuário_Formação_NúmeroTópicosConcluídos = BD_Plataforma.value[platformRowIndex].values[0][8];
+    let Usuário_Formação_NotaMódulo1 = BD_Plataforma.value[platformRowIndex].values[0][10];
+    let Usuário_Formação_NotaMódulo2 = BD_Plataforma.value[platformRowIndex].values[0][11];
+    let Usuário_Formação_NotaMódulo3 = BD_Plataforma.value[platformRowIndex].values[0][12];
+    let Usuário_Formação_NotaMódulo4 = BD_Plataforma.value[platformRowIndex].values[0][13];
+    let Usuário_Formação_NotaMódulo5 = BD_Plataforma.value[platformRowIndex].values[0][14];
+    let Usuário_Formação_NotaMódulo6 = BD_Plataforma.value[platformRowIndex].values[0][15];
+    let Usuário_Formação_NotaMódulo7 = BD_Plataforma.value[platformRowIndex].values[0][16];
+    let Usuário_Formação_NotaMódulo8 = BD_Plataforma.value[platformRowIndex].values[0][17];
+    let Usuário_Formação_NotaMódulo9 = BD_Plataforma.value[platformRowIndex].values[0][18];
+    let Usuário_Formação_NotaMódulo10 = BD_Plataforma.value[platformRowIndex].values[0][19];
+    let Usuário_Formação_NotaAcumulado = BD_Plataforma.value[platformRowIndex].values[0][20];
+    let Usuário_Formação_CertificadoID = BD_Plataforma.value[platformRowIndex].values[0][21];
                     
     return res.status(200).json({ Usuário_NomeCompleto, Usuário_PrimeiroNome, Usuário_Email, Usuário_PrazoAcesso, Usuário_Status_Login, Usuário_Formação_NúmeroTópicosConcluídos, Usuário_Formação_NotaMódulo1, Usuário_Formação_NotaMódulo2, Usuário_Formação_NotaMódulo3, Usuário_Formação_NotaMódulo4, Usuário_Formação_NotaMódulo5, Usuário_Formação_NotaMódulo6, Usuário_Formação_NotaMódulo7, Usuário_Formação_NotaMódulo8, Usuário_Formação_NotaMódulo9, Usuário_Formação_NotaMódulo10, Usuário_Formação_NotaAcumulado, Usuário_Formação_CertificadoID });
 
 });
 
-app.post('/plataforma_v2/updates', async (req,res) => {
+app.post('/plataforma_v2/updates', authorizePlatformRow, async (req,res) => {
     
-    let { TipoAtualização, IndexVerificado, NúmeroTópicosConcluídos, NúmeroMódulo, NotaTeste } = req.body;
+    const platformRowIndex = res.locals.platformRowIndex;
+    let { TipoAtualização, NúmeroTópicosConcluídos, NúmeroMódulo, NotaTeste } = req.body;
 
     let DadosaInserir = new Array(22).fill(null);
     DadosaInserir[8] = NúmeroTópicosConcluídos;
 
     if(TipoAtualização === 'NúmeroTópicosConcluídos-e-NotaTeste'){ DadosaInserir[NúmeroMódulo + 9] = NotaTeste; }
 
-    try { await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=${IndexVerificado})`).update({ values: [DadosaInserir] })) }
+    try { await retry(() => Microsoft_Graph_API_Client.api(`/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=${platformRowIndex})`).update({ values: [DadosaInserir] })) }
     catch (err) { return res.status(500).json({ error: 'Erro_008' }) }
 
     return res.status(200).json({});
 
 });
 
-app.post('/plataforma_v2/processa-feedback', async (req, res) => {
+app.post('/plataforma_v2/processa-feedback', authorizePlatformRow, async (req, res) => {
 
-    let { IndexVerificado, NúmeroTópicosConcluídos, Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários } = req.body;
+    const platformRowIndex = res.locals.platformRowIndex;
+    let { NúmeroTópicosConcluídos, Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários } = req.body;
 
-    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + IndexVerificado + ')').update({ values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null, null]] })) }
+    try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/itemAt(index=' + platformRowIndex + ')').update({ values: [[null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null, null]] })) }
     catch (err) { return res.status(500).json({ error: 'Erro_008' }) }
     
     try { await retry(() => Microsoft_Graph_API_Client.api('/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECXO7I5R6LKLXJD3VWXORUAF7J37/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}/rows/add').post({ values: [[Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários]] })) }

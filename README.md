@@ -54,6 +54,7 @@ Create an ignored `.env` file in the repository root:
 | `CLIENT_ID` | Microsoft Entra application client ID | Yes |
 | `TENANT_ID` | Microsoft Entra tenant ID | Yes |
 | `CLIENT_SECRET` | Microsoft Entra application client secret | Yes |
+| `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` | Stable canonical Base64 that decodes to exactly 32 random bytes and signs learning-platform row authorization handles | Yes |
 | `AZURE_FACE_API_ENDPOINT` | Azure AI Face resource endpoint | Yes |
 | `AZURE_FACE_API_KEY` | Azure AI Face resource key | Yes |
 | `PORT` | HTTP port; defaults to `3000` | No |
@@ -76,17 +77,45 @@ Start the API:
 npm start
 ```
 
+Run the isolated automated tests:
+
+```powershell
+npm test
+```
+
 Unless `PORT` is configured, the server listens on `http://localhost:3000`.
 
 > **Safety:** the application has no automatic local-data isolation. With production credentials, requests may modify live Excel workbooks and send real emails. Confirm the target data and intended recipients before exercising side-effecting endpoints.
 
-The project does not currently define automated test, lint, or build scripts.
+## Learning-platform row authorization
+
+After a successful active-account login, the backend returns a four-hour signed authorization handle in the legacy `IndexVerificado` response field. The frontend treats this value as opaque and sends it back to row-scoped platform endpoints. The backend verifies the signature and expiration before deriving the workbook row index; callers cannot select a different learner by changing the value.
+
+`PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` must be stable canonical Base64 that
+decodes to exactly 32 random bytes. Generate it once through an approved
+secret-management process, keep it out of output and shell history, and store
+it only in secure transient process state and the Azure App Service secret
+setting. Never commit it, persist it in an example file, or reuse another
+application credential.
+
+Existing unsigned sessions require a fresh login. Rotating the key invalidates
+every outstanding signed handle and also requires affected learners to log in
+again.
+
+The project does not currently define lint or build scripts.
 
 ## Deployment
 
 Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 24 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
 
-The workflow also supports manual execution through GitHub Actions. Its build and test commands run only when corresponding package scripts exist.
+> **Deployment gate:** configure `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` in
+> the App Service before merging a version that requires signed row handles.
+> The application intentionally fails to start when the setting is missing or
+> malformed. Changing App Service settings may restart the service, so perform
+> this step in an authorized maintenance window and verify service health
+> without revealing the value.
+
+The workflow also supports manual execution through GitHub Actions. It runs the automated tests; build commands run only when a corresponding package script exists.
 
 The workflow's path filters exclude Markdown and `docs/**`, so documentation-only merges do not trigger a production backend deployment. Other changes merged to `main` remain production-affecting.
 
