@@ -79,9 +79,13 @@ repository separately.
 <!-- ========================================================= -->
 ## Runtime and deployment
 
-- `app.js` is the current entry point. Match the section being edited,
-  including its identifier language and existing comment style; do not treat
-  the current file layout as a permanent architecture mandate.
+- `server.js` is the production entry point. It owns environment loading,
+  production Graph and Face client construction, listener startup, and the
+  Graph token lifecycle. `app.js` exports the import-safe
+  `createApp(dependencies)` factory while remaining the monolithic home of the
+  current middleware, helpers, templates, and route handlers. Match the section
+  being edited, including its identifier language and existing comment style;
+  do not treat this domain layout as a permanent architecture mandate.
 - Use `README.md` for current setup and integration orientation. Inspect
   `.github/workflows/main_plataforma-backend-v3.yml` before predicting whether
   a scoped change triggers deployment.
@@ -184,9 +188,13 @@ frontends.
 
 ## Verification
 
-Do not start the service for documentation or syntax checks. Run:
+Do not start the production server for documentation, syntax, or automated
+acceptance checks. HTTP tests must use `createApp` with synthetic dependencies
+and ephemeral loopback listeners, then close every listener and timer. Run:
 
 ```powershell
 node --check app.js
+node --check server.js
+npm test
 git diff --check
 ```
