@@ -88,7 +88,7 @@ Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_pl
 
 The workflow also supports manual execution through GitHub Actions. Its build and test commands run only when corresponding package scripts exist.
 
-The workflow currently has no path filter, so every merge to `main`—including a documentation-only merge—triggers a production backend deployment.
+The workflow's path filters exclude Markdown and `docs/**`, so documentation-only merges do not trigger a production backend deployment. Other changes merged to `main` remain production-affecting.
 
 ## Maintenance and contributor documentation
 

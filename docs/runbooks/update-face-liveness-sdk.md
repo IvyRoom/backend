@@ -1,8 +1,6 @@
 # Update the Face Liveness Web SDK
 
-Current vendored version: **1.4.8**
-
-> **Review status (2026-07-15):** the official releases page lists version 1.5.0 as latest, while Machado still uses 1.4.8. Evaluating and installing 1.5.0 is a separate SDK-upgrade task, not part of the documentation update that created this runbook.
+Current vendored version: **1.5.0**
 
 This runbook documents the current manual process for updating the Face Liveness Web SDK used by `sistemas/plataforma_v2`. The backend repository is an authenticated download workspace; the browser bundle and assets used in production live in the frontend repository.
 
@@ -178,7 +176,7 @@ Before committing, confirm:
 2. Merge during an appropriate platform maintenance window.
 3. Deploy `sistemas`; that repository contains the production Web SDK files.
 4. Do not deploy backend runtime changes merely because it was used to download the package. Deploy backend code only if the target release explicitly requires compatible backend changes.
-5. If the version record in this backend runbook is merged, note that the current backend workflow still performs a production deployment even for documentation-only changes.
+5. A runbook-only merge is excluded by the backend workflow's Markdown and `docs/**` path filters, so it does not trigger a production backend deployment.
 6. Repeat the FaceID smoke test in production.
 
 If a pre-merge test fails, do not merge the SDK update. If the production smoke test fails, create and merge a new revert PR for the frontend SDK update, then redeploy the previous known-good assets.
