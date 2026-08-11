@@ -18,7 +18,7 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 
 ## Technology stack
 
-- Node.js 24
+- Node.js 20
 - Express 4
 - Microsoft Graph API
 - Microsoft Authentication Library (MSAL)
@@ -40,7 +40,7 @@ The application currently uses CommonJS and runs from a single `app.js` entry po
 
 ## Prerequisites
 
-- Node.js 24
+- Node.js 20
 - npm
 - Access to the project's Microsoft Entra application credentials
 - Access to the project's Azure AI Face resource
@@ -89,12 +89,7 @@ Unless `PORT` is configured, the server listens on `http://localhost:3000`.
 
 ## Learning-platform row authorization
 
-After a successful active-account login, the backend returns a four-hour
-signed authorization handle in the legacy `IndexVerificado` response field.
-The frontend treats this value as opaque and sends it back to row-scoped
-platform endpoints. The backend verifies the signature and expiration before
-deriving the workbook row index, so callers cannot select another learner by
-changing the value.
+After a successful active-account login, the backend returns a four-hour signed authorization handle in the legacy `IndexVerificado` response field. The frontend treats this value as opaque and sends it back to row-scoped platform endpoints. The backend verifies the signature and expiration before deriving the workbook row index; callers cannot select a different learner by changing the value.
 
 `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` must be stable canonical Base64 that
 decodes to exactly 32 random bytes. Generate it once through an approved
@@ -111,7 +106,7 @@ The project does not currently define lint or build scripts.
 
 ## Deployment
 
-Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 24 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
+Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 20 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
 
 > **Deployment gate:** configure `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` in
 > the App Service before merging a version that requires signed row handles.
@@ -122,7 +117,7 @@ Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_pl
 
 The workflow also supports manual execution through GitHub Actions. It runs the automated tests; build commands run only when a corresponding package script exists.
 
-The workflow's path filters exclude Markdown and `docs/**`, so documentation-only merges do not trigger a production backend deployment. Other changes merged to `main` remain production-affecting.
+The workflow currently has no path filter, so every merge to `main`—including a documentation-only merge—triggers a production backend deployment.
 
 ## Maintenance and contributor documentation
 
