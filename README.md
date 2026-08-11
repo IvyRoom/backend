@@ -26,14 +26,20 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 - Azure App Service
 - GitHub Actions
 
-The application currently uses CommonJS and runs from a single `app.js` entry point.
+The application uses CommonJS. [`app.js`](app.js) exports the import-safe
+`createApp(dependencies)` Express application factory, while
+[`server.js`](server.js) is the production entry point and owns environment
+loading, production client construction, listener startup, and the Microsoft
+Graph token lifecycle.
 
 ## Repository structure
 
 | Path | Purpose |
 |---|---|
-| `app.js` | Express application, routes, and external-service integrations. |
+| `app.js` | Import-safe Express application factory, middleware, helpers, templates, routes, and integration calls. |
+| `server.js` | Production configuration, Graph and Face client construction, listener startup, and Graph token refresh. |
 | `img/` | Images used in emails and other backend-generated content. |
+| `test/` | Isolated Node.js acceptance tests and test support. |
 | `docs/runbooks/` | Repeatable operational and maintenance procedures. |
 | `.github/workflows/` | Continuous deployment to Azure App Service. |
 | `AGENTS.md` | Repository-specific collaboration and engineering guidance. |
@@ -77,11 +83,22 @@ Start the API:
 npm start
 ```
 
+`npm start` runs `server.js`, loads the production-style environment, constructs
+the Microsoft Graph and Azure Face clients, and opens the HTTP listener. Do not
+use it for isolated verification.
+
 Run the isolated automated tests:
 
 ```powershell
 npm test
 ```
+
+The acceptance tests import `createApp` with a fixed synthetic signing key,
+recording Graph and Face fakes, and deterministic runtime hooks. HTTP cases use
+ephemeral loopback listeners that are closed after each test. Importing
+`app.js` or `server.js` does not load environment configuration, construct
+production clients, acquire a Graph token, start a listener, or schedule a
+timer, and the test suite does not call production integrations.
 
 Unless `PORT` is configured, the server listens on `http://localhost:3000`.
 
@@ -117,7 +134,11 @@ Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_pl
 
 The workflow also supports manual execution through GitHub Actions. It runs the automated tests; build commands run only when a corresponding package script exists.
 
-The workflow's path filters exclude Markdown and `docs/**`, so documentation-only merges do not trigger a production backend deployment. Other changes merged to `main` remain production-affecting.
+The workflow's path filters exclude Markdown, `docs/**`, and `test/**`, so a
+merge limited to those paths does not trigger a production backend deployment.
+They do not exclude `app.js`, `server.js`, or `package.json`; a merge that
+changes any of those files triggers the production build, test, and deployment
+workflow.
 
 ## Maintenance and contributor documentation
 
@@ -127,7 +148,9 @@ The workflow's path filters exclude Markdown and `docs/**`, so documentation-onl
 
 ## Current technical constraints
 
-- The application is implemented in one `app.js` file.
+- Application and domain behavior remain together in the monolithic `app.js`
+  factory; extracting domain modules is separate future work.
 - Microsoft Graph integrations depend on fixed workbook, table, and positional-column contracts.
-- Several operations reach live external services, so automated tests will require dependency isolation or test doubles.
+- Production operations reach live external services; automated tests isolate
+  them behind injected recording fakes and deterministic runtime hooks.
 - The endpoints are application contracts rather than a versioned public API.

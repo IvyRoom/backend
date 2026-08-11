@@ -1,17 +1,19 @@
 # Current API contracts
 
-This document is the compatibility baseline for splitting the current Express
-monolith into separate application and server modules. It describes behavior
-observed in backend commit
+This document is the compatibility baseline preserved by the Express
+application/server seam. It describes wire behavior observed in backend commit
 `0f39f020387d9e41f17fc1a4490272ccb14a7745` and in the frozen `sistemas`
 consumer snapshot
 [`c68f361de054a936b7a6871d82d75a1cdb457c97`](https://github.com/IvyRoom/sistemas/tree/c68f361de054a936b7a6871d82d75a1cdb457c97).
-The registered routes are implemented in [`app.js`](../app.js).
+The registered routes remain implemented in the import-safe
+[`app.js`](../app.js) factory; production configuration, dependency
+construction, listener startup, and Graph token refresh are implemented in
+[`server.js`](../server.js).
 
 This is a source characterization, not a redesigned API specification. The
-later split must preserve the compatibility contracts below unless a separate
-change explicitly migrates their consumers. The known-risk behavior is recorded
-so that it is not accidentally changed during that structural work.
+application/server split preserves the compatibility contracts below unless a
+separate change explicitly migrates their consumers. The known-risk behavior is
+recorded so that later structural work does not accidentally change it.
 
 ## Evidence boundaries
 
@@ -33,33 +35,47 @@ so that it is not accidentally changed during that structural work.
 
 ### Module startup
 
-Requiring `app.js` has operational side effects; it is not currently a safe app
-factory or import seam.
+Requiring either `app.js` or `server.js` is side-effect free. Import does not
+load `.env`, decode production configuration, construct production Graph or
+Face clients, open a listener, acquire a Graph token, call an external service,
+or schedule a timer. `app.js` exports `createApp(dependencies)`; calling the
+factory creates a fresh Express application and registers the middleware and 14
+routes, but does not listen.
 
-1. `dotenv.config()` loads environment configuration.
-2. `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` is decoded and validated before the
-   Express app is created. A missing, noncanonical, or wrong-length value throws
-   and prevents listener startup. The value itself is outside this document.
-3. Express is created and the global middleware is registered in this exact
-   order: `cors()`, `express.json()`, then
-   `app.use('/img', express.static('img'))`.
-4. `app.listen(process.env.PORT || 3000)` is called immediately. Its server
-   handle is not retained or exported.
-5. The Microsoft Graph confidential client is configured from environment names
+Explicit production startup proceeds as follows:
+
+1. `startProductionServer()` calls `dotenv.config()` through its environment
+   loader.
+2. `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` is decoded and validated. A missing,
+   noncanonical, or wrong-length value throws before production dependencies,
+   the Express application, or the listener are created. The value itself is
+   outside this document.
+3. The Microsoft Graph confidential client is configured from environment names
    `CLIENT_ID`, `TENANT_ID`, and `CLIENT_SECRET`, using authority
-   `https://login.microsoftonline.com/${TENANT_ID}`. Its Graph client is created
-   with an access-token variable that is initially unset.
-   `refreshMicrosoftGraphAccessToken()` requests client credentials for exact
-   scope `https://graph.microsoft.com/.default` and is invoked without being
-   awaited, so the listener has no token-readiness gate.
-6. The Azure Face client is created, and route registration continues. The
-   module exports neither the Express app nor the listener.
+   `https://login.microsoftonline.com/${TENANT_ID}`. Its Graph client retains an
+   access-token variable that is initially unset, and its auth provider supplies
+   the current value through the existing callback shape.
+4. The Azure Face client is constructed from `AZURE_FACE_API_ENDPOINT` and an
+   `AzureKeyCredential` built from `AZURE_FACE_API_KEY`, with no pipeline options
+   that would replace SDK defaults. Production row authorization is constructed
+   from the decoded signing key.
+5. `createApp(...)` creates the application and registers global middleware in
+   this exact order: `cors()`, `express.json()`, then
+   `app.use('/img', express.static('img'))`, followed by the 14 routes.
+6. `app.listen(process.env.PORT || 3000)` is called and its listener is retained.
+   Only after that call, the initial Graph acquisition is invoked without being
+   awaited, so the listener has no token-readiness gate. The returned production
+   lifecycle seam can cancel the refresh timer and close the listener.
+7. Production startup occurs only under `if (require.main === module)`.
 
-Source: [`app.js` lines 13-81](../app.js#L13-L81) and
+Source: [`app.js` lines 32-51](../app.js#L32-L51),
+[`app.js` lines 637-641](../app.js#L637-L641),
+[`server.js` lines 56-135](../server.js#L56-L135), and
 [`platform-row-authorization.js` lines 12-26](../platform-row-authorization.js#L12-L26).
 
-Graph token acquisition has its own startup policy, separate from the route
-retry helper:
+Graph token acquisition requests client credentials for the exact scope
+`https://graph.microsoft.com/.default` and has its own startup policy, separate
+from the route retry helper:
 
 - On success, the access token is replaced and the next refresh is scheduled
   for five minutes before expiry, but never sooner than 60 seconds. The failure
@@ -70,7 +86,8 @@ retry helper:
   seconds, then 4, 8, 16, 32, and at most 60 seconds for subsequent failures.
 - Any existing timer is cleared before the next timer is assigned.
 
-Source: [`app.js` lines 41-71](../app.js#L41-L71).
+Source: [`server.js` lines 10-54](../server.js#L10-L54) and
+[`server.js` lines 76-85](../server.js#L76-L85).
 
 ### Request middleware
 
@@ -101,7 +118,7 @@ property lookups remain case-sensitive. Express also supplies `HEAD` handling
 for registered `GET` routes, while CORS terminates matching preflights before
 routing.
 
-Source: [`app.js` lines 29-35](../app.js#L29-L35).
+Source: [`app.js` lines 32-51](../app.js#L32-L51).
 
 ### Default parser, 404, and error behavior
 
@@ -128,7 +145,7 @@ Source: [`app.js` lines 29-35](../app.js#L29-L35).
 error. It waits 500, 1,000, 1,500, and 2,000 milliseconds between attempts. It
 has no status/error filtering, jitter, timeout, or cancellation. Whether retry
 is safe therefore depends on each operation. Source:
-[`app.js` lines 95-107](../app.js#L95-L107).
+[`app.js` lines 66-74](../app.js#L66-L74).
 
 The dependency clients add a second retry layer:
 
@@ -181,6 +198,9 @@ time.
 
 Source: [`platform-row-authorization.js` lines 29-90](../platform-row-authorization.js#L29-L90)
 and [`platform-row-authorization.js` lines 130-187](../platform-row-authorization.js#L130-L187).
+Production authorization wiring is in
+[`server.js` lines 90-100](../server.js#L90-L100); the five route placements are
+in [`app.js` lines 455-573](../app.js#L455-L573).
 
 `CadastroFoto_e_FaceID` is the one middleware-order exception: its Multer
 middleware parses and buffers the multipart request before authorization.
@@ -212,9 +232,9 @@ REFERENCE_PHOTO(rowIndex)
 /users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/root:/2. ENTREGA/1. CONTROLAR PLATAFORMA/PG - FOTOS DE REFERÊNCIA/{rowIndex}.jpg:/content
 ```
 
-Source: [`app.js` lines 138-142](../app.js#L138-L142),
-[`app.js` lines 295-307](../app.js#L295-L307), and
-[`app.js` lines 489-603](../app.js#L489-L603).
+Source: [`app.js` lines 105-113](../app.js#L105-L113),
+[`app.js` lines 261-262](../app.js#L261-L262), and
+[`app.js` lines 455-568](../app.js#L455-L568).
 
 Source-observed positional layouts used by multiple routes:
 
@@ -226,8 +246,9 @@ Source-observed positional layouts used by multiple routes:
 | Feedback | Appends use width 9 in the exact order described under `processa-feedback`. |
 
 `null` cells in update/append arrays are part of the current positional contract
-and must be preserved during the split; they represent cells intentionally not
-set by that operation, including calculated or manually managed cells.
+and remain preserved by the application/server seam; they represent cells
+intentionally not set by that operation, including calculated or manually
+managed cells.
 
 Excel date conversion for login/refresh subtracts 25,569 days, constructs a
 JavaScript `Date`, formats it with locale `pt-BR` and two-digit day, short month,
@@ -244,7 +265,7 @@ multipart inputs, or route-specific authorization.
 
 ### `POST /landingpage/solicitacaoorcamento`
 
-Source: [`app.js` lines 119-128](../app.js#L119-L128).
+Source: [`app.js` lines 86-95](../app.js#L86-L95).
 
 - **Input:** JSON object with exact, case-sensitive keys
   `Solicitante_NomeCompleto`, `Solicitante_Email`,
@@ -272,7 +293,7 @@ Source: [`app.js` lines 119-128](../app.js#L119-L128).
 
 ### `POST /conecta/processa-recomendacao`
 
-Source: [`app.js` lines 138-247](../app.js#L138-L247).
+Source: [`app.js` lines 105-214](../app.js#L105-L214).
 
 - **Input:** exact JSON keys `recommenderFullName`, `benefitedCompany`,
   `recommendedCompany`, `recommendedProfessional`, and
@@ -321,7 +342,7 @@ Source: [`app.js` lines 138-247](../app.js#L138-L247).
 
 ### `POST /clientes/processa-formulario`
 
-Source: [`app.js` lines 258-378](../app.js#L258-L378).
+Source: [`app.js` lines 225-344](../app.js#L225-L344).
 
 - **Input:** exact top-level JSON keys `company`, `shippingAddress`,
   `legalRepresentative`, `adminAssistant`, `participants`. `company` contains
@@ -375,7 +396,7 @@ Source: [`app.js` lines 258-378](../app.js#L258-L378).
 
 ### `POST /clientes/liberacao-acesso-plataforma`
 
-Source: [`app.js` lines 388-458](../app.js#L388-L458).
+Source: [`app.js` lines 354-424](../app.js#L354-L424).
 
 - **Input:** no body, query, path, or multipart value is read. The global JSON
   parser can still reject malformed JSON before the route.
@@ -405,7 +426,7 @@ Source: [`app.js` lines 388-458](../app.js#L388-L458).
 
 ### `POST /plataforma_v2/login-FaceID`
 
-Source: [`app.js` lines 468-487](../app.js#L468-L487).
+Source: [`app.js` lines 434-453](../app.js#L434-L453).
 
 - **Input:** exact JSON keys `Usuário_Login` and `Usuário_Senha`; extra keys are
   ignored. There is no backend format validation.
@@ -432,7 +453,7 @@ Source: [`app.js` lines 468-487](../app.js#L468-L487).
 
 ### `POST /plataforma_v2/CadastroFoto_e_FaceID`
 
-Source: [`app.js` lines 489-509](../app.js#L489-L509).
+Source: [`app.js` lines 455-475](../app.js#L455-L475).
 
 - **Input:** `multipart/form-data` with exact text field `IndexVerificado` and
   exact single file field `file`. `multer().single('file')` uses in-memory
@@ -472,7 +493,7 @@ Source: [`app.js` lines 489-509](../app.js#L489-L509).
 
 ### `POST /plataforma_v2/FaceID`
 
-Source: [`app.js` lines 511-528](../app.js#L511-L528).
+Source: [`app.js` lines 477-494](../app.js#L477-L494).
 
 - **Input/authorization:** JSON body with exact signed field
   `IndexVerificado`; signed authorization runs before the handler and invalid
@@ -500,7 +521,7 @@ Source: [`app.js` lines 511-528](../app.js#L511-L528).
 
 ### `GET /plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID`
 
-Source: [`app.js` lines 530-544](../app.js#L530-L544).
+Source: [`app.js` lines 496-510](../app.js#L496-L510).
 
 - **Input:** exact path parameter slot
   `Azure_Face_API_LivenessSession_sessionID`. No body/query value is read.
@@ -532,7 +553,7 @@ Source: [`app.js` lines 530-544](../app.js#L530-L544).
 
 ### `POST /plataforma_v2/refresh`
 
-Source: [`app.js` lines 546-575](../app.js#L546-L575).
+Source: [`app.js` lines 512-541](../app.js#L512-L541).
 
 - **Input/authorization:** JSON body with exact signed field
   `IndexVerificado`; invalid authorization is `401 {}`.
@@ -557,7 +578,7 @@ Source: [`app.js` lines 546-575](../app.js#L546-L575).
 
 ### `POST /plataforma_v2/updates`
 
-Source: [`app.js` lines 577-592](../app.js#L577-L592).
+Source: [`app.js` lines 543-558](../app.js#L543-L558).
 
 - **Input/authorization:** exact JSON keys `IndexVerificado`,
   `TipoAtualização`, `NúmeroTópicosConcluídos`, `NúmeroMódulo`, `NotaTeste`.
@@ -589,7 +610,7 @@ Source: [`app.js` lines 577-592](../app.js#L577-L592).
 
 ### `POST /plataforma_v2/processa-feedback`
 
-Source: [`app.js` lines 594-607](../app.js#L594-L607).
+Source: [`app.js` lines 560-573](../app.js#L560-L573).
 
 - **Input/authorization:** exact JSON keys `IndexVerificado`,
   `NúmeroTópicosConcluídos`, `Usuário_NomeCompleto`, `Usuário_Email`,
@@ -618,7 +639,7 @@ Source: [`app.js` lines 594-607](../app.js#L594-L607).
 
 ### `GET /ezdrm-playready-authorization-url`
 
-Source: [`app.js` lines 609-617](../app.js#L609-L617).
+Source: [`app.js` lines 575-583](../app.js#L575-L583).
 
 - **Input:** exact, case-sensitive query keys `token` and `CustomData`. Missing
   or falsy values become empty strings. No body/path/multipart value is read.
@@ -642,7 +663,7 @@ Source: [`app.js` lines 609-617](../app.js#L609-L617).
 
 ### `POST /plataforma_v2/statusreport`
 
-Source: [`app.js` lines 619-631](../app.js#L619-L631).
+Source: [`app.js` lines 585-597](../app.js#L585-L597).
 
 - **Input:** exact JSON keys `linha_inicial` and `linha_final`; no validation or
   authorization. JavaScript `slice(linha_inicial, linha_final + 1)` coercion and
@@ -671,7 +692,7 @@ Source: [`app.js` lines 619-631](../app.js#L619-L631).
 
 ### `GET /validacaocertificados/:Solicitante_CertificadoID`
 
-Source: [`app.js` lines 643-669](../app.js#L643-L669).
+Source: [`app.js` lines 609-635](../app.js#L609-L635).
 
 - **Input:** exact path parameter slot `Solicitante_CertificadoID`. Its decoded
   value is string-coerced, outer-trimmed, and uppercased. No body or query input
@@ -701,9 +722,10 @@ Source: [`app.js` lines 643-669](../app.js#L643-L669).
 
 ## Compatibility contracts versus known-risk legacy behavior
 
-The route inventory above is the compatibility contract. The following items
-are known risks, not implied recommendations and not authorization to fix them
-during the app/server split:
+The route inventory above is the compatibility contract. The application/server
+split and its acceptance coverage preserve the following known risks; recording
+them is not an implied recommendation or authorization to fix them during later
+domain extraction:
 
 - Exactly five routes use signed `IndexVerificado` authorization, and every
   invalid-handle class fails closed with `401 {}` before handler external calls.
@@ -733,22 +755,29 @@ during the app/server split:
 - The source has no explicit unexpected-error response contract for async
   failures outside local catches. In particular, workbook/result shape errors,
   missing multipart file data, and post-response access-release failures must
-  not be silently reclassified as existing JSON errors during the split.
+  not be silently reclassified as existing JSON errors during structural work.
 - No `sistemas` consumer was found for access release or the backend EZDRM
   helper. Neither endpoint is therefore considered removable.
 
-## Acceptance-test matrix for the later app/server split
+## Acceptance-test coverage for the application/server seam
 
-The next milestone should introduce the import/test seam and dependency
-isolation. This milestone intentionally adds no source-text tests and does not
-require or start `app.js`.
+The Node.js 24 built-in suite under [`test/`](../test/) exercises this matrix as
+behavior, not source text. HTTP cases call `createApp` with a fixed synthetic
+32-byte signing key, recording Graph and Face fakes, and deterministic clock,
+random, UUID, sleep, and scheduling hooks. They use native `fetch`, `FormData`,
+and `Blob` against ephemeral loopback listeners and close every listener and
+timer. Import-safety coverage requires `app.js` and `server.js` without
+production configuration; it does not execute `server.js` as the main module,
+construct real SDK clients, or call external services. Known unhandled async
+failure shapes remain documented above rather than being triggered in-process
+or assigned new HTTP contracts.
 
 ### Bootstrap and middleware acceptance
 
-| Area | Acceptance cases to preserve |
+| Area | Acceptance coverage |
 |---|---|
-| Configuration/bootstrap | Invalid signing-key configuration fails before listening; production server uses `PORT || 3000`; requiring the future app module is side-effect free while the future server bootstrap retains listener and token-refresh behavior. |
-| Graph token lifecycle | First acquisition is initiated at startup without a readiness gate; success scheduling uses expiry-minus-five-minutes with 60-second minimum; failure backoff begins at 2 seconds and caps at 60; success resets it. |
+| Configuration/bootstrap | Importing `app.js` and `server.js` performs no startup or external work; invalid signing-key configuration fails before dependency construction or listening; explicit production startup uses `PORT || 3000`, preserves SDK construction defaults, and starts Graph acquisition only after the listener call. |
+| Graph token lifecycle | First acquisition has no readiness gate; success scheduling uses expiry-minus-five-minutes with a 60-second minimum; failures schedule 2, 4, 8, 16, 32, then 60 seconds; success resets the next failure to 2 seconds; each replacement clears the prior timer, cleanup clears the final timer, and an in-flight acquisition cannot schedule after cleanup. |
 | Global middleware | Assert CORS headers/preflight, JSON parsing before static/routes, 100 KiB/strict-parser failures, `/img` -> `/img/` redirect, asset GET/HEAD, directory-index miss, and other static misses in the current order. |
 | Routing/defaults | Assert canonical 14-route registration, case-insensitive/trailing-slash matching, default 404 HTML, route JSON content types, DRM HTML content type, and access-release empty 200. |
 | Authorization | For each of the five protected routes, missing, numeric, malformed, forged, and expired handles return `401 {}` with no handler dependency calls; valid handles expose only their verified row index. Assert Multer remains before auth only on registration. |
@@ -789,8 +818,11 @@ The search result is inventory evidence only and does not authorize removal.
 
 ## Deployment effect
 
-The current push workflow ignores both `**/*.md` and `docs/**`. A change limited
-to `README.md` and `docs/api-contracts.md` therefore does not trigger the
-production build/deploy workflow on merge. Manual `workflow_dispatch` remains
-available. Source:
+The push workflow ignores `**/*.md`, `docs/**`, and `test/**`, but it does not
+ignore `app.js`, `server.js`, or `package.json`. Because the application/server
+split changes those production files, merging it to `main` triggers the Node.js
+24 build and test job and deployment of the resulting repository artifact to
+the Production slot. This merge is production-affecting even though its
+documentation and test paths are individually ignored. Manual
+`workflow_dispatch` also remains available. Source:
 [`main_plataforma-backend-v3.yml` lines 6-17](../.github/workflows/main_plataforma-backend-v3.yml#L6-L17).
