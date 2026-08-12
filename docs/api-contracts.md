@@ -66,11 +66,15 @@ Explicit production startup proceeds as follows:
    Only after that call, the initial Graph acquisition is invoked without being
    awaited, so the listener has no token-readiness gate. The returned production
    lifecycle seam can cancel the refresh timer and close the listener.
-7. Production startup occurs only under `if (require.main === module)`.
+7. Production startup occurs when `server.js` is the direct main module or when
+   `process.argv[1]` resolves to `server.js`. The latter supports Azure App
+   Service's Windows IISNode interceptor, which requires the application module
+   but preserves its path in `argv[1]`. Ordinary module imports do not satisfy
+   either entry-point check.
 
 Source: [`app.js` lines 32-51](../app.js#L32-L51),
 [`app.js` lines 637-641](../app.js#L637-L641),
-[`server.js` lines 56-135](../server.js#L56-L135), and
+[`server.js` lines 16-140](../server.js#L16-L140), and
 [`platform-row-authorization.js` lines 12-26](../platform-row-authorization.js#L12-L26).
 
 Graph token acquisition requests client credentials for the exact scope
@@ -86,8 +90,8 @@ from the route retry helper:
   seconds, then 4, 8, 16, 32, and at most 60 seconds for subsequent failures.
 - Any existing timer is cleared before the next timer is assigned.
 
-Source: [`server.js` lines 10-54](../server.js#L10-L54) and
-[`server.js` lines 76-85](../server.js#L76-L85).
+Source: [`server.js` lines 20-59](../server.js#L20-L59) and
+[`server.js` lines 81-90](../server.js#L81-L90).
 
 ### Request middleware
 
@@ -199,7 +203,7 @@ time.
 Source: [`platform-row-authorization.js` lines 29-90](../platform-row-authorization.js#L29-L90)
 and [`platform-row-authorization.js` lines 130-187](../platform-row-authorization.js#L130-L187).
 Production authorization wiring is in
-[`server.js` lines 90-100](../server.js#L90-L100); the five route placements are
+[`server.js` lines 96-102](../server.js#L96-L102); the five route placements are
 in [`app.js` lines 455-573](../app.js#L455-L573).
 
 `CadastroFoto_e_FaceID` is the one middleware-order exception: its Multer
@@ -767,16 +771,18 @@ behavior, not source text. HTTP cases call `createApp` with a fixed synthetic
 random, UUID, sleep, and scheduling hooks. They use native `fetch`, `FormData`,
 and `Blob` against ephemeral loopback listeners and close every listener and
 timer. Import-safety coverage requires `app.js` and `server.js` without
-production configuration; it does not execute `server.js` as the main module,
-construct real SDK clients, or call external services. Known unhandled async
-failure shapes remain documented above rather than being triggered in-process
-or assigned new HTTP contracts.
+production configuration. A child-process IISNode simulation proves that the
+interceptor-style entry reaches signing-key validation while dotenv and the
+production SDKs are replaced with inert/forbidden test doubles; it does not
+construct real SDK clients, listen, or call external services. Known unhandled
+async failure shapes remain documented above rather than being triggered
+in-process or assigned new HTTP contracts.
 
 ### Bootstrap and middleware acceptance
 
 | Area | Acceptance coverage |
 |---|---|
-| Configuration/bootstrap | Importing `app.js` and `server.js` performs no startup or external work; invalid signing-key configuration fails before dependency construction or listening; explicit production startup uses `PORT || 3000`, preserves SDK construction defaults, and starts Graph acquisition only after the listener call. |
+| Configuration/bootstrap | Importing `app.js` and `server.js` performs no startup or external work; direct Node and IISNode-preserved entry paths are recognized; an IISNode-style child process reaches signing-key validation without loading production SDKs; invalid signing-key configuration fails before dependency construction or listening; explicit production startup uses `PORT || 3000`, preserves SDK construction defaults, and starts Graph acquisition only after the listener call. |
 | Graph token lifecycle | First acquisition has no readiness gate; success scheduling uses expiry-minus-five-minutes with a 60-second minimum; failures schedule 2, 4, 8, 16, 32, then 60 seconds; success resets the next failure to 2 seconds; each replacement clears the prior timer, cleanup clears the final timer, and an in-flight acquisition cannot schedule after cleanup. |
 | Global middleware | Assert CORS headers/preflight, JSON parsing before static/routes, 100 KiB/strict-parser failures, `/img` -> `/img/` redirect, asset GET/HEAD, directory-index miss, and other static misses in the current order. |
 | Routing/defaults | Assert canonical 14-route registration, case-insensitive/trailing-slash matching, default 404 HTML, route JSON content types, DRM HTML content type, and access-release empty 200. |

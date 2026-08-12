@@ -85,7 +85,10 @@ npm start
 
 `npm start` runs `server.js`, loads the production-style environment, constructs
 the Microsoft Graph and Azure Face clients, and opens the HTTP listener. Do not
-use it for isolated verification.
+use it for isolated verification. Azure App Service's Windows IISNode host
+requires `server.js` through an interceptor; the entry-point check therefore
+accepts direct execution and IISNode's preserved `process.argv[1]` application
+path while ordinary module imports remain side-effect free.
 
 Run the isolated automated tests:
 

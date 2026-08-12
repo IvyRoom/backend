@@ -86,6 +86,8 @@ repository separately.
   current middleware, helpers, templates, and route handlers. Match the section
   being edited, including its identifier language and existing comment style;
   do not treat this domain layout as a permanent architecture mandate.
+- Production startup must work both through direct Node execution and Azure
+  App Service's Windows IISNode interceptor while ordinary imports stay safe.
 - Use `README.md` for current setup and integration orientation. Inspect
   `.github/workflows/main_plataforma-backend-v3.yml` before predicting whether
   a scoped change triggers deployment.
