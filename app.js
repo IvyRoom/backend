@@ -7,81 +7,48 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Configura comunicação com variáveis de ambiente.
+// Configura a aplicação HTTP e suas dependências.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const dotenv = require('dotenv');
-dotenv.config();
-
-const {
-    createPlatformRowAuthorizationHandle,
-    createPlatformRowAuthorizer,
-    decodePlatformRowAuthorizationKey,
-} = require('./platform-row-authorization');
-
-const PLATFORM_ROW_AUTHORIZATION_KEY = decodePlatformRowAuthorizationKey(process.env.PLATFORM_ROW_AUTHORIZATION_KEY_BASE64);
-const authorizePlatformRow = createPlatformRowAuthorizer(PLATFORM_ROW_AUTHORIZATION_KEY);
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Configura comunicação com HTTP Requests.
+// Dependências de HTTP e runtime.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const crypto = require('node:crypto');
 const express = require('express');
 const cors = require('cors');
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// A fábrica recebe clientes externos e autorização já construídos.
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Importar este módulo não carrega configuração nem inicia trabalho externo.
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+
+function createApp({
+    graphClient: Microsoft_Graph_API_Client,
+    faceClient: Azure_Face_API_Client,
+    platformRowAuthorization = {},
+    now = () => new Date(),
+    randomInt = (...args) => crypto.randomInt(...args),
+    uuid: createUuid = uuidv4,
+    sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay)),
+    schedule = (callback, delay) => setTimeout(callback, delay),
+} = {}) {
+
+const {
+    authorize: authorizePlatformRow,
+    createHandle: createPlatformRowAuthorizationHandle,
+} = platformRowAuthorization;
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/img', express.static('img'));
-app.listen(process.env.PORT || 3000);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Configura comunicação com o Microsoft Graph API.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const { Client } = require('@microsoft/microsoft-graph-client');
-const { ConfidentialClientApplication } = require('@azure/msal-node');
-const cca = new ConfidentialClientApplication({ auth: { clientId: process.env.CLIENT_ID, authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`, clientSecret: process.env.CLIENT_SECRET } });
-let Microsoft_Graph_API_AccessToken;
-let Microsoft_Graph_API_Client = Client.init({authProvider:(done)=>{done(null, Microsoft_Graph_API_AccessToken)}});
-let Microsoft_Graph_API_SetTimeout;
-let Microsoft_Graph_API_Delay = 2000;
-
-async function refreshMicrosoftGraphAccessToken() {
-    
-    try {
-
-        const response = await cca.acquireTokenByClientCredential({scopes: ['https://graph.microsoft.com/.default']});
-        Microsoft_Graph_API_AccessToken = response.accessToken;
-
-        if (Microsoft_Graph_API_SetTimeout) clearTimeout(Microsoft_Graph_API_SetTimeout);
-        Microsoft_Graph_API_SetTimeout = setTimeout(refreshMicrosoftGraphAccessToken, Math.max(new Date(response.expiresOn).getTime() - Date.now() - 5 * 60 * 1000, 60000));
-        
-        Microsoft_Graph_API_Delay = 2000;
-
-    } catch (err) {
-
-        if (Microsoft_Graph_API_SetTimeout) clearTimeout(Microsoft_Graph_API_SetTimeout);
-        Microsoft_Graph_API_SetTimeout = setTimeout(refreshMicrosoftGraphAccessToken, Microsoft_Graph_API_Delay);
-        Microsoft_Graph_API_Delay = Math.min(Microsoft_Graph_API_Delay * 2, 60000);
-    
-    }
-
-}
-
-refreshMicrosoftGraphAccessToken();
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Configura comunicação com o Azure Face API.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const { AzureKeyCredential } = require("@azure/core-auth");
-const FaceClient = require("@azure-rest/ai-vision-face").default;
-
-const Azure_Face_API_Credential = new AzureKeyCredential(process.env.AZURE_FACE_API_KEY);
-const Azure_Face_API_Client = FaceClient(process.env.AZURE_FACE_API_ENDPOINT, Azure_Face_API_Credential);
-
-const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Função que transforma datas no formato Excel em datas no formato DD/MMM/AAAA.
@@ -101,7 +68,7 @@ async function retry(fn, retries = 5) {
         try { return await fn(); } 
         catch (err) {
             if (i === retries - 1) throw err;
-            await new Promise(r => setTimeout(r, 500 * (i + 1)));
+            await sleep(500 * (i + 1));
         }
     }
 }
@@ -149,7 +116,7 @@ const CONECTA_WHATSAPP_PATTERN = /^\+\d{2} \d{2} \d{5}-\d{4}$/;
 
 // Serial Excel de data e hora atuais no fuso de Brasília — a exibição fica na formatação da planilha.
 function nowBrazilSerial() {
-    const [datePart, timePart] = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false }).split(', ');
+    const [datePart, timePart] = now().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false }).split(', ');
     const [day, month, year] = datePart.split('/').map(Number);
     const [hour, minute, second] = timePart.split(':').map(Number);
     return Math.floor(Date.UTC(year, month - 1, day) / 86400000) + 25569 + (hour * 3600 + minute * 60 + second) / 86400;
@@ -256,18 +223,17 @@ app.post('/conecta/processa-recomendacao', async (req, res) => {
 
 
 function accessDeadlineSerial(daysFromToday) {
-    const today = new Date();
+    const today = now();
     const utcMidnight = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
     return Math.floor(utcMidnight / 86400000) + 25569 + daysFromToday;
 }
 
 
-const crypto = require('node:crypto');
 const Alfabeto_CertificadoID = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 function GeraCertificadoID() {
     let Sufixo = '';
-    for (let i = 0; i < 8; i++) Sufixo += Alfabeto_CertificadoID[crypto.randomInt(Alfabeto_CertificadoID.length)];
+    for (let i = 0; i < 8; i++) Sufixo += Alfabeto_CertificadoID[randomInt(Alfabeto_CertificadoID.length)];
     return `FMG-${Sufixo.slice(0, 4)}-${Sufixo.slice(4)}`;
 }
 
@@ -320,7 +286,7 @@ app.post('/clientes/processa-formulario', async (req, res) => {
             const cells = new Array(22).fill(null);
             cells[0] = participant.fullName;
             cells[2] = participant.email;
-            cells[3] = crypto.randomInt(100000000000, 1000000000000);
+            cells[3] = randomInt(100000000000, 1000000000000);
             cells[4] = 'Ativo';
             cells[5] = 'Não';
             cells[6] = deadline;
@@ -447,13 +413,13 @@ app.post('/clientes/liberacao-acesso-plataforma', async (req, res) => {
 
             });
 
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await sleep(2000);
 
         }
 
     }
 
-    setTimeout(Envia_Email_Clientes, 1000);
+    schedule(Envia_Email_Clientes, 1000);
 
 });
 
@@ -477,7 +443,7 @@ app.post('/plataforma_v2/login-FaceID', async (req, res) => {
         let LinhaVerificada = BD_Plataforma.value[i].values[0];
         if (Usuário_Login === LinhaVerificada[2] && Usuário_Senha === LinhaVerificada[3].toString()) { 
             const RespostaLogin = { Usuário_Status_FaceID: LinhaVerificada[4], Usuário_Foto_Cadastrada: LinhaVerificada[5], Usuário_PrazoAcesso: ConverteData(LinhaVerificada[6]), Usuário_Status_Login: LinhaVerificada[7] };
-            if (LinhaVerificada[7] === 'Ativo') RespostaLogin.IndexVerificado = createPlatformRowAuthorizationHandle(i, PLATFORM_ROW_AUTHORIZATION_KEY);
+            if (LinhaVerificada[7] === 'Ativo') RespostaLogin.IndexVerificado = createPlatformRowAuthorizationHandle(i);
             return res.status(200).json(RespostaLogin);
         }
     }
@@ -498,7 +464,7 @@ app.post('/plataforma_v2/CadastroFoto_e_FaceID', multer().single('file'), author
     catch (err) { return res.status(500).json({ error: 'Erro_003' }) }
         
     let Azure_Face_API_LivenessSession;
-    try { Azure_Face_API_LivenessSession = await retry(() => Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions").post({ contentType: "multipart/form-data", body: [{ name: "VerifyImage", body: FotoReferência }, { name: "livenessOperationMode", body: "Passive" }, { name: "deviceCorrelationId", body: uuidv4() }] })) }
+    try { Azure_Face_API_LivenessSession = await retry(() => Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions").post({ contentType: "multipart/form-data", body: [{ name: "VerifyImage", body: FotoReferência }, { name: "livenessOperationMode", body: "Passive" }, { name: "deviceCorrelationId", body: createUuid() }] })) }
     catch (err) { return res.status(500).json({ error: 'Erro_004' }) }
 
     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
@@ -517,7 +483,7 @@ app.post('/plataforma_v2/FaceID', authorizePlatformRow, async (req, res) => {
     catch (err) { return res.status(500).json({ error: 'Erro_005' }) }
 
     let Azure_Face_API_LivenessSession;
-    try { Azure_Face_API_LivenessSession = await retry(() => Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions").post({ contentType: "multipart/form-data", body: [{name: "VerifyImage", body: FotoReferência}, {name: "livenessOperationMode", body: "Passive"}, {name: "deviceCorrelationId", body: uuidv4()}]}))}
+    try { Azure_Face_API_LivenessSession = await retry(() => Azure_Face_API_Client.path("/detectLivenessWithVerify-sessions").post({ contentType: "multipart/form-data", body: [{name: "VerifyImage", body: FotoReferência}, {name: "livenessOperationMode", body: "Passive"}, {name: "deviceCorrelationId", body: createUuid()}]}))}
     catch (err) { return res.status(500).json({ error: 'Erro_004' }) }
 
     let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.body.authToken;
@@ -667,3 +633,9 @@ app.get('/validacaocertificados/:Solicitante_CertificadoID', async (req, res) =>
     });
 
 });
+
+return app;
+
+}
+
+module.exports = { createApp };
