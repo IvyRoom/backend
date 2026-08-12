@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const { createApp } = require('./app');
 const {
     createPlatformRowAuthorizationHandle,
@@ -11,6 +12,10 @@ const MICROSOFT_GRAPH_SCOPE = 'https://graph.microsoft.com/.default';
 const MICROSOFT_GRAPH_INITIAL_DELAY = 2000;
 const MICROSOFT_GRAPH_MAXIMUM_DELAY = 60000;
 const MICROSOFT_GRAPH_REFRESH_MARGIN = 5 * 60 * 1000;
+
+function isIisnodeEntryPoint() {
+    return typeof process.argv[1] === 'string' && path.resolve(process.argv[1]) === path.resolve(__filename);
+}
 
 function createGraphTokenLifecycle({
     acquireToken,
@@ -126,7 +131,8 @@ function startProductionServer({
     };
 }
 
-if (require.main === module) startProductionServer();
+// IISNode requires this file through its interceptor but preserves the application path in argv[1].
+if (require.main === module || isIisnodeEntryPoint()) startProductionServer();
 
 module.exports = {
     createGraphTokenLifecycle,

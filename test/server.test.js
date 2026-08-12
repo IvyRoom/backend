@@ -149,6 +149,38 @@ test('importing server is configuration-, SDK-, listener-, and timer-safe', () =
     assert.equal(child.stdout, '');
 });
 
+test('IISNode-style require invokes configuration validation without production dependencies', () => {
+    const serverPath = require.resolve('../server');
+    const environment = { ...process.env };
+    const script = `
+        const Module = require('node:module');
+        const originalLoad = Module._load;
+        Module._load = function (request, parent, isMain) {
+            if (request === 'dotenv') return { config() {} };
+            if (request.startsWith('@microsoft/') || request.startsWith('@azure/') || request.startsWith('@azure-rest/')) {
+                throw new Error('production SDK loaded before signing-key validation: ' + request);
+            }
+            return originalLoad.call(this, request, parent, isMain);
+        };
+        require(process.argv[1]);
+    `;
+
+    delete environment.PLATFORM_ROW_AUTHORIZATION_KEY_BASE64;
+    const child = spawnSync(process.execPath, ['-e', script, serverPath], {
+        cwd: path.resolve(__dirname, '..'),
+        encoding: 'utf8',
+        env: environment,
+        timeout: 5_000,
+    });
+
+    assert.ifError(child.error);
+    assert.equal(child.signal, null);
+    assert.equal(child.status, 1);
+    assert.match(child.stderr, /Platform row authorization key must be canonical base64/);
+    assert.doesNotMatch(child.stderr, /@microsoft|@azure(?:-rest)?/);
+    assert.equal(child.stdout, '');
+});
+
 test('invalid signing-key configuration fails before dependency construction or listening', () => {
     const events = [];
 
