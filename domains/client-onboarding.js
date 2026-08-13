@@ -2,13 +2,10 @@
 
 const { escapeHtml } = require('../shared/escape-html');
 
-const PLATFORM_TABLE_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSBYCZNYGEWFFDLEOZ36WI2PDWO/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
-const CLIENTS_TABLE_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECQNNRY4S7VCKBF2SOETFSLESSLH/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
-const SEND_MAIL_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail';
 const CERTIFICATE_ID_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 function createClientOnboardingHandlers({
-    graphClient,
+    microsoftGraph,
     retry,
     now,
     randomInt,
@@ -41,16 +38,24 @@ function createClientOnboardingHandlers({
             && participants.every((p) => p && isNonEmptyString(p.fullName) && isNonEmptyString(p.email) && isNonEmptyString(p.cpf));
         if (!validPayload) return res.status(400).json({ error: 'Erro_013' });
 
-        let plataformaData, clientesData;
-        try { plataformaData = await retry(() => graphClient.api(`${PLATFORM_TABLE_PATH}/rows`).get()); }
+        let plataformaResponse, clientesResponse;
+        try { plataformaResponse = await retry(() => microsoftGraph.readPlatformRows()); }
         catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
-        try { clientesData = await retry(() => graphClient.api(`${CLIENTS_TABLE_PATH}/rows`).get()); }
+        try { clientesResponse = await retry(() => microsoftGraph.readClientRows()); }
         catch (err) { return res.status(500).json({ error: 'Erro_011' }); }
+        const plataformaData = microsoftGraph.extractRows(plataformaResponse);
+        const clientesData = microsoftGraph.extractRows(clientesResponse);
 
         const onlyDigits = (value) => String(value == null ? '' : value).replace(/\D/g, '');
-        const existingEmails = new Set(plataformaData.value.map((row) => String(row.values[0][2] == null ? '' : row.values[0][2]).trim().toLowerCase()));
-        const existingCpfs = new Set(clientesData.value.map((row) => onlyDigits(row.values[0][4])));
-        const existingCertificateIds = new Set(plataformaData.value.map((row) => String(row.values[0][21] == null ? '' : row.values[0][21]).trim().toUpperCase()).filter(Boolean));
+        const existingEmails = new Set(plataformaData.map((row) => {
+            const cells = microsoftGraph.extractRowCells(row);
+            return String(cells[2] == null ? '' : cells[2]).trim().toLowerCase();
+        }));
+        const existingCpfs = new Set(clientesData.map((row) => onlyDigits(microsoftGraph.extractRowCells(row)[4])));
+        const existingCertificateIds = new Set(plataformaData.map((row) => {
+            const cells = microsoftGraph.extractRowCells(row);
+            return String(cells[21] == null ? '' : cells[21]).trim().toUpperCase();
+        }).filter(Boolean));
 
         const deadline = accessDeadlineSerial(60);
         const addressNumber = /^\d+$/.test(shipping.number) ? Number(shipping.number) : shipping.number;
@@ -102,12 +107,12 @@ function createClientOnboardingHandlers({
             });
 
         if (plataformaRows.length > 0) {
-            try { await graphClient.api(`${PLATFORM_TABLE_PATH}/rows/add`).post({ values: plataformaRows }); }
+            try { await microsoftGraph.appendPlatformRows(plataformaRows); }
             catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
         }
 
         if (clientesRows.length > 0) {
-            try { await graphClient.api(`${CLIENTS_TABLE_PATH}/rows/add`).post({ values: clientesRows }); }
+            try { await microsoftGraph.appendClientRows(clientesRows); }
             catch (err) { return res.status(500).json({ error: 'Erro_010' }); }
         }
 
@@ -116,7 +121,7 @@ function createClientOnboardingHandlers({
         const participantesHTML = participants.map((p, i) => `<p>${i + 1}. ${escapeHtml(p.fullName)} — Cargo: ${escapeHtml(p.role)} · DDD: ${escapeHtml(p.areaCode)} · WhatsApp: ${escapeHtml(p.whatsapp)}</p>`).join('');
         const emailContent = `<p>Um novo Formulário de Informações Iniciais foi preenchido.</p><p><b>Pessoa Jurídica Contratante</b></p><p>Razão Social: ${escapeHtml(company.legalName)}</p><p>CNPJ: ${escapeHtml(company.cnpj)}</p><p>CEP: ${escapeHtml(companyAddress.postalCode)}</p><p>Rua: ${escapeHtml(companyAddress.street)}</p><p>Número: ${escapeHtml(companyAddress.number)}</p><p>Complemento: ${escapeHtml(companyAddress.complement)}</p><p>Bairro: ${escapeHtml(companyAddress.neighborhood)}</p><p>Cidade: ${escapeHtml(companyAddress.city)}</p><p>Estado: ${escapeHtml(companyAddress.state)}</p>${pessoaHTML('Representante Jurídico', legalRep)}${pessoaHTML('Auxiliar Administrativo Financeiro', adminAssistant)}<p><b>Participantes</b></p>${participantesHTML}<p><img width="500" height="auto" src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg"/></p>`;
 
-        try { await retry(() => graphClient.api(SEND_MAIL_PATH).post({ message: { subject: 'Machado: novo Formulário de Informações Iniciais preenchido', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } })); }
+        try { await retry(() => microsoftGraph.sendMail({ subject: 'Machado: novo Formulário de Informações Iniciais preenchido', body: { contentType: 'HTML', content: emailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] })); }
         catch (err) { return res.status(500).json({ error: 'Erro_012' }); }
 
         return res.status(200).json({});
@@ -126,18 +131,20 @@ function createClientOnboardingHandlers({
         res.status(200).send();
         console.log(`1. Request recebida.`);
 
-        const BD_Plataforma = await graphClient.api(`${PLATFORM_TABLE_PATH}/rows`).get();
-        if (BD_Plataforma !== null) console.log(`2. BD_Plataforma obtida.`);
+        const BD_PlataformaResponse = await microsoftGraph.readPlatformRows();
+        if (BD_PlataformaResponse !== null) console.log(`2. BD_Plataforma obtida.`);
 
         let Número_Email_Enviado = 0;
         let Linha_Inicial = 39;
         let Linha_Final = 45;
 
         async function Envia_Email_Clientes() {
+            const BD_Plataforma = microsoftGraph.extractRows(BD_PlataformaResponse);
             for (let LinhaAtual = (Linha_Inicial - 4); LinhaAtual <= (Linha_Final - 4); LinhaAtual++) {
-                let Cliente_PrimeiroNome = BD_Plataforma.value[LinhaAtual].values[0][1];
-                let Cliente_Email = BD_Plataforma.value[LinhaAtual].values[0][2];
-                let Cliente_Senha = BD_Plataforma.value[LinhaAtual].values[0][3];
+                const cells = microsoftGraph.extractRowCells(BD_Plataforma[LinhaAtual]);
+                let Cliente_PrimeiroNome = cells[1];
+                let Cliente_Email = cells[2];
+                let Cliente_Senha = cells[3];
 
                 Número_Email_Enviado++;
 
@@ -145,12 +152,11 @@ function createClientOnboardingHandlers({
 
                 if (LinhaAtual === (Linha_Final - 4)) console.log(`--- fim ---`);
 
-                await graphClient.api(SEND_MAIL_PATH).post({
-                    message: {
-                        subject: 'Machado | Método Gerencial para Empresas - Instruções de Acesso à Plataforma',
-                        body: {
-                            contentType: 'HTML',
-                            content: `
+                await microsoftGraph.sendMail({
+                    subject: 'Machado | Método Gerencial para Empresas - Instruções de Acesso à Plataforma',
+                    body: {
+                        contentType: 'HTML',
+                        content: `
                             <p>Bom dia ${Cliente_PrimeiroNome},</p>
                             <p>Escrevemos do suporte da Machado | Método Gerencial para Empresas. Tudo bem?</p>
                             <p>Recentemente a Engefy contratou a nova versão de nossa Solução em Método Gerencial, para auxiliarmos no amadurecimento do Sistema de Gestão da empresa. E você foi um dos profissionais selecionados para participar do trabalho!</p>
@@ -173,10 +179,9 @@ function createClientOnboardingHandlers({
                             <p>Qualquer dúvida ou insegurança, sempre à disposição.</p>
                             <p>Atenciosamente,</p>
                             <p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>
-                        `
-                        },
-                        toRecipients: [{ emailAddress: { address: Cliente_Email } }]
-                    }
+                        `,
+                    },
+                    toRecipients: [{ emailAddress: { address: Cliente_Email } }],
                 });
 
                 await sleep(2000);

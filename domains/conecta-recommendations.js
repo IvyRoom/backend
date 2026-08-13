@@ -2,9 +2,6 @@
 
 const { escapeHtml } = require('../shared/escape-html');
 
-const RECOMENDACOES_TABLE = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECRAQXJDB7TBYFGKA5YQJXO3YAOS/workbook/worksheets/{00000000-0001-0000-0000-000000000000}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}';
-const SEND_MAIL_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/sendMail';
-
 // Colunas da BD - RECOMENDAÇÕES (0-based), verificadas contra a planilha em 13/jul/2026. PRIMEIRO NOME é coluna calculada — deixar null em linhas novas.
 const RECOMENDACOES_COLUMNS = { benefitedCompany: 0, recommenderFullName: 1, recommenderFirstName: 2, recommenderEmail: 3, dateTime: 4, recommendedCompany: 5, recommendedProfessional: 6, recommendedWhatsapp: 7, stage: 8, status: 9, updateDateTime: 10, nextContactDateTime: 11, participantsCount: 12 };
 const RECOMENDACOES_ROW_WIDTH = 13;
@@ -23,7 +20,7 @@ function isPlaceholderCell(value) {
     return String(value == null ? '' : value).trim() === '-';
 }
 
-function createConectaRecommendationHandler({ graphClient, retry, now }) {
+function createConectaRecommendationHandler({ microsoftGraph, retry, now }) {
     // Serial Excel de data e hora atuais no fuso de Brasília — a exibição fica na formatação da planilha.
     function nowBrazilSerial() {
         const [datePart, timePart] = now().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false }).split(', ');
@@ -39,16 +36,17 @@ function createConectaRecommendationHandler({ graphClient, retry, now }) {
         if (!requiredFields.every((field) => isNonEmptyString(body[field]))) return res.status(400).json({ error: 'Erro_014' });
         if (!CONECTA_WHATSAPP_PATTERN.test(body.recommendedWhatsapp.trim())) return res.status(400).json({ error: 'Erro_014' });
 
-        let recomendacoesData;
-        try { recomendacoesData = await retry(() => graphClient.api(`${RECOMENDACOES_TABLE}/rows`).get()); }
+        let recomendacoesResponse;
+        try { recomendacoesResponse = await retry(() => microsoftGraph.readRecommendationRows()); }
         catch (err) { console.error('conecta Erro_015:', err); return res.status(500).json({ error: 'Erro_015' }); }
+        const recomendacoesData = microsoftGraph.extractRows(recomendacoesResponse);
 
         const columns = RECOMENDACOES_COLUMNS;
         const recommenderNameKey = normalizeMatchKey(body.recommenderFullName);
         const benefitedCompanyKey = normalizeMatchKey(body.benefitedCompany);
 
-        const recommenderRows = recomendacoesData.value
-            .map((row, index) => ({ index, cells: row.values[0] }))
+        const recommenderRows = recomendacoesData
+            .map((row, index) => ({ index, cells: microsoftGraph.extractRowCells(row) }))
             .filter(({ cells }) => normalizeMatchKey(cells[columns.recommenderFullName]) === recommenderNameKey && normalizeMatchKey(cells[columns.benefitedCompany]) === benefitedCompanyKey);
 
         if (recommenderRows.length === 0) return res.status(404).json({ error: 'Erro_016' });
@@ -79,13 +77,13 @@ function createConectaRecommendationHandler({ graphClient, retry, now }) {
             // Escritas deliberadamente sem retry(): uma falha ambígua após inserção bem-sucedida duplicaria a linha.
             try {
                 if (slotRow) {
-                    await graphClient.api(`${RECOMENDACOES_TABLE}/rows/itemAt(index=${slotRow.index})`).update({ values: [cells] });
+                    await microsoftGraph.updateRecommendationRow(slotRow.index, cells);
                 } else {
                     cells[columns.benefitedCompany] = recommenderCells[columns.benefitedCompany];
                     cells[columns.recommenderFullName] = recommenderCells[columns.recommenderFullName];
                     cells[columns.recommenderEmail] = recommenderCells[columns.recommenderEmail];
                     cells[columns.participantsCount] = '-';
-                    await graphClient.api(`${RECOMENDACOES_TABLE}/rows/add`).post({ values: [cells] });
+                    await microsoftGraph.appendRecommendationRow(cells);
                 }
             } catch (err) { console.error('conecta Erro_017:', err); return res.status(500).json({ error: 'Erro_017' }); }
         }
@@ -100,8 +98,8 @@ function createConectaRecommendationHandler({ graphClient, retry, now }) {
         const confirmationEmailContent = `<p>Olá ${escapeHtml(recommenderFirstName)},</p><p>Recebemos sua recomendação da Machado para a empresa <b>${escapeHtml(body.recommendedCompany.trim())}</b>. Obrigado pela confiança.</p><p>Logo entraremos em contato com ${escapeHtml(body.recommendedProfessional.trim())}. Assim que houver atualizações relevantes, sinalizaremos a você.</p><p>Atenciosamente,</p>${signatureHTML}`;
 
         try {
-            await retry(() => graphClient.api(SEND_MAIL_PATH).post({ message: { subject: 'Machado Conecta - Nova Recomendação Recebida', body: { contentType: 'HTML', content: internalEmailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] } }));
-            await retry(() => graphClient.api(SEND_MAIL_PATH).post({ message: { subject: 'Machado Conecta - Recomendação Registrada', body: { contentType: 'HTML', content: confirmationEmailContent }, toRecipients: [{ emailAddress: { address: recommenderEmail } }] } }));
+            await retry(() => microsoftGraph.sendMail({ subject: 'Machado Conecta - Nova Recomendação Recebida', body: { contentType: 'HTML', content: internalEmailContent }, toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }] }));
+            await retry(() => microsoftGraph.sendMail({ subject: 'Machado Conecta - Recomendação Registrada', body: { contentType: 'HTML', content: confirmationEmailContent }, toRecipients: [{ emailAddress: { address: recommenderEmail } }] }));
         } catch (err) { console.error('conecta Erro_018:', err); return res.status(500).json({ error: 'Erro_018' }); }
 
         return res.status(200).json({});

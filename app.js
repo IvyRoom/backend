@@ -11,6 +11,8 @@ const { createClientOnboardingHandlers } = require('./domains/client-onboarding'
 const { createLearningPlatformHandlers } = require('./domains/learning-platform');
 const { createDrmHandler } = require('./domains/drm');
 const { createCertificateValidationHandler } = require('./domains/certificate-validation');
+const { createMicrosoftGraphAdapter } = require('./integrations/microsoft-graph');
+const { createAzureFaceAdapter } = require('./integrations/azure-face');
 const { createRetry } = require('./shared/retry');
 
 function createApp({
@@ -34,9 +36,11 @@ function createApp({
     app.use('/img', express.static('img'));
 
     const retry = createRetry({ sleep });
-    const processQuoteRequest = createQuoteRequestHandler({ graphClient, retry });
+    const microsoftGraph = createMicrosoftGraphAdapter({ graphClient });
+    const azureFace = createAzureFaceAdapter({ faceClient });
+    const processQuoteRequest = createQuoteRequestHandler({ microsoftGraph, retry });
     const processConectaRecommendation = createConectaRecommendationHandler({
-        graphClient,
+        microsoftGraph,
         retry,
         now,
     });
@@ -44,7 +48,7 @@ function createApp({
         processClientIntake,
         releasePlatformAccess,
     } = createClientOnboardingHandlers({
-        graphClient,
+        microsoftGraph,
         retry,
         now,
         randomInt,
@@ -61,14 +65,14 @@ function createApp({
         processFeedback,
         getStatusReport,
     } = createLearningPlatformHandlers({
-        graphClient,
-        faceClient,
+        microsoftGraph,
+        azureFace,
         retry,
         uuid,
         createPlatformRowAuthorizationHandle,
     });
     const getPlayReadyAuthorizationUrl = createDrmHandler();
-    const validateCertificate = createCertificateValidationHandler({ graphClient, retry });
+    const validateCertificate = createCertificateValidationHandler({ microsoftGraph, retry });
 
     app.post('/landingpage/solicitacaoorcamento', processQuoteRequest);
     app.post('/conecta/processa-recomendacao', processConectaRecommendation);

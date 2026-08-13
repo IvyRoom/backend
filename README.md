@@ -28,7 +28,8 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 
 The application uses CommonJS. [`app.js`](app.js) is the thin, import-safe
 composition root: it exports `createApp(dependencies)`, constructs Express,
-installs the global middleware in its exact order, composes the domain handler
+installs the global middleware in its exact order, composes integration adapters
+from the injected raw clients, passes their capabilities to the domain handler
 factories, and registers the explicit ordered route table. [`server.js`](server.js)
 is the production entry point and owns environment loading, production client
 construction, listener startup, and the Microsoft Graph token lifecycle.
@@ -37,15 +38,17 @@ construction, listener startup, and the Microsoft Graph token lifecycle.
 
 | Path | Purpose |
 |---|---|
-| `app.js` | Thin import-safe Express composition root, global middleware, handler-factory composition, and explicit ordered route registration. |
+| `app.js` | Thin import-safe Express composition root, raw-client adapter composition, global middleware, handler-factory composition, and explicit ordered route registration. |
 | `server.js` | Production configuration, Graph and Face client construction, listener startup, and Graph token refresh. |
 | `platform-row-authorization.js` | Signed learning-platform row-handle creation and verification. |
-| `domains/quote-requests.js` | Quote-request handler factory, notification template, and direct injected Graph call. |
-| `domains/conecta-recommendations.js` | Conecta validation, workbook payloads, notification templates, and handler factory. |
-| `domains/client-onboarding.js` | Client-intake and access-release handler factories, workbook payloads, and email templates. |
-| `domains/learning-platform.js` | Learning-platform login, Face, refresh, update, feedback, and status-report handler factories. |
+| `domains/quote-requests.js` | Quote-request handler factory, notification template, retry boundary, and error mapping. |
+| `domains/conecta-recommendations.js` | Conecta validation, workbook payloads, notification templates, business ordering, retry boundaries, and error mapping. |
+| `domains/client-onboarding.js` | Client-intake and access-release handler factories, workbook payloads, email templates, scheduling, retry boundaries, and error mapping. |
+| `domains/learning-platform.js` | Learning-platform login, Face workflow, refresh, update, feedback, and status-report business behavior, retry boundaries, and error mapping. |
 | `domains/drm.js` | Deterministic PlayReady authorization-output handler factory. |
-| `domains/certificate-validation.js` | Public certificate-validation handler factory and score normalization. |
+| `domains/certificate-validation.js` | Public certificate-validation handler factory, retry boundary, and score normalization. |
+| `integrations/microsoft-graph.js` | Import-safe Microsoft Graph adapter for exact API paths, verbs, request envelopes, and response-shape access. Each SDK-calling operation makes one attempt. |
+| `integrations/azure-face.js` | Import-safe Azure Face adapter for exact endpoint paths, multipart mechanics, and result projection. Each SDK-calling operation makes one attempt. |
 | `shared/retry.js` | Shared application-level retry helper using the injected sleep hook. |
 | `shared/escape-html.js` | Shared HTML escaping for dynamic email values. |
 | `img/` | Images used in emails and other backend-generated content. |
@@ -107,12 +110,13 @@ npm test
 ```
 
 The acceptance tests import `createApp` with a fixed synthetic signing key,
-recording Graph and Face fakes, and deterministic runtime hooks. HTTP cases use
-ephemeral loopback listeners that are closed after each test. Importing
-`app.js`, `server.js`, or any domain or shared module does not load environment
-configuration, construct production clients, acquire a Graph token, start a
-listener, call an external service, or schedule a timer, and the test suite does
-not call production integrations.
+recording raw Graph and Face fakes, and deterministic runtime hooks. `app.js`
+composes those clients into the same adapters used by production composition.
+HTTP cases use ephemeral loopback listeners that are closed after each test.
+Importing `app.js`, `server.js`, or any domain, integration, or shared module
+does not load environment configuration, construct production clients, acquire
+a Graph token, start a listener, call an external service, or schedule a timer,
+and the test suite does not call production integrations.
 
 Unless `PORT` is configured, the server listens on `http://localhost:3000`.
 
@@ -151,10 +155,10 @@ The workflow also supports manual execution through GitHub Actions. It runs the 
 The workflow's path filters exclude Markdown, `docs/**`, and `test/**`, so a
 merge limited to those paths does not trigger a production backend deployment.
 They do not exclude production JavaScript, including `app.js`, `server.js`,
-`platform-row-authorization.js`, `domains/**`, and `shared/**`; a merge that
-changes any of those files triggers the production build, test, and deployment
-workflow. The deployed repository artifact includes the domain and shared
-modules.
+`platform-row-authorization.js`, `domains/**`, `integrations/**`, and
+`shared/**`; a merge that changes any of those files triggers the production
+build, test, and deployment workflow. The deployed repository artifact includes
+the domain, integration, and shared modules.
 
 ## Maintenance and contributor documentation
 
@@ -164,11 +168,16 @@ modules.
 
 ## Current technical constraints
 
-- `app.js` is the thin application composition root, while cohesive import-safe
-  domain modules own their handler factories, helpers, constants, templates,
-  and payload construction.
-- Domain handlers still call injected Microsoft Graph and Azure Face clients
-  directly; extracting integration adapters is separate future work.
+- `app.js` is the thin application composition root. It creates import-safe
+  adapters from the injected raw Graph and Face clients and passes narrowly
+  named capabilities into cohesive domain handler factories.
+- Domain modules own business ordering, validation, authorization, retry and
+  error decisions, templates, recipients, payload construction, deduplication,
+  and partial-success behavior.
+- Integration modules own exact SDK paths and verbs, request envelopes, Face
+  multipart mechanics, external response-shape access, and result projection.
+  Each SDK-calling adapter operation performs exactly one underlying attempt;
+  retries remain at their existing domain boundaries.
 - Microsoft Graph integrations depend on fixed workbook, table, and positional-column contracts.
 - Production operations reach live external services; automated tests isolate
   them behind injected recording fakes and deterministic runtime hooks.

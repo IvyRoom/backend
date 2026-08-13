@@ -27,10 +27,10 @@ test('composition root preserves the exact route and authorization middleware ta
 
     assert.deepEqual(
         routeLayers.map(({ route }) => [
-            Object.keys(route.methods).find((method) => route.methods[method]),
+            Object.keys(route.methods).filter((method) => route.methods[method]),
             route.path,
         ]),
-        EXPECTED_ROUTES,
+        EXPECTED_ROUTES.map(([method, path]) => [[method], path]),
     );
 
     const routeByPath = new Map(routeLayers.map((layer) => [layer.route.path, layer.route]));
@@ -45,11 +45,18 @@ test('composition root preserves the exact route and authorization middleware ta
     for (const [path, authorizationIndex] of protectedMiddlewareIndexes) {
         const route = routeByPath.get(path);
         assert.equal(route.stack[authorizationIndex].handle, platformRowAuthorization.authorize);
+        assert.equal(route.stack.length, path === '/plataforma_v2/CadastroFoto_e_FaceID' ? 3 : 2);
     }
+
+    assert.equal(
+        routeLayers.flatMap(({ route }) => route.stack)
+            .filter(({ handle }) => handle === platformRowAuthorization.authorize)
+            .length,
+        5,
+    );
 
     const registrationRoute = routeByPath.get('/plataforma_v2/CadastroFoto_e_FaceID');
     assert.equal(registrationRoute.stack[0].name, 'multerMiddleware');
-    assert.equal(registrationRoute.stack.length, 3);
 
     for (const [method, path] of EXPECTED_ROUTES) {
         if (protectedMiddlewareIndexes.has(path)) continue;
