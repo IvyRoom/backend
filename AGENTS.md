@@ -82,12 +82,18 @@ repository separately.
 - `server.js` is the production entry point. It owns environment loading,
   production Graph and Face client construction, listener startup, and the
   Graph token lifecycle. `app.js` exports the import-safe
-  `createApp(dependencies)` factory while remaining the monolithic home of the
-  current middleware, helpers, templates, and route handlers. Match the section
-  being edited, including its identifier language and existing comment style;
-  do not treat this domain layout as a permanent architecture mandate.
+  `createApp(dependencies)` factory and remains the thin composition root for
+  Express construction, exact global middleware order, handler-factory
+  composition, and explicit ordered route registration.
+- Modules under `domains/` are import-safe handler factories that own their
+  domain-specific helpers, constants, templates, payload construction, and
+  direct calls through injected Graph and Face clients. Integration adapters
+  remain a separate future milestone. Keep genuinely shared behavior in
+  `shared/`, match local identifier language and comment style, and keep each
+  concern with its narrowest owning domain.
 - Production startup must work both through direct Node execution and Azure
-  App Service's Windows IISNode interceptor while ordinary imports stay safe.
+  App Service's Windows IISNode interceptor while ordinary imports of every
+  production module stay safe.
 - Use `README.md` for current setup and integration orientation. Inspect
   `.github/workflows/main_plataforma-backend-v3.yml` before predicting whether
   a scoped change triggers deployment.
@@ -197,6 +203,15 @@ and ephemeral loopback listeners, then close every listener and timer. Run:
 ```powershell
 node --check app.js
 node --check server.js
+node --check platform-row-authorization.js
+node --check domains/quote-requests.js
+node --check domains/conecta-recommendations.js
+node --check domains/client-onboarding.js
+node --check domains/learning-platform.js
+node --check domains/drm.js
+node --check domains/certificate-validation.js
+node --check shared/retry.js
+node --check shared/escape-html.js
 npm test
 git diff --check
 ```
