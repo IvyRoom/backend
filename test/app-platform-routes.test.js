@@ -233,7 +233,7 @@ test('login-FaceID preserves active, inactive, and invalid-credential responses'
     harness.graphClient.assertExhausted();
 });
 
-test('login-FaceID exhausts five Graph reads before Erro_001', async (t) => {
+test('login-FaceID exhausts five Graph reads before learning_platform.read_platform_data_failed', async (t) => {
     const harness = await launch(t);
     harness.graphClient.enqueue('GET', PLATFORM_ROWS, ...fiveFailures('login read'));
 
@@ -242,7 +242,7 @@ test('login-FaceID exhausts five Graph reads before Erro_001', async (t) => {
         Usuário_Senha: 'password',
     });
 
-    await assertJsonResponse(response, 500, { error: 'Erro_001' });
+    await assertJsonResponse(response, 500, { error: 'learning_platform.read_platform_data_failed' });
     assert.equal(harness.graphClient.calls.length, 5);
     assert.deepEqual(retrySleeps(harness.ledger), RETRY_DELAYS);
     harness.graphClient.assertExhausted();
@@ -289,7 +289,7 @@ test('CadastroFoto_e_FaceID preserves upload, workbook, and Face call order and 
 });
 
 test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior effects', async (t) => {
-    await t.test('photo upload exhaustion returns Erro_002 before later effects', async (t) => {
+    await t.test('photo upload exhaustion returns learning_platform.upload_reference_photo_failed before later effects', async (t) => {
         const rowIndex = 8;
         const harness = await launch(t);
         const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -300,7 +300,7 @@ test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior
             body: registrationForm(handle),
         });
 
-        await assertJsonResponse(response, 500, { error: 'Erro_002' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.upload_reference_photo_failed' });
         assert.equal(harness.graphClient.calls.length, 5);
         assert.ok(harness.graphClient.calls.every((call) => (
             call.method === 'PUT'
@@ -312,7 +312,7 @@ test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior
         harness.graphClient.assertExhausted();
     });
 
-    await t.test('workbook exhaustion returns Erro_003 after the photo persists', async (t) => {
+    await t.test('workbook exhaustion returns learning_platform.update_reference_photo_registration_failed after the photo persists', async (t) => {
         const rowIndex = 9;
         const harness = await launch(t);
         const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -324,7 +324,7 @@ test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior
             body: registrationForm(handle),
         });
 
-        await assertJsonResponse(response, 500, { error: 'Erro_003' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.update_reference_photo_registration_failed' });
         assert.deepEqual(externalOrder(harness.ledger).map((entry) => entry[1]), [
             'PUT', 'UPDATE', 'UPDATE', 'UPDATE', 'UPDATE', 'UPDATE',
         ]);
@@ -333,7 +333,7 @@ test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior
         harness.graphClient.assertExhausted();
     });
 
-    await t.test('Face exhaustion returns Erro_004 after photo and flag and regenerates UUIDs', async (t) => {
+    await t.test('Face exhaustion returns learning_platform.create_face_liveness_session_failed after photo and flag and regenerates UUIDs', async (t) => {
         const rowIndex = 10;
         const uuids = Array.from(
             { length: 5 },
@@ -350,7 +350,7 @@ test('CadastroFoto_e_FaceID preserves each five-attempt error boundary and prior
             body: registrationForm(handle),
         });
 
-        await assertJsonResponse(response, 500, { error: 'Erro_004' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.create_face_liveness_session_failed' });
         assert.deepEqual(externalOrder(harness.ledger).slice(0, 2), [
             ['graph', 'PUT', referencePhoto(rowIndex)],
             ['graph', 'UPDATE', platformItem(rowIndex)],
@@ -400,7 +400,7 @@ test('FaceID reads the verified-row photo before creating an exact Face session'
 });
 
 test('FaceID preserves photo and Face five-attempt errors', async (t) => {
-    await t.test('photo exhaustion returns Erro_005 without Face work', async (t) => {
+    await t.test('photo exhaustion returns learning_platform.read_reference_photo_failed without Face work', async (t) => {
         const rowIndex = 12;
         const harness = await launch(t);
         const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -410,14 +410,14 @@ test('FaceID preserves photo and Face five-attempt errors', async (t) => {
             IndexVerificado: handle,
         });
 
-        await assertJsonResponse(response, 500, { error: 'Erro_005' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.read_reference_photo_failed' });
         assert.equal(harness.graphClient.calls.length, 5);
         assert.deepEqual(harness.faceClient.calls, []);
         assert.deepEqual(retrySleeps(harness.ledger), RETRY_DELAYS);
         harness.graphClient.assertExhausted();
     });
 
-    await t.test('Face exhaustion returns Erro_004 after the read and regenerates UUIDs', async (t) => {
+    await t.test('Face exhaustion returns learning_platform.create_face_liveness_session_failed after the read and regenerates UUIDs', async (t) => {
         const rowIndex = 13;
         const downloadedPhoto = Buffer.from('persisted photo');
         const uuids = Array.from(
@@ -433,7 +433,7 @@ test('FaceID preserves photo and Face five-attempt errors', async (t) => {
             IndexVerificado: handle,
         });
 
-        await assertJsonResponse(response, 500, { error: 'Erro_004' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.create_face_liveness_session_failed' });
         assert.deepEqual(externalOrder(harness.ledger)[0], [
             'graph', 'GET', referencePhoto(rowIndex),
         ]);
@@ -487,13 +487,13 @@ test('FaceID_resultado is public and forwards the decoded session parameter exac
     harness.faceClient.assertExhausted();
 });
 
-test('FaceID_resultado exhausts five Face reads before Erro_007', async (t) => {
+test('FaceID_resultado exhausts five Face reads before learning_platform.read_face_liveness_result_failed', async (t) => {
     const harness = await launch(t);
     harness.faceClient.enqueue('GET', FACE_RESULT, ...fiveFailures('Face result'));
 
     const response = await fetch(`${harness.origin}/plataforma_v2/FaceID_resultado/session-123`);
 
-    await assertJsonResponse(response, 500, { error: 'Erro_007' });
+    await assertJsonResponse(response, 500, { error: 'learning_platform.read_face_liveness_result_failed' });
     assert.equal(harness.faceClient.calls.length, 5);
     assert.ok(harness.faceClient.calls.every((call) => (
         call.method === 'GET'
@@ -562,7 +562,7 @@ test('refresh selects the verified row and returns all exact fields without a ne
     harness.graphClient.assertExhausted();
 });
 
-test('refresh exhausts five Graph reads before Erro_001', async (t) => {
+test('refresh exhausts five Graph reads before learning_platform.read_platform_data_failed', async (t) => {
     const harness = await launch(t);
     const handle = harness.platformRowAuthorization.createHandle(2);
     harness.graphClient.enqueue('GET', PLATFORM_ROWS, ...fiveFailures('refresh read'));
@@ -571,7 +571,7 @@ test('refresh exhausts five Graph reads before Erro_001', async (t) => {
         IndexVerificado: handle,
     });
 
-    await assertJsonResponse(response, 500, { error: 'Erro_001' });
+    await assertJsonResponse(response, 500, { error: 'learning_platform.read_platform_data_failed' });
     assert.equal(harness.graphClient.calls.length, 5);
     assert.deepEqual(retrySleeps(harness.ledger), RETRY_DELAYS);
     harness.graphClient.assertExhausted();
@@ -672,7 +672,7 @@ test('updates preserves exact payloads and unvalidated JavaScript index semantic
     harness.graphClient.assertExhausted();
 });
 
-test('updates retries the same fixed payload five times before Erro_008', async (t) => {
+test('updates retries the same fixed payload five times before learning_platform.update_platform_data_failed', async (t) => {
     const rowIndex = 15;
     const harness = await launch(t);
     const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -686,7 +686,7 @@ test('updates retries the same fixed payload five times before Erro_008', async 
         NotaTeste: 0.88,
     });
 
-    await assertJsonResponse(response, 500, { error: 'Erro_008' });
+    await assertJsonResponse(response, 500, { error: 'learning_platform.update_platform_data_failed' });
     assert.equal(harness.graphClient.calls.length, 5);
     assert.ok(harness.graphClient.calls.every((call) => (
         call.method === 'UPDATE'
@@ -771,7 +771,7 @@ test('processa-feedback preserves update-before-append payloads and repeats the 
 });
 
 test('processa-feedback preserves update and append five-attempt error boundaries', async (t) => {
-    await t.test('progress exhaustion returns Erro_008 without an append', async (t) => {
+    await t.test('progress exhaustion returns learning_platform.update_platform_data_failed without an append', async (t) => {
         const rowIndex = 17;
         const harness = await launch(t);
         const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -783,14 +783,14 @@ test('processa-feedback preserves update and append five-attempt error boundarie
             feedbackRequest(handle),
         );
 
-        await assertJsonResponse(response, 500, { error: 'Erro_008' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.update_platform_data_failed' });
         assert.equal(harness.graphClient.calls.length, 5);
         assert.ok(harness.graphClient.calls.every((call) => call.method === 'UPDATE'));
         assert.deepEqual(retrySleeps(harness.ledger), RETRY_DELAYS);
         harness.graphClient.assertExhausted();
     });
 
-    await t.test('append exhaustion returns Erro_009 after progress persists', async (t) => {
+    await t.test('append exhaustion returns learning_platform.append_feedback_failed after progress persists', async (t) => {
         const rowIndex = 18;
         const harness = await launch(t);
         const handle = harness.platformRowAuthorization.createHandle(rowIndex);
@@ -803,7 +803,7 @@ test('processa-feedback preserves update and append five-attempt error boundarie
             feedbackRequest(handle),
         );
 
-        await assertJsonResponse(response, 500, { error: 'Erro_009' });
+        await assertJsonResponse(response, 500, { error: 'learning_platform.append_feedback_failed' });
         assert.deepEqual(externalOrder(harness.ledger).map((entry) => entry[1]), [
             'UPDATE', 'POST', 'POST', 'POST', 'POST', 'POST',
         ]);

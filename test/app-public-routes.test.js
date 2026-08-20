@@ -68,7 +68,7 @@ test('statusreport preserves linha_final string concatenation before slice coerc
     assert.deepEqual(body.Dados_Extraídos_BD_Plataforma.map((row) => row[0]), ['Row 2', 'Row 3', 'Row 4', 'Row 5']);
 });
 
-test('statusreport exhausts five read attempts before Erro_001', async (t) => {
+test('statusreport exhausts five read attempts before learning_platform.read_platform_data_failed', async (t) => {
     const harness = createTestApp();
     harness.graphClient.enqueue('GET', PLATFORM_ROWS, ...Array.from({ length: 5 }, () => new Error('read failed')));
     const { origin } = await startLoopback(harness.app, t);
@@ -79,7 +79,7 @@ test('statusreport exhausts five read attempts before Erro_001', async (t) => {
     });
 
     assert.equal(response.status, 500);
-    assert.deepEqual(await response.json(), { error: 'Erro_001' });
+    assert.deepEqual(await response.json(), { error: 'learning_platform.read_platform_data_failed' });
     assert.equal(harness.graphClient.calls.length, 5);
     assert.deepEqual(harness.ledger.filter((entry) => entry.type === 'sleep').map((entry) => entry.delay), [500, 1000, 1500, 2000]);
 });

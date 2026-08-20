@@ -1,5 +1,16 @@
 'use strict';
 
+const learningPlatformErrorValues = Object.freeze({
+    platformDataReadFailure: 'learning_platform.read_platform_data_failed',
+    referencePhotoUploadFailure: 'learning_platform.upload_reference_photo_failed',
+    referencePhotoRegistrationUpdateFailure: 'learning_platform.update_reference_photo_registration_failed',
+    faceLivenessSessionCreationFailure: 'learning_platform.create_face_liveness_session_failed',
+    referencePhotoReadFailure: 'learning_platform.read_reference_photo_failed',
+    faceLivenessResultReadFailure: 'learning_platform.read_face_liveness_result_failed',
+    platformDataWriteFailure: 'learning_platform.update_platform_data_failed',
+    feedbackAppendFailure: 'learning_platform.append_feedback_failed',
+});
+
 function ConverteData(DataExcel) {
     const date = new Date((DataExcel - 25569) * 86400 * 1000);
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\bde\b|\./g, '').replace(/\s+/g, '/');
@@ -17,7 +28,7 @@ function createLearningPlatformHandlers({
 
         let BD_PlataformaResponse;
         try { BD_PlataformaResponse = await retry(() => microsoftGraph.readPlatformRows()); }
-        catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataReadFailure }); }
         const BD_Plataforma = microsoftGraph.extractRows(BD_PlataformaResponse);
 
         for (let i = 0; i < BD_Plataforma.length; i++) {
@@ -37,14 +48,14 @@ function createLearningPlatformHandlers({
         let FotoReferência = req.file.buffer;
 
         try { await retry(() => microsoftGraph.uploadReferencePhoto(platformRowIndex, FotoReferência)); }
-        catch (err) { return res.status(500).json({ error: 'Erro_002' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.referencePhotoUploadFailure }); }
 
         try { await retry(() => microsoftGraph.updatePlatformRow(platformRowIndex, [null, null, null, null, null, 'Sim', null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null])); }
-        catch (err) { return res.status(500).json({ error: 'Erro_003' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.referencePhotoRegistrationUpdateFailure }); }
 
         let Azure_Face_API_LivenessSessionResponse;
         try { Azure_Face_API_LivenessSessionResponse = await retry(() => azureFace.createLivenessSession(FotoReferência, createUuid())); }
-        catch (err) { return res.status(500).json({ error: 'Erro_004' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.faceLivenessSessionCreationFailure }); }
         const Azure_Face_API_LivenessSession = azureFace.extractLivenessSession(Azure_Face_API_LivenessSessionResponse);
 
         let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.authToken;
@@ -58,11 +69,11 @@ function createLearningPlatformHandlers({
 
         let FotoReferência;
         try { FotoReferência = await retry(() => microsoftGraph.downloadReferencePhoto(platformRowIndex)); }
-        catch (err) { return res.status(500).json({ error: 'Erro_005' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.referencePhotoReadFailure }); }
 
         let Azure_Face_API_LivenessSessionResponse;
         try { Azure_Face_API_LivenessSessionResponse = await retry(() => azureFace.createLivenessSession(FotoReferência, createUuid())); }
-        catch (err) { return res.status(500).json({ error: 'Erro_004' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.faceLivenessSessionCreationFailure }); }
         const Azure_Face_API_LivenessSession = azureFace.extractLivenessSession(Azure_Face_API_LivenessSessionResponse);
 
         let Azure_Face_API_LivenessSession_authToken = Azure_Face_API_LivenessSession.authToken;
@@ -76,7 +87,7 @@ function createLearningPlatformHandlers({
 
         let Azure_Face_API_LivenessSessionResponse;
         try { Azure_Face_API_LivenessSessionResponse = await retry(() => azureFace.readLivenessSessionResult(Azure_Face_API_LivenessSession_sessionID)); }
-        catch (err) { return res.status(500).json({ error: 'Erro_007' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.faceLivenessResultReadFailure }); }
         const Azure_Face_API_LivenessSession = azureFace.extractLivenessSessionResult(Azure_Face_API_LivenessSessionResponse);
 
         let Azure_Face_API_LivenessSession_LivenessDecision = Azure_Face_API_LivenessSession.livenessDecision;
@@ -91,7 +102,7 @@ function createLearningPlatformHandlers({
 
         let BD_PlataformaResponse;
         try { BD_PlataformaResponse = await retry(() => microsoftGraph.readPlatformRows()); }
-        catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataReadFailure }); }
         const BD_Plataforma = microsoftGraph.extractRows(BD_PlataformaResponse);
         const LinhaVerificada = microsoftGraph.extractRowCells(BD_Plataforma[platformRowIndex]);
 
@@ -127,7 +138,7 @@ function createLearningPlatformHandlers({
         if (TipoAtualização === 'NúmeroTópicosConcluídos-e-NotaTeste') DadosaInserir[NúmeroMódulo + 9] = NotaTeste;
 
         try { await retry(() => microsoftGraph.updatePlatformRow(platformRowIndex, DadosaInserir)); }
-        catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataWriteFailure }); }
 
         return res.status(200).json({});
     }
@@ -137,10 +148,10 @@ function createLearningPlatformHandlers({
         let { NúmeroTópicosConcluídos, Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários } = req.body;
 
         try { await retry(() => microsoftGraph.updatePlatformRow(platformRowIndex, [null, null, null, null, null, null, null, null, NúmeroTópicosConcluídos, null, null, null, null, null, null, null, null, null, null, null, null, null])); }
-        catch (err) { return res.status(500).json({ error: 'Erro_008' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataWriteFailure }); }
 
         try { await retry(() => microsoftGraph.appendFeedbackRow([Usuário_NomeCompleto, Usuário_Email, Feedback_DataPreenchimento, NúmeroMódulo, Feedback_TamanhoMódulo, Feedback_QualidadeConteúdo, Feedback_QualidadePlataforma, Feedback_QualidadeMateriaisImpressos, Feedback_Comentários])); }
-        catch (err) { return res.status(500).json({ error: 'Erro_009' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.feedbackAppendFailure }); }
 
         return res.status(200).json({});
     }
@@ -150,7 +161,7 @@ function createLearningPlatformHandlers({
 
         let BD_PlataformaResponse;
         try { BD_PlataformaResponse = await retry(() => microsoftGraph.readPlatformRows()); }
-        catch (err) { return res.status(500).json({ error: 'Erro_001' }); }
+        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataReadFailure }); }
         const BD_Plataforma = microsoftGraph.extractRows(BD_PlataformaResponse);
 
         const Dados_Extraídos_BD_Plataforma = BD_Plataforma.slice(linha_inicial, linha_final + 1).map((row) => {
