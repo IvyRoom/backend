@@ -125,41 +125,32 @@ repository separately.
 
 ## Error registry
 
-Learning-platform producers use the following domain-qualified machine values.
-Keep their map private to `domains/learning-platform.js`; do not export it or
-move it into a shared/global error module.
+Learning-platform producers and the deployed learning-platform consumer use the
+following domain-qualified machine values exclusively. Keep the producer map
+private to `domains/learning-platform.js`; do not export it or move it into a
+shared/global error module.
 
-- `learning_platform.read_platform_data_failed` — legacy transition alias
-  `Erro_001`
-- `learning_platform.upload_reference_photo_failed` — legacy transition alias
-  `Erro_002`
-- `learning_platform.update_reference_photo_registration_failed` — legacy
-  transition alias `Erro_003`
-- `learning_platform.create_face_liveness_session_failed` — legacy transition
-  alias `Erro_004`
-- `learning_platform.read_reference_photo_failed` — legacy transition alias
-  `Erro_005`
-- `learning_platform.read_face_liveness_result_failed` — legacy transition
-  alias `Erro_007`
-- `learning_platform.update_platform_data_failed` — legacy transition alias
-  `Erro_008`
-- `learning_platform.append_feedback_failed` — legacy transition alias
-  `Erro_009`
+- `learning_platform.read_platform_data_failed`
+- `learning_platform.upload_reference_photo_failed`
+- `learning_platform.update_reference_photo_registration_failed`
+- `learning_platform.create_face_liveness_session_failed`
+- `learning_platform.read_reference_photo_failed`
+- `learning_platform.read_face_liveness_result_failed`
+- `learning_platform.update_platform_data_failed`
+- `learning_platform.append_feedback_failed`
 
-The deployed learning-platform frontend temporarily accepts the legacy aliases
-`Erro_001`, `Erro_002`, `Erro_003`, `Erro_004`, `Erro_005`, `Erro_007`,
-`Erro_008`, and `Erro_009` through
+The deployed learning-platform frontend accepts only these named values through
 `../sistemas/apps/learning-platform/modules/error-adapter.js`. Its visible
 Brazilian-Portuguese messages and `Erro_XXX` presentation prefixes remain in
-`../sistemas/apps/learning-platform/modules/error-presentation.js`. Do not emit
-those aliases from learning-platform backend producers, and do not remove their
-frontend acceptance until the separately reviewed transition cleanup.
+`../sistemas/apps/learning-platform/modules/error-presentation.js`. The former
+numbered learning-platform machine aliases are retired from this
+producer-consumer boundary; do not emit or reintroduce them.
 
-Numbered values remain current in unrelated domains. In particular, the
-`Erro_001` and `Erro_008` aliases are shared: client onboarding still emits
-both, and certificate validation still emits `Erro_001`. Allocate a new number
-only when extending an unrelated numbered contract, and update every affected
-consumer.
+Numbered values remain current in unrelated domains. In particular,
+`domains/client-onboarding.js` still emits `Erro_001` and `Erro_008`, and
+`domains/certificate-validation.js` still emits `Erro_001`. Allocate a new
+number only when extending an unrelated numbered contract, and update every
+affected consumer.
 
 - `Erro_000` — frontend fallback: network/unknown failure reaching the backend
 - `Erro_001` — client-onboarding/certificate-validation read BD Plataforma
