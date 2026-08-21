@@ -183,8 +183,8 @@ not occur between application attempts. Source:
 [`integrations/microsoft-graph.js` lines 14-75](../integrations/microsoft-graph.js#L14-L75),
 [`integrations/azure-face.js` lines 6-38](../integrations/azure-face.js#L6-L38),
 and the domain-owned call/projection ordering in
-[`domains/learning-platform.js` lines 18-21](../domains/learning-platform.js#L18-L21)
-and [`domains/learning-platform.js` lines 45-48](../domains/learning-platform.js#L45-L48).
+[`domains/learning-platform.js` lines 29-32](../domains/learning-platform.js#L29-L32)
+and [`domains/learning-platform.js` lines 56-59](../domains/learning-platform.js#L56-L59).
 
 The dependency clients add a second retry layer:
 
@@ -198,8 +198,10 @@ The dependency clients add a second retry layer:
   retry-after header, `408`, most `5xx` responses except `501`/`505`, and its
   defined transient system errors, with retry-after or exponential delay.
 - Face routes do not inspect the resolved REST response status. Their
-  `Erro_004` and `Erro_007` catches run only when the client call rejects after
-  its SDK behavior; a resolved non-success response proceeds to body access.
+  `learning_platform.create_face_liveness_session_failed` and
+  `learning_platform.read_face_liveness_result_failed` catches run only when
+  the client call rejects after its SDK behavior; a resolved non-success
+  response proceeds to body access.
 
 Consequently, "retry" in the route sections means the five-attempt application
 helper, and "not application-retried" means only that the helper is absent;
@@ -276,7 +278,7 @@ Source: Graph paths and verbs in
 The domains continue to construct and interpret positional values; see
 [`domains/conecta-recommendations.js` lines 5-7](../domains/conecta-recommendations.js#L5-L7),
 [`domains/client-onboarding.js` lines 41-124](../domains/client-onboarding.js#L41-L124),
-[`domains/learning-platform.js` lines 18-161](../domains/learning-platform.js#L18-L161),
+[`domains/learning-platform.js` lines 26-173](../domains/learning-platform.js#L26-L173),
 and [`domains/certificate-validation.js` lines 7-31](../domains/certificate-validation.js#L7-L31).
 
 The exact source-observed Face paths are
@@ -494,11 +496,39 @@ and [`integrations/microsoft-graph.js` lines 72-74](../integrations/microsoft-gr
 - **Other errors:** there is no explicit error response contract for background
   or unexpected failure.
 
+### Learning-platform failure values
+
+The twelve mapped learning-platform catch sites use the private frozen map in
+[`domains/learning-platform.js` lines 3-12](../domains/learning-platform.js#L3-L12).
+Every mapped boundary still responds with status `500`, JSON content type, and
+the exact envelope `{"error":<machine value>}`. Requests, authorization,
+application retry, ordering, projection, side effects, and partial-success
+behavior are unchanged.
+
+| Private map key | Producer boundaries | Current machine value | Legacy frontend transition alias |
+|---|---|---|---|
+| `platformDataReadFailure` | `login-FaceID`, `refresh`, `statusreport` | `learning_platform.read_platform_data_failed` | `Erro_001` |
+| `referencePhotoUploadFailure` | `CadastroFoto_e_FaceID` photo upload | `learning_platform.upload_reference_photo_failed` | `Erro_002` |
+| `referencePhotoRegistrationUpdateFailure` | `CadastroFoto_e_FaceID` registration-flag update | `learning_platform.update_reference_photo_registration_failed` | `Erro_003` |
+| `faceLivenessSessionCreationFailure` | `CadastroFoto_e_FaceID` and `FaceID` session creation | `learning_platform.create_face_liveness_session_failed` | `Erro_004` |
+| `referencePhotoReadFailure` | `FaceID` reference-photo read | `learning_platform.read_reference_photo_failed` | `Erro_005` |
+| `faceLivenessResultReadFailure` | `FaceID_resultado` | `learning_platform.read_face_liveness_result_failed` | `Erro_007` |
+| `platformDataWriteFailure` | `updates` and `processa-feedback` progress update | `learning_platform.update_platform_data_failed` | `Erro_008` |
+| `feedbackAppendFailure` | `processa-feedback` feedback append | `learning_platform.append_feedback_failed` | `Erro_009` |
+
+The deployed frontend adapter accepts both columns and maps them to the same
+semantic kinds; its visible Brazilian-Portuguese messages and `Erro_XXX`
+presentation prefixes are unchanged. The aliases are not globally retired:
+client onboarding still produces `Erro_001` and `Erro_008`, while certificate
+validation still produces `Erro_001`. `Erro_000` and `Erro_006` remain
+frontend-owned. Parser, projection, and row-shape failures outside these twelve
+catches receive no newly invented mapping.
+
 ### `POST /plataforma_v2/login-FaceID`
 
 Source: route registration in [`app.js` line 81](../app.js#L81), business
 behavior in
-[`domains/learning-platform.js` lines 3-33](../domains/learning-platform.js#L3-L33),
+[`domains/learning-platform.js` lines 26-44](../domains/learning-platform.js#L26-L44),
 and Graph read/projection mechanics in
 [`integrations/microsoft-graph.js` lines 20-30](../integrations/microsoft-graph.js#L20-L30).
 
@@ -506,7 +536,8 @@ and Graph read/projection mechanics in
   ignored. There is no backend format validation.
 - **Middleware:** global middleware only; public login route.
 - **Calls/order:** retry `GET PLATFORM_TABLE/rows`; exhausted failure is
-  `500 {"error":"Erro_001"}`. Rows are scanned in returned order. Login must
+  `500 {"error":"learning_platform.read_platform_data_failed"}`. Rows are
+  scanned in returned order. Login must
   strictly equal index `2`; password must strictly equal `index 3 .toString()`.
 - **Responses:** no match is
   `401 {"error":"credenciais_inválidas"}`. A match is `200` with exact keys
@@ -529,7 +560,7 @@ and Graph read/projection mechanics in
 
 Source: route and middleware composition in [`app.js` line 82](../app.js#L82),
 business and retry ordering in
-[`domains/learning-platform.js` lines 35-54](../domains/learning-platform.js#L35-L54),
+[`domains/learning-platform.js` lines 46-65](../domains/learning-platform.js#L46-L65),
 Graph upload/update mechanics in
 [`integrations/microsoft-graph.js` lines 48-50](../integrations/microsoft-graph.js#L48-L50)
 and [`integrations/microsoft-graph.js` lines 64-66](../integrations/microsoft-graph.js#L64-L66),
@@ -545,15 +576,19 @@ and Face multipart/projection mechanics in
   Multer parse/buffer -> signed row authorization -> handler. Invalid handles
   therefore still incur multipart parsing and buffering, then return `401 {}`.
 - **Calls/order:** (1) retry `PUT REFERENCE_PHOTO(rowIndex)` with the file bytes
-  (`500 Erro_002`); (2) retry update of `PLATFORM_TABLE/rows/itemAt(index=<row>)`
-  with a 22-cell array whose only non-`null` value is index `5` = `Sim`
-  (`500 Erro_003`); (3) retry Face `POST /detectLivenessWithVerify-sessions`
-  (`500 Erro_004`) with multipart parts `VerifyImage` = the uploaded buffer,
+  (`500 {"error":"learning_platform.upload_reference_photo_failed"}`); (2)
+  retry update of `PLATFORM_TABLE/rows/itemAt(index=<row>)` with a 22-cell array
+  whose only non-`null` value is index `5` = `Sim`
+  (`500 {"error":"learning_platform.update_reference_photo_registration_failed"}`);
+  (3) retry Face `POST /detectLivenessWithVerify-sessions`
+  (`500 {"error":"learning_platform.create_face_liveness_session_failed"}`)
+  with multipart parts `VerifyImage` = the uploaded buffer,
   `livenessOperationMode` = `Passive`, and `deviceCorrelationId` = a new UUID.
-- **Face status handling:** no resolved REST status is checked. `Erro_004`
-  requires a rejected client promise; a resolved non-success response proceeds
-  to `body.authToken`/`body.sessionId` extraction. A new UUID is created for
-  each application-level Face attempt.
+- **Face status handling:** no resolved REST status is checked.
+  `learning_platform.create_face_liveness_session_failed` requires a rejected
+  client promise; a resolved non-success response proceeds to
+  `body.authToken`/`body.sessionId` extraction. A new UUID is created for each
+  application-level Face attempt.
 - **Response:** `200` JSON with exact keys
   `Azure_Face_API_LivenessSession_authToken` and
   `Azure_Face_API_LivenessSession_sessionID`, sourced from Face response fields
@@ -566,8 +601,10 @@ and Face multipart/projection mechanics in
 - **Consumer:** frozen
   [`plataforma_v2/cadastro/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/cadastro/main.js#L73-L117)
   appends `IndexVerificado` then `file` to browser `FormData`, requires JSON,
-  and reads both success keys. It recognizes `Erro_002` through `Erro_004`;
-  current `401 {}` becomes its generic error path.
+  and reads both success keys. The frozen snapshot recognizes legacy aliases
+  `Erro_002` through `Erro_004`; the deployed adapter also accepts the
+  corresponding current values. Current `401 {}` becomes its generic error
+  path.
 - **Other errors:** Multer errors use the default Express error response;
   missing-file and unexpected handler failures have no explicit route JSON
   contract.
@@ -576,7 +613,7 @@ and Face multipart/projection mechanics in
 
 Source: route and middleware composition in [`app.js` line 83](../app.js#L83),
 business and retry ordering in
-[`domains/learning-platform.js` lines 56-72](../domains/learning-platform.js#L56-L72),
+[`domains/learning-platform.js` lines 67-83](../domains/learning-platform.js#L67-L83),
 Graph photo-download mechanics in
 [`integrations/microsoft-graph.js` lines 68-70](../integrations/microsoft-graph.js#L68-L70),
 and Face multipart/projection mechanics in
@@ -585,14 +622,17 @@ and Face multipart/projection mechanics in
 - **Input/authorization:** JSON body with exact signed field
   `IndexVerificado`; signed authorization runs before the handler and invalid
   input returns `401 {}`.
-- **Calls/order:** (1) retry `GET REFERENCE_PHOTO(rowIndex)` (`500 Erro_005`);
-  (2) retry Face `POST /detectLivenessWithVerify-sessions` (`500 Erro_004`) with
-  multipart parts `VerifyImage` = downloaded photo,
+- **Calls/order:** (1) retry `GET REFERENCE_PHOTO(rowIndex)`
+  (`500 {"error":"learning_platform.read_reference_photo_failed"}`); (2) retry
+  Face `POST /detectLivenessWithVerify-sessions`
+  (`500 {"error":"learning_platform.create_face_liveness_session_failed"}`)
+  with multipart parts `VerifyImage` = downloaded photo,
   `livenessOperationMode` = `Passive`, and a new UUID
   `deviceCorrelationId`.
-- **Face status handling:** no resolved REST status is checked. `Erro_004`
-  requires a rejected client promise, and each application-level attempt uses a
-  newly generated UUID.
+- **Face status handling:** no resolved REST status is checked.
+  `learning_platform.create_face_liveness_session_failed` requires a rejected
+  client promise, and each application-level attempt uses a newly generated
+  UUID.
 - **Response:** `200` JSON with exact keys
   `Azure_Face_API_LivenessSession_authToken` and
   `Azure_Face_API_LivenessSession_sessionID`.
@@ -601,8 +641,10 @@ and Face multipart/projection mechanics in
   more than one session.
 - **Consumer:** frozen
   [`plataforma_v2/login/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/login/main.js#L152-L195)
-  sends the handle, requires JSON, reads both success keys, and recognizes
-  `Erro_004`/`Erro_005`; current `401 {}` becomes its generic error path.
+  sends the handle, requires JSON, and reads both success keys. The frozen
+  snapshot recognizes legacy aliases `Erro_004`/`Erro_005`; the deployed
+  adapter also accepts the corresponding current values. Current `401 {}`
+  becomes its generic error path.
 - **Other errors:** unexpected downloaded-photo or Face-response shape failures
   have no explicit error contract.
 
@@ -610,7 +652,7 @@ and Face multipart/projection mechanics in
 
 Source: route registration in [`app.js` line 84](../app.js#L84), business and
 retry ordering in
-[`domains/learning-platform.js` lines 74-87](../domains/learning-platform.js#L74-L87),
+[`domains/learning-platform.js` lines 85-98](../domains/learning-platform.js#L85-L98),
 and Face result-path/projection mechanics in
 [`integrations/azure-face.js` lines 26-37](../integrations/azure-face.js#L26-L37).
 
@@ -619,10 +661,12 @@ and Face result-path/projection mechanics in
 - **Middleware:** global middleware only; this Face-result route is public.
 - **Calls/order:** retry Face
   `GET /detectLivenessWithVerify-sessions/{sessionId}`, passing the decoded path
-  parameter as `{sessionId}`. Exhausted failure is `500 Erro_007`.
-- **Face status handling:** no resolved REST status is checked. `Erro_007`
-  requires a rejected client promise; a resolved non-success response proceeds
-  to the nested result extraction.
+  parameter as `{sessionId}`. Exhausted failure is
+  `500 {"error":"learning_platform.read_face_liveness_result_failed"}`.
+- **Face status handling:** no resolved REST status is checked.
+  `learning_platform.read_face_liveness_result_failed` requires a rejected
+  client promise; a resolved non-success response proceeds to the nested result
+  extraction.
 - **Response:** `200` JSON with exact keys
   `Azure_Face_API_LivenessSession_LivenessDecision` from
   `body.results.attempts[0].result.livenessDecision`,
@@ -638,23 +682,25 @@ and Face result-path/projection mechanics in
   [`main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/cadastro/main.js#L108-L148)
   require JSON and consume the decisions; registration also displays match
   confidence. Both send `Content-Type: application/json` despite having no
-  body, and recognize `Erro_007`.
+  body. The frozen snapshots recognize legacy alias `Erro_007`; the deployed
+  adapter also accepts the current value.
 - **Other errors:** an absent/changed Face attempts/result shape has no explicit
   unexpected-error contract.
 
 ### `POST /plataforma_v2/refresh`
 
 Source: route and middleware composition in [`app.js` line 85](../app.js#L85),
-date conversion in [`domains/learning-platform.js` lines 3-6](../domains/learning-platform.js#L3-L6),
+date conversion in [`domains/learning-platform.js` lines 14-17](../domains/learning-platform.js#L14-L17),
 business behavior in
-[`domains/learning-platform.js` lines 89-118](../domains/learning-platform.js#L89-L118),
+[`domains/learning-platform.js` lines 100-129](../domains/learning-platform.js#L100-L129),
 and Graph read/projection mechanics in
 [`integrations/microsoft-graph.js` lines 20-30](../integrations/microsoft-graph.js#L20-L30).
 
 - **Input/authorization:** JSON body with exact signed field
   `IndexVerificado`; invalid authorization is `401 {}`.
 - **Calls/order:** retry `GET PLATFORM_TABLE/rows`; exhausted failure is
-  `500 Erro_001`. The verified row index selects the returned row.
+  `500 {"error":"learning_platform.read_platform_data_failed"}`. The verified
+  row index selects the returned row.
 - **Response:** `200` JSON with exact keys `Usuário_NomeCompleto` (`0`),
   `Usuário_PrimeiroNome` (`1`), `Usuário_Email` (`2`),
   `Usuário_PrazoAcesso` (converted `6`), `Usuário_Status_Login` (`7`),
@@ -667,8 +713,9 @@ and Graph read/projection mechanics in
   change with workbook state. The handle is neither refreshed nor returned.
 - **Consumer:** frozen
   [`plataforma_v2/estudo/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/estudo/main.js#L113-L137)
-  sends the handle, requires JSON, and reads every success key. It recognizes
-  `Erro_001`; current `401 {}` becomes its generic error path.
+  sends the handle, requires JSON, and reads every success key. The frozen
+  snapshot recognizes legacy alias `Erro_001`; the deployed adapter also
+  accepts the current value. Current `401 {}` becomes its generic error path.
 - **Other errors:** a verified index no longer present in returned workbook data
   or a short row has no explicit unexpected-error contract.
 
@@ -676,7 +723,7 @@ and Graph read/projection mechanics in
 
 Source: route and middleware composition in [`app.js` line 86](../app.js#L86),
 business and retry ordering in
-[`domains/learning-platform.js` lines 120-133](../domains/learning-platform.js#L120-L133),
+[`domains/learning-platform.js` lines 131-144](../domains/learning-platform.js#L131-L144),
 and Graph row-update mechanics in
 [`integrations/microsoft-graph.js` lines 48-50](../integrations/microsoft-graph.js#L48-L50).
 
@@ -695,7 +742,8 @@ and Graph row-update mechanics in
   or grade validation is performed.
 - **Calls/order:** retry update of
   `PLATFORM_TABLE/rows/itemAt(index=<verified row>)`. Exhausted failure is
-  `500 Erro_008`; success is `200 {}`.
+  `500 {"error":"learning_platform.update_platform_data_failed"}`; success is
+  `200 {}`.
 - **Partial success/idempotency:** the same well-formed values are a fixed-value
   update and normally repeatable, but retry ambiguity and unconstrained client
   values remain part of current behavior.
@@ -704,7 +752,8 @@ and Graph row-update mechanics in
   sends either exact type above with a numeric module/grade or type
   `NúmeroTópicosConcluídos` with `NúmeroMódulo: "n/a"` and
   `NotaTeste: "n/a"`. It requires success JSON but reads no success key,
-  recognizes `Erro_008`, and treats current `401 {}` generically.
+  recognizes legacy alias `Erro_008`, and through the deployed adapter accepts
+  the current value. It treats current `401 {}` generically.
 - **Other errors:** unexpected serialization/index behavior has no explicit
   route error contract.
 
@@ -712,7 +761,7 @@ and Graph row-update mechanics in
 
 Source: route and middleware composition in [`app.js` line 87](../app.js#L87),
 business and partial-success ordering in
-[`domains/learning-platform.js` lines 135-146](../domains/learning-platform.js#L135-L146),
+[`domains/learning-platform.js` lines 146-157](../domains/learning-platform.js#L146-L157),
 and Graph update/append mechanics in
 [`integrations/microsoft-graph.js` lines 48-50](../integrations/microsoft-graph.js#L48-L50)
 and [`integrations/microsoft-graph.js` lines 60-62](../integrations/microsoft-graph.js#L60-L62).
@@ -725,10 +774,12 @@ and [`integrations/microsoft-graph.js` lines 60-62](../integrations/microsoft-gr
   signed handle is validated; invalid authorization is `401 {}`.
 - **Calls/order:** (1) retry update of the verified platform row with a 22-cell
   array whose only non-`null` value is client-supplied completed topics at index
-  `8` (`500 Erro_008`); (2) retry append to `FEEDBACK_TABLE/rows/add` with the
-  nine client-supplied fields in this exact order: full name, email, fill date,
-  module number, module-size score, content-quality score, platform-quality
-  score, printed-material-quality score, comments (`500 Erro_009`). Success is
+  `8` (`500 {"error":"learning_platform.update_platform_data_failed"}`); (2)
+  retry append to `FEEDBACK_TABLE/rows/add` with the nine client-supplied fields
+  in this exact order: full name, email, fill date, module number, module-size
+  score, content-quality score, platform-quality score,
+  printed-material-quality score, comments
+  (`500 {"error":"learning_platform.append_feedback_failed"}`). Success is
   `200 {}`.
 - **Partial success/idempotency:** progress can persist before feedback append
   failure. The append itself is retry-wrapped and has no dedupe key, so an
@@ -737,8 +788,9 @@ and [`integrations/microsoft-graph.js` lines 60-62](../integrations/microsoft-gr
 - **Consumer:** frozen
   [`plataforma_v2/estudo/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/estudo/main.js#L962-L986)
   supplies all fields from client state/DOM, requires success JSON but reads no
-  success key, recognizes `Erro_008`/`Erro_009`, and treats current `401 {}`
-  generically.
+  success key, and recognizes legacy aliases `Erro_008`/`Erro_009`. The deployed
+  adapter also accepts the corresponding current values. Current `401 {}` is
+  treated generically.
 - **Other errors:** failures outside the two catches have no explicit route
   error contract.
 
@@ -771,7 +823,7 @@ implementation in [`domains/drm.js` lines 3-13](../domains/drm.js#L3-L13).
 
 Source: route registration in [`app.js` line 89](../app.js#L89), business and
 response-projection ordering in
-[`domains/learning-platform.js` lines 148-162](../domains/learning-platform.js#L148-L162),
+[`domains/learning-platform.js` lines 159-173](../domains/learning-platform.js#L159-L173),
 and Graph read/row-shape mechanics in
 [`integrations/microsoft-graph.js` lines 20-30](../integrations/microsoft-graph.js#L20-L30).
 
@@ -780,7 +832,7 @@ and Graph read/row-shape mechanics in
   indexing are current behavior.
 - **Middleware:** global middleware only; public reporting route.
 - **Calls/order:** retry `GET PLATFORM_TABLE/rows`; exhausted failure is
-  `500 Erro_001`.
+  `500 {"error":"learning_platform.read_platform_data_failed"}`.
 - **Source-observed response projection:** each selected row becomes a 14-value
   array `[source[0], source[8], ...source[10..21]]`: full name, completed-topic
   count, ten module grades, accumulated grade, certificate ID. The code passes
@@ -796,7 +848,8 @@ and Graph read/row-shape mechanics in
   [`plataforma_v2/statusreport/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/statusreport/main.js#L168-L204)
   derives the two body values from page query keys `li`/`lf`, requires JSON, and
   consumes projected indexes `0..12`; it ignores returned certificate index
-  `13`. It recognizes `Erro_001`.
+  `13`. The frozen snapshot recognizes legacy alias `Erro_001`; the deployed
+  adapter also accepts the current value.
 - **Other errors:** malformed returned rows and failures after the successful
   read have no explicit unexpected-error contract.
 
@@ -919,15 +972,15 @@ in-process or assigned new HTTP contracts.
 | `POST /conecta/processa-recomendacao` | Normalized recommender match; exact free-slot update and append 13-cell arrays; duplicate skips write; internal mail precedes confirmation; `200 {}`. | Every invalid-input branch (`Erro_014`), read (`015`), not-found (`016`), write without application retry (`017`), and each mail partial failure (`018`); committed row and prior mail remain; repeat duplicate still mails. |
 | `POST /clientes/processa-formulario` | Exact nested payload; independent email/CPF dedupe; exact 22/13-cell arrays and nulls; platform append -> client append -> internal mail; `200 {}`. | Participant/count validation (`013`); read errors (`001`,`011`); write errors (`008`,`010`); mail error (`012`); each prior effect persists; whole-request retry skips visible duplicate rows but can resend mail. |
 | `POST /clientes/liberacao-acesso-plataforma` | Empty `200` completes before Graph; exact source indexes `35..41`; first-name/email/password selection; 1-second schedule and 2-second pacing. | Read/mail have no application retry; caller never receives their failure; a mail failure stops the remaining suffix; repeated request resends all. |
-| `POST /plataforma_v2/login-FaceID` | Exact credential match and four response fields; active login adds a valid four-hour handle; inactive login omits it. | Graph failure `Erro_001`; invalid credentials `401 credenciais_inválidas`; inactive remains `200`; row-shape failure is not assigned an existing JSON error. |
-| `POST /plataforma_v2/CadastroFoto_e_FaceID` | Multipart field/file parsing, verified row, photo PUT -> 22-cell `Sim` update -> exact Face session parts; exact two-key `200`. | Multer-before-auth; `401 {}`; `Erro_002/003/004`; prior photo/flag persist; missing file has no defined JSON error; ambiguous Face retry may create multiple sessions. |
-| `POST /plataforma_v2/FaceID` | Verified-row photo GET -> exact Face session parts; exact two-key `200`. | `401 {}`, `Erro_005`, `Erro_004`; Face retry/repeat can create multiple sessions. |
-| `GET /plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID` | Exact Face path parameter forwarding and three-key projection. | Public access; five-attempt `Erro_007`; missing attempt/result shape has no defined JSON error. |
-| `POST /plataforma_v2/refresh` | Verified index selects exact source positions and returns all 18 exact Unicode keys. | `401 {}`; `Erro_001`; missing row/short width has no defined JSON error; no replacement handle is returned. |
-| `POST /plataforma_v2/updates` | Exact 22-cell progress-only and progress-plus-grade arrays; verified row; `200 {}`. | `401 {}`; `Erro_008`; preserve lack of value/type/range validation and fixed-value retry behavior. |
-| `POST /plataforma_v2/processa-feedback` | Verified-row 22-cell progress update precedes exact nine-value feedback append; `200 {}`. | `401 {}`, `Erro_008`, `Erro_009`; progress persists before append failure; ambiguous append retry/repeat can duplicate; identity remains client-supplied. |
+| `POST /plataforma_v2/login-FaceID` | Exact credential match and four response fields; active login adds a valid four-hour handle; inactive login omits it. | Graph failure `learning_platform.read_platform_data_failed`; invalid credentials `401 credenciais_inválidas`; inactive remains `200`; row-shape failure is not assigned an existing JSON error. |
+| `POST /plataforma_v2/CadastroFoto_e_FaceID` | Multipart field/file parsing, verified row, photo PUT -> 22-cell `Sim` update -> exact Face session parts; exact two-key `200`. | Multer-before-auth; `401 {}`; `learning_platform.upload_reference_photo_failed`, `learning_platform.update_reference_photo_registration_failed`, and `learning_platform.create_face_liveness_session_failed`; prior photo/flag persist; missing file has no defined JSON error; ambiguous Face retry may create multiple sessions. |
+| `POST /plataforma_v2/FaceID` | Verified-row photo GET -> exact Face session parts; exact two-key `200`. | `401 {}`; `learning_platform.read_reference_photo_failed`; `learning_platform.create_face_liveness_session_failed`; Face retry/repeat can create multiple sessions. |
+| `GET /plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID` | Exact Face path parameter forwarding and three-key projection. | Public access; five-attempt `learning_platform.read_face_liveness_result_failed`; missing attempt/result shape has no defined JSON error. |
+| `POST /plataforma_v2/refresh` | Verified index selects exact source positions and returns all 18 exact Unicode keys. | `401 {}`; `learning_platform.read_platform_data_failed`; missing row/short width has no defined JSON error; no replacement handle is returned. |
+| `POST /plataforma_v2/updates` | Exact 22-cell progress-only and progress-plus-grade arrays; verified row; `200 {}`. | `401 {}`; `learning_platform.update_platform_data_failed`; preserve lack of value/type/range validation and fixed-value retry behavior. |
+| `POST /plataforma_v2/processa-feedback` | Verified-row 22-cell progress update precedes exact nine-value feedback append; `200 {}`. | `401 {}`; `learning_platform.update_platform_data_failed`; `learning_platform.append_feedback_failed`; progress persists before append failure; ambiguous append retry/repeat can duplicate; identity remains client-supplied. |
 | `GET /ezdrm-playready-authorization-url` | Exact query casing, fixed text/order, URL encoding, empty defaults, `text/html; charset=utf-8`. | No external call; wrong-case keys behave as absent; preserve deterministic `200`. |
-| `POST /plataforma_v2/statusreport` | Numeric bounds use an inclusive end and exact 14-value row projection under the exact response key. | Public access; preserve exact `linha_final + 1` then `slice` coercion for nonnumeric types; no validation; `Erro_001`; malformed rows have no defined JSON error. |
+| `POST /plataforma_v2/statusreport` | Numeric bounds use an inclusive end and exact 14-value row projection under the exact response key. | Public access; preserve exact `linha_final + 1` then `slice` coercion for nonnumeric types; no validation; `learning_platform.read_platform_data_failed`; malformed rows have no defined JSON error. |
 | `GET /validacaocertificados/:Solicitante_CertificadoID` | Trim/uppercase match; present normalized-empty/not-found ID returns false; fractions and whole percentages; exactly 70 valid; exact valid response keys. | Missing path segment uses default 404; `Erro_001`; nonfinite/below-70 false; threshold occurs before rounding; a present invalid ID remains `200`, not 404. |
 
 ## Frozen consumer reconciliation

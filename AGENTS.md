@@ -125,25 +125,46 @@ repository separately.
 
 ## Error registry
 
-This is the backend/frontend `Erro_XXX` contract. Allocate the next free number
-for a new backend error and add its Portuguese message in every consumer. Current
-consumer locations include `../sistemas/apps/quote-request/main.js`,
-`../sistemas/apps/client-intake/main.js`,
-`../sistemas/apps/certificate-validation/main.js`,
-`../sistemas/apps/conecta/referral-form/main.js`, and
-`../sistemas/plataforma_v2/`. `Erro_000` and `Erro_006` are emitted only by
-frontends.
+Learning-platform producers use the following domain-qualified machine values.
+Keep their map private to `domains/learning-platform.js`; do not export it or
+move it into a shared/global error module.
+
+- `learning_platform.read_platform_data_failed` — legacy transition alias
+  `Erro_001`
+- `learning_platform.upload_reference_photo_failed` — legacy transition alias
+  `Erro_002`
+- `learning_platform.update_reference_photo_registration_failed` — legacy
+  transition alias `Erro_003`
+- `learning_platform.create_face_liveness_session_failed` — legacy transition
+  alias `Erro_004`
+- `learning_platform.read_reference_photo_failed` — legacy transition alias
+  `Erro_005`
+- `learning_platform.read_face_liveness_result_failed` — legacy transition
+  alias `Erro_007`
+- `learning_platform.update_platform_data_failed` — legacy transition alias
+  `Erro_008`
+- `learning_platform.append_feedback_failed` — legacy transition alias
+  `Erro_009`
+
+The deployed learning-platform frontend temporarily accepts the legacy aliases
+`Erro_001`, `Erro_002`, `Erro_003`, `Erro_004`, `Erro_005`, `Erro_007`,
+`Erro_008`, and `Erro_009` through
+`../sistemas/apps/learning-platform/modules/error-adapter.js`. Its visible
+Brazilian-Portuguese messages and `Erro_XXX` presentation prefixes remain in
+`../sistemas/apps/learning-platform/modules/error-presentation.js`. Do not emit
+those aliases from learning-platform backend producers, and do not remove their
+frontend acceptance until the separately reviewed transition cleanup.
+
+Numbered values remain current in unrelated domains. In particular, the
+`Erro_001` and `Erro_008` aliases are shared: client onboarding still emits
+both, and certificate validation still emits `Erro_001`. Allocate a new number
+only when extending an unrelated numbered contract, and update every affected
+consumer.
 
 - `Erro_000` — frontend fallback: network/unknown failure reaching the backend
-- `Erro_001` — read BD Plataforma
-- `Erro_002` — upload FotoReferência to OneDrive
-- `Erro_003` — flag FotoReferência as registered in BD Plataforma
-- `Erro_004` — create Azure Face liveness session (authToken/sessionID)
-- `Erro_005` — read FotoReferência from OneDrive
+- `Erro_001` — client-onboarding/certificate-validation read BD Plataforma
 - `Erro_006` — frontend: FaceLivenessDetector failed to run
-- `Erro_007` — read Azure Face liveness session results
-- `Erro_008` — write BD Plataforma
-- `Erro_009` — write BD Feedbacks
+- `Erro_008` — client-onboarding write BD Plataforma
 - `Erro_010` — write BD Clientes
 - `Erro_011` — read BD Clientes
 - `Erro_012` — formulario sendMail
