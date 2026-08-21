@@ -505,23 +505,25 @@ the exact envelope `{"error":<machine value>}`. Requests, authorization,
 application retry, ordering, projection, side effects, and partial-success
 behavior are unchanged.
 
-| Private map key | Producer boundaries | Current machine value | Legacy frontend transition alias |
-|---|---|---|---|
-| `platformDataReadFailure` | `login-FaceID`, `refresh`, `statusreport` | `learning_platform.read_platform_data_failed` | `Erro_001` |
-| `referencePhotoUploadFailure` | `CadastroFoto_e_FaceID` photo upload | `learning_platform.upload_reference_photo_failed` | `Erro_002` |
-| `referencePhotoRegistrationUpdateFailure` | `CadastroFoto_e_FaceID` registration-flag update | `learning_platform.update_reference_photo_registration_failed` | `Erro_003` |
-| `faceLivenessSessionCreationFailure` | `CadastroFoto_e_FaceID` and `FaceID` session creation | `learning_platform.create_face_liveness_session_failed` | `Erro_004` |
-| `referencePhotoReadFailure` | `FaceID` reference-photo read | `learning_platform.read_reference_photo_failed` | `Erro_005` |
-| `faceLivenessResultReadFailure` | `FaceID_resultado` | `learning_platform.read_face_liveness_result_failed` | `Erro_007` |
-| `platformDataWriteFailure` | `updates` and `processa-feedback` progress update | `learning_platform.update_platform_data_failed` | `Erro_008` |
-| `feedbackAppendFailure` | `processa-feedback` feedback append | `learning_platform.append_feedback_failed` | `Erro_009` |
+| Private map key | Producer boundaries | Named machine value |
+|---|---|---|
+| `platformDataReadFailure` | `login-FaceID`, `refresh`, `statusreport` | `learning_platform.read_platform_data_failed` |
+| `referencePhotoUploadFailure` | `CadastroFoto_e_FaceID` photo upload | `learning_platform.upload_reference_photo_failed` |
+| `referencePhotoRegistrationUpdateFailure` | `CadastroFoto_e_FaceID` registration-flag update | `learning_platform.update_reference_photo_registration_failed` |
+| `faceLivenessSessionCreationFailure` | `CadastroFoto_e_FaceID` and `FaceID` session creation | `learning_platform.create_face_liveness_session_failed` |
+| `referencePhotoReadFailure` | `FaceID` reference-photo read | `learning_platform.read_reference_photo_failed` |
+| `faceLivenessResultReadFailure` | `FaceID_resultado` | `learning_platform.read_face_liveness_result_failed` |
+| `platformDataWriteFailure` | `updates` and `processa-feedback` progress update | `learning_platform.update_platform_data_failed` |
+| `feedbackAppendFailure` | `processa-feedback` feedback append | `learning_platform.append_feedback_failed` |
 
-The deployed frontend adapter accepts both columns and maps them to the same
-semantic kinds; its visible Brazilian-Portuguese messages and `Erro_XXX`
-presentation prefixes are unchanged. The aliases are not globally retired:
-client onboarding still produces `Erro_001` and `Erro_008`, while certificate
-validation still produces `Erro_001`. `Erro_000` and `Erro_006` remain
-frontend-owned. Parser, projection, and row-shape failures outside these twelve
+The deployed frontend adapter accepts only these named values and maps them to
+the same semantic kinds; its visible Brazilian-Portuguese messages and
+`Erro_XXX` presentation prefixes are unchanged. Numbered values remain current
+outside the learning-platform producer/consumer boundary:
+`domains/client-onboarding.js` still produces `Erro_001` and `Erro_008`, while
+`domains/certificate-validation.js` still produces `Erro_001`. `Erro_000` and
+`Erro_006` remain frontend-owned presentation outcomes rather than accepted
+machine values. Parser, projection, and row-shape failures outside these twelve
 catches receive no newly invented mapping.
 
 ### `POST /plataforma_v2/login-FaceID`
@@ -601,10 +603,10 @@ and Face multipart/projection mechanics in
 - **Consumer:** frozen
   [`plataforma_v2/cadastro/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/cadastro/main.js#L73-L117)
   appends `IndexVerificado` then `file` to browser `FormData`, requires JSON,
-  and reads both success keys. The frozen snapshot recognizes legacy aliases
-  `Erro_002` through `Erro_004`; the deployed adapter also accepts the
-  corresponding current values. Current `401 {}` becomes its generic error
-  path.
+  and reads both success keys. The deployed consumer accepts only the
+  corresponding named machine values; its visible `Erro_002` through
+  `Erro_004` outcomes remain unchanged. Current `401 {}` becomes its generic
+  error path.
 - **Other errors:** Multer errors use the default Express error response;
   missing-file and unexpected handler failures have no explicit route JSON
   contract.
@@ -641,10 +643,10 @@ and Face multipart/projection mechanics in
   more than one session.
 - **Consumer:** frozen
   [`plataforma_v2/login/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/login/main.js#L152-L195)
-  sends the handle, requires JSON, and reads both success keys. The frozen
-  snapshot recognizes legacy aliases `Erro_004`/`Erro_005`; the deployed
-  adapter also accepts the corresponding current values. Current `401 {}`
-  becomes its generic error path.
+  sends the handle, requires JSON, and reads both success keys. The deployed
+  consumer accepts only the corresponding named machine values; its visible
+  `Erro_004`/`Erro_005` outcomes remain unchanged. Current `401 {}` becomes its
+  generic error path.
 - **Other errors:** unexpected downloaded-photo or Face-response shape failures
   have no explicit error contract.
 
@@ -682,8 +684,8 @@ and Face result-path/projection mechanics in
   [`main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/cadastro/main.js#L108-L148)
   require JSON and consume the decisions; registration also displays match
   confidence. Both send `Content-Type: application/json` despite having no
-  body. The frozen snapshots recognize legacy alias `Erro_007`; the deployed
-  adapter also accepts the current value.
+  body. The deployed consumers accept only the corresponding named machine
+  value; their visible `Erro_007` presentation outcomes remain unchanged.
 - **Other errors:** an absent/changed Face attempts/result shape has no explicit
   unexpected-error contract.
 
@@ -713,9 +715,10 @@ and Graph read/projection mechanics in
   change with workbook state. The handle is neither refreshed nor returned.
 - **Consumer:** frozen
   [`plataforma_v2/estudo/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/estudo/main.js#L113-L137)
-  sends the handle, requires JSON, and reads every success key. The frozen
-  snapshot recognizes legacy alias `Erro_001`; the deployed adapter also
-  accepts the current value. Current `401 {}` becomes its generic error path.
+  sends the handle, requires JSON, and reads every success key. The deployed
+  consumer accepts only the corresponding named machine value; its visible
+  `Erro_001` outcome remains unchanged. Current `401 {}` becomes its generic
+  error path.
 - **Other errors:** a verified index no longer present in returned workbook data
   or a short row has no explicit unexpected-error contract.
 
@@ -751,9 +754,10 @@ and Graph row-update mechanics in
   [`plataforma_v2/estudo/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/estudo/main.js#L794-L806)
   sends either exact type above with a numeric module/grade or type
   `NúmeroTópicosConcluídos` with `NúmeroMódulo: "n/a"` and
-  `NotaTeste: "n/a"`. It requires success JSON but reads no success key,
-  recognizes legacy alias `Erro_008`, and through the deployed adapter accepts
-  the current value. It treats current `401 {}` generically.
+  `NotaTeste: "n/a"`. It requires success JSON but reads no success key. The
+  deployed consumer accepts only the corresponding named machine value; its
+  visible `Erro_008` outcome remains unchanged. It treats current `401 {}`
+  generically.
 - **Other errors:** unexpected serialization/index behavior has no explicit
   route error contract.
 
@@ -787,10 +791,10 @@ and [`integrations/microsoft-graph.js` lines 60-62](../integrations/microsoft-gr
   and feedback fields are not derived from the verified workbook row.
 - **Consumer:** frozen
   [`plataforma_v2/estudo/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/estudo/main.js#L962-L986)
-  supplies all fields from client state/DOM, requires success JSON but reads no
-  success key, and recognizes legacy aliases `Erro_008`/`Erro_009`. The deployed
-  adapter also accepts the corresponding current values. Current `401 {}` is
-  treated generically.
+  supplies all fields from client state/DOM and requires success JSON but reads
+  no success key. The deployed consumer accepts only the corresponding named
+  machine values; its visible `Erro_008`/`Erro_009` outcomes remain unchanged.
+  Current `401 {}` is treated generically.
 - **Other errors:** failures outside the two catches have no explicit route
   error contract.
 
@@ -848,8 +852,8 @@ and Graph read/row-shape mechanics in
   [`plataforma_v2/statusreport/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/statusreport/main.js#L168-L204)
   derives the two body values from page query keys `li`/`lf`, requires JSON, and
   consumes projected indexes `0..12`; it ignores returned certificate index
-  `13`. The frozen snapshot recognizes legacy alias `Erro_001`; the deployed
-  adapter also accepts the current value.
+  `13`. The deployed consumer accepts only the corresponding named machine
+  value; its visible `Erro_001` outcome remains unchanged.
 - **Other errors:** malformed returned rows and failures after the successful
   read have no explicit unexpected-error contract.
 
