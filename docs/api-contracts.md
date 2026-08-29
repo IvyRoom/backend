@@ -891,6 +891,21 @@ and Graph read/row-shape mechanics in
 - **Other errors:** processing failures after a successful read have no
   explicit unexpected-error contract.
 
+## Approved future session-authority decision
+
+The decision-complete replacement for signed workbook-row authority is
+documented in [`session-authority.md`](session-authority.md). It selects a
+durable backend-owned session record, stable subject identity, first-party
+host-only cookie transport, explicit provisional phases, server-time expiry,
+revocation, bounded eligibility revalidation, session-bound Face promotion,
+and a bounded legacy cutover.
+
+That ADR is a future target and does not modify this current API inventory.
+None of its cookie, CORS, API, state, store, logout, or revocation behavior is
+implemented by publishing the decision. The source-observed route, middleware,
+payload, status, retry, error, and signed-handle contracts in this document
+remain current until a later implementation task changes them explicitly.
+
 ## Compatibility contracts versus known-risk legacy behavior
 
 The route inventory above is the compatibility contract. The completed
@@ -1007,12 +1022,19 @@ The search result is inventory evidence only and does not authorize removal.
 The push workflow ignores `**/*.md`, `docs/**`, and `test/**`, but it does not
 ignore production JavaScript, including `app.js`, `server.js`,
 `platform-row-authorization.js`, `domains/**`, `integrations/**`, or `shared/**`.
-Because the integration extraction changes `app.js` and adds production modules
-under `integrations/**`, merging it to `main` triggers the Node.js 24 build and
-test job and deployment of the resulting repository artifact to the Production
-slot. This merge is production-affecting even though its documentation and test
-paths are individually ignored. Manual `workflow_dispatch` also remains
-available. Source:
+Because the earlier integration extraction changed `app.js` and added
+production modules under `integrations/**`, merging that change to `main`
+triggered the Node.js 24 build/test job and deployment of the resulting
+repository artifact to the Production slot. That earlier merge was
+production-affecting even though its documentation and test paths were
+individually ignored. Manual `workflow_dispatch` also remains available.
+Source:
 [`main_plataforma-backend-v3.yml` lines 6-17](../.github/workflows/main_plataforma-backend-v3.yml#L6-L17),
 [`main_plataforma-backend-v3.yml` lines 19-41](../.github/workflows/main_plataforma-backend-v3.yml#L19-L41),
 and [`main_plataforma-backend-v3.yml` lines 43-71](../.github/workflows/main_plataforma-backend-v3.yml#L43-L71).
+
+The session-authority definition task changes only Markdown under `README.md`
+and `docs/**`. Those paths are intentionally ignored by the push workflow, so
+merging this documentation-only decision does not trigger a production backend
+deployment. Manual dispatch remains possible but is neither required nor
+authorized by the decision.
