@@ -126,6 +126,14 @@ Unless `PORT` is configured, the server listens on `http://localhost:3000`.
 
 After a successful active-account login, the backend returns a four-hour signed authorization handle in the legacy `IndexVerificado` response field. The frontend treats this value as opaque and sends it back to row-scoped platform endpoints. The backend verifies the signature and expiration before deriving the workbook row index; callers cannot select a different learner by changing the value.
 
+The approved replacement is documented separately in the
+[session-authority target decision](docs/session-authority.md). It is not
+implemented: the signed row handle, current route behavior, and current risks
+remain exactly as described here and in the API inventory. That target keeps
+the current per-account Face exception during the workbook migration, but
+makes the backend—not browser state—interpret exact `FACEID` policy for each
+fresh login.
+
 `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` must be stable canonical Base64 that
 decodes to exactly 32 random bytes. Generate it once through an approved
 secret-management process, keep it out of output and shell history, and store
@@ -163,6 +171,7 @@ the domain, integration, and shared modules.
 ## Maintenance and contributor documentation
 
 - [Current API contract inventory](docs/api-contracts.md)
+- [Approved session-authority target decision](docs/session-authority.md)
 - [Update the Face Liveness Web SDK](docs/runbooks/update-face-liveness-sdk.md)
 - [Repository collaboration guidance](AGENTS.md)
 
