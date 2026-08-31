@@ -554,7 +554,10 @@ and Graph read/projection mechanics in
   [`plataforma_v2/login/main.js`](https://github.com/IvyRoom/sistemas/blob/c68f361de054a936b7a6871d82d75a1cdb457c97/plataforma_v2/login/main.js#L92-L126)
   parses JSON before checking status, stores the returned fields, branches on
   login status, and uniquely treats `401` as invalid credentials. The inactive
-  `200` drives its expired-login UI.
+  `200` drives its expired-login UI. The current backend merely projects
+  workbook index `4`; the browser alone interprets exact Face status `Inativo`
+  as permission to skip registration/Face and enter study. That current
+  client-side factor decision is not backend-enforced session authority.
 - **Other errors:** malformed workbook rows, including a non-stringifiable
   password cell, have no explicit unexpected-error contract.
 
@@ -898,7 +901,12 @@ documented in [`session-authority.md`](session-authority.md). It selects a
 durable backend-owned session record, stable subject identity, first-party
 host-only cookie transport, explicit provisional phases, server-time expiry,
 revocation, bounded eligibility revalidation, session-bound Face promotion,
-and a bounded legacy cutover.
+and a bounded legacy cutover. While the workbook remains the account adapter,
+the backend reads exact `BD - PLATAFORMA.FACEID`: `Ativo` requires Face and
+`Inativo` permits direct authenticated issuance after credentials and
+eligibility. The setting applies only to a fresh login, requires no dedicated
+change-audit workflow, and later moves once to backend account authority
+without workbook/SQL dual authority.
 
 That ADR is a future target and does not modify this current API inventory.
 None of its cookie, CORS, API, state, store, logout, or revocation behavior is

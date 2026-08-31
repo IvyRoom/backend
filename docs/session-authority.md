@@ -163,7 +163,7 @@ The minimum owned schema is:
 | Record | Required authority data |
 | --- | --- |
 | `learning_subject` | immutable `subject_id`; unique keyed legacy-login lookup token and key ID; encrypted exact legacy-account mapping and key ID; mutable row hint; credential version; keyed credential fingerprint and fingerprint-key ID; subject session epoch; irreversible `legacy_authority_disabled_at`; normalized eligibility state; entitlement expiry; eligibility observation and revalidation instants |
-| `learning_session` | HMAC-SHA-256 identifier verifier and verifier-key ID; `subject_id`; phase; original issue time; phase start; absolute expiry; subject, credential, and global epoch snapshots; revocation time/reason; replacement relation |
+| `learning_session` | HMAC-SHA-256 identifier verifier and verifier-key ID; `subject_id`; phase; original issue time; phase start; absolute expiry; Face-requirement snapshot captured at credential validation; subject, credential, and global epoch snapshots; revocation time/reason; replacement relation |
 | `learning_session_flow` | current provisional session; registration state; one private provider Face challenge reference; creation/consumption state; no client assertion of result |
 | `legacy_session_compatibility` | unique HMAC-SHA-256 verifier of the complete signed legacy handle and dedicated key ID; immutable bound `subject_id`; original issue/expiry instants; revocation/incident state; never the raw handle or a mutable row as authority |
 | `session_authority_control` | global session epoch; legacy-ledger seeding/enforcement state; legacy-handle issuance/acceptance flags and hard sunset; incident state |
@@ -236,8 +236,8 @@ Target transitions are exact:
 
 | From | Event and backend proof | To | Identifier/time effect |
 | --- | --- | --- | --- |
-| `anonymous` | Credentials match one subject, account is eligible, and Face is required | `credential-verified` | Issue a new identifier; start the 20-minute provisional clock; backend records whether registration is required |
-| `anonymous` | Credentials match, account is eligible, and backend account policy does not require Face | `authenticated` | Issue an authenticated identifier; start the four-hour clock |
+| `anonymous` | Credentials match one subject, account is eligible, and the backend reads exact `FACEID = Ativo` | `credential-verified` | Issue a new identifier; start the 20-minute provisional clock; capture that Face is required and whether registration is required |
+| `anonymous` | Credentials match one subject, account is eligible, and the backend reads exact `FACEID = Inativo` | `authenticated` | Issue an authenticated identifier regardless of photo-registration state; capture that Face was not required and start the four-hour clock |
 | `credential-verified` | Backend accepts required registration enrollment | `registration-pending` | Rotate identifier; preserve the original provisional deadline |
 | `credential-verified` | Backend creates and privately binds an existing-photo Face challenge | `face-pending` | Rotate identifier; preserve the original provisional deadline |
 | `registration-pending` | Required registration state is reconciled and the backend creates and privately binds a Face challenge | `face-pending` | Rotate identifier; preserve the original provisional deadline |
@@ -393,6 +393,51 @@ Browser clocks and `Horário-Encerramento-Sessão` have no authority effect.
 | Authenticated elevation | Rotate the identifier and start a new four-hour authenticated clock |
 | Entitlement limit | Effective session expiry is the earlier of its absolute deadline and the normalized account-entitlement expiry |
 
+### Face-requirement account policy
+
+While `BD - PLATAFORMA` remains the account-policy adapter, its existing
+`FACEID` cell at platform-row index `4` is the single policy source for whether
+a fresh credential login requires Face. The backend reads and interprets that
+cell; the current response projection `Usuário_Status_FaceID`, a client request,
+Web Storage, or any other browser state never selects or overrides the policy.
+
+The accepted values and effects are exact and case-sensitive:
+
+- `Ativo` requires the scoped registration/Face flow and backend-bound
+  successful Face completion before an authenticated session can exist;
+- `Inativo` waives that factor for this credential login, so valid credentials
+  plus account eligibility create an authenticated four-hour session directly,
+  regardless of photo-registration state; and
+- a missing, blank, unreadable, or different value is an authority-data
+  configuration failure. It fails closed as `503`, issues neither a target
+  identifier nor a legacy handle, emits no `Set-Cookie`, and leaves any
+  previously valid cookie session unchanged.
+
+The selected value is captured in the newly issued session and copied unchanged
+through every provisional rotation and authenticated promotion. An
+`Ativo`/`Inativo` workbook edit applies only to a fresh credential login and is
+not part of the five-minute eligibility-revalidation loop. It does not promote
+an existing provisional session or revoke, downgrade, or upgrade an existing
+authenticated session. A user blocked in a provisional Face flow must submit
+fresh credentials after `Ativo` becomes `Inativo`; successful direct
+authentication replaces the profile's presented provisional session and starts
+a new four-hour clock. An authenticated session issued while Face was not
+required continues until logout, revoke-all, absolute or entitlement expiry,
+or another already defined revocation trigger. A later `Inativo` to `Ativo`
+change governs the next login only.
+
+Topic 05 requires no dedicated Face-policy audit log, actor/reason field,
+time-bounded override, or management UI under the current single-operator
+model. Existing workbook access control and ordinary file history are
+operational safeguards, not session-authority records. If account-policy
+ownership later expands or compliance requirements change, a separate
+milestone may reconsider that decision without blocking Topic 05.
+
+When account authority migrates from the workbook, this policy moves once to a
+backend-owned boolean such as `face_auth_required`. The cutover switches the
+read authority and stops consulting `BD - PLATAFORMA.FACEID` for new logins;
+there is no workbook/SQL dual authority, precedence rule, or fallback window.
+
 Credential validation synchronously reads current backend-owned account input,
 normalizes entitlement expiry to a UTC instant, and records an eligibility
 observation. Invalid, ambiguous, inactive, or already expired eligibility
@@ -494,6 +539,7 @@ cache delays a committed revocation.
 | Idle expiry | None | Not applicable; no idle timeout |
 | Known access-entitlement expiry | Compare normalized UTC entitlement on every request | At the exact known instant |
 | Manual workbook deactivation, earlier entitlement change, or credential-cell change | Synchronous revalidation when the central observation reaches five minutes; fingerprint change revokes all | No more than five minutes of reusable positive eligibility for any provisional/authenticated transition or request |
+| `FACEID` changes between exact `Ativo` and `Inativo` | No mutation or revocation of an existing session; capture the new policy only after fresh credential validation | The next fresh credential login reads it synchronously; existing sessions retain their issuance-time policy and ordinary deadlines |
 | Backend-owned account deactivation | Revoke all and increment subject epoch in the account transaction | Effective at SQL commit |
 | Credential reset | Increment credential version and revoke all before reset success | Effective at SQL commit; manual legacy changes use the five-minute revalidation bound |
 | Administrator revoke-all | Increment subject epoch and revoke matching records | Effective at SQL commit |
@@ -524,6 +570,7 @@ reuse a generic communication message as an invalid-session transition.
 | Valid session in the wrong phase | `403`; no phase change and no domain work |
 | Session subject differs from an independently owned resource subject | `403`; no domain work; privacy-safe audit event |
 | Invalid credentials | `401`; issue no cookie and leave any existing valid profile session unchanged |
+| Missing, blank, unreadable, or unexpected `BD - PLATAFORMA.FACEID` policy during credential login | `503` authority-data/configuration failure; issue no target identifier or legacy handle, emit no `Set-Cookie`, and leave any existing valid profile session unchanged |
 | Matched subject newly known to be ineligible | `403`; revoke all sessions for that subject in the eligibility transaction; emit no `Set-Cookie` and never disturb another subject's valid profile session |
 | Invalid/missing Origin or session request header | `403` before body/domain work |
 | Competing transition, already active challenge, or not-yet-final bound Face result | `409`; current record remains authoritative |
@@ -562,7 +609,7 @@ session roles. None exists merely because it is listed here.
 
 | Method and path | Owner and allowed phase | Success/cookie behavior | Idempotency and failure classes |
 | --- | --- | --- | --- |
-| `POST /plataforma_v2/login-FaceID` | Session authority; public credential validation | A target-mode request carries `X-Machado-Session-Request: 1`; `200` atomically sets `legacy_authority_disabled_at`, conditionally replaces an active profile session or overwrites an absent/unusable cookie, and issues a provisional/authenticated identifier; it never returns `IndexVerificado`. Before global stop-issuance, a cookie-less legacy-mode request may return the current handle only after its verifier-to-subject binding commits; an identical deterministic binding repeat is `200` | No automatic transport retry; same-active-predecessor conflict is `409` with no `Set-Cookie`; legacy mode with any target cookie or for a target-adopted subject is `409` upgrade-required without a handle; store/eligibility or binding-integrity unavailability is `503`; invalid credentials are `401`; known ineligibility is `403` without cookie mutation |
+| `POST /plataforma_v2/login-FaceID` | Session authority; public credential validation; backend reads the exact `BD - PLATAFORMA.FACEID` policy | A target-mode request carries `X-Machado-Session-Request: 1`; exact `Inativo` creates `authenticated` directly, while exact `Ativo` creates only the minimum provisional phase required for registration/Face; `200` atomically sets `legacy_authority_disabled_at`, conditionally replaces an active profile session or overwrites an absent/unusable cookie, and issues the selected identifier; it never returns `IndexVerificado`. Before global stop-issuance, a cookie-less legacy-mode request may return the current handle only after its verifier-to-subject binding commits; an identical deterministic binding repeat is `200` | No automatic transport retry; missing/blank/unexpected Face policy is `503` without a target identifier, legacy handle, or `Set-Cookie`; same-active-predecessor conflict is `409` with no `Set-Cookie`; legacy mode with any target cookie or for a target-adopted subject is `409` upgrade-required without a handle; store/eligibility or binding-integrity unavailability is `503`; invalid credentials are `401`; known ineligibility is `403` without cookie mutation |
 | `POST /plataforma_v2/sessions/current/registration-enrollment` | Session authority; `credential-verified` with required registration, or already `registration-pending` | `204`; first success rotates to `registration-pending`; no body identifier | Repeated in registration-pending is `204` without another rotation; `401`, `403`, `409`, `503` |
 | `POST /plataforma_v2/CadastroFoto_e_FaceID` | Registration domain plus session authority; `registration-pending`; a `face-pending` repeat is conflict only | `200` after registration state is reconciled and one provider challenge is durably bound; returns only provider data required by the SDK and rotates to `face-pending`; application session/provider session identifiers are absent | No blind retry of upload/external creation; an ambiguous external outcome does not promote or rotate, keeps the phase provisional, marks the private flow reconciliation-required, and makes repeat return `409` until the separately authorized registration-reconciliation decision resolves it; session failures use `401`/`403`/`409`/`503`; current non-session domain status/body remains unchanged until its own redesign |
 | `POST /plataforma_v2/FaceID` | Face domain plus session authority; `credential-verified` with existing registration; a `face-pending` repeat is conflict only | `200`; creates at most one active bound challenge, returns only provider data required by the SDK, and rotates to `face-pending` | Repeated while creating/active is `409`, never a second untracked challenge; session failures use `401`/`403`/`503`; current non-session domain status/body remains unchanged until its own redesign |
@@ -777,7 +824,7 @@ even if present with an invalid target cookie.
 | --- | --- |
 | Stolen or replayed target identifier | HttpOnly first-party cookie, no URL/body/storage exposure, verifier-only persistence, absolute expiry, per-session/revoke-all, and rotation |
 | Stolen or replayed legacy handle during migration | Accept only with an immutable verifier-to-subject binding for a not-yet-adopted subject within the unchanged four-hour lifetime; first target issuance disables every subject handle and global rejection ends the bounded exception |
-| Forged browser flags or malformed storage | Backend ignores Web Storage for subject, phase, permission, expiry, and eligibility |
+| Forged browser flags, Face waiver, or malformed storage | Backend ignores Web Storage and client-projected `Usuário_Status_FaceID` for subject, phase, permission, expiry, eligibility, and Face policy; only the backend-read policy at fresh credential validation can waive Face |
 | Stale tab | Shared cookie plus current-session validation; invalid response blocks protected work and reconciles presentation |
 | Multiple tabs | One profile cookie; rotation/logout affects all tabs; same-predecessor transitions serialize in SQL, while cookie-less logins follow the explicit independent-login policy |
 | Multiple devices | Separate records allowed; new login preserves other devices; revoke-all invalidates every subject record |
@@ -828,6 +875,7 @@ networking.
 | `SESSION-TARGET-19` | Restart and multi-instance tests observe committed rotation/revocation and subject legacy cutoffs without a positive authorization cache; same-predecessor races let only the compare-and-replace winner issue a cookie, every non-issuance response has no `Set-Cookie` in either response order, fresh login overwrites unusable cookies, and cookie-less login/logout races follow the documented last-processed-response/new-authentication policy |
 | `SESSION-TARGET-20` | Runtime, dependencies, 14-route current inventory, five legacy placements, current seven-key inventory, public Face-result behavior, and artifact identities remain unchanged by this definition task |
 | `SESSION-TARGET-21` | A full four-hour ledger-seeding horizon precedes dual-stack enforcement; every accepted legacy handle resolves through one immutable verifier-to-subject binding; an identical same-second deterministic issuance is idempotent success; pre-ledger/missing bindings fail `401`, differing/corrupt bindings fail `503`, and workbook row movement never changes the subject |
+| `SESSION-TARGET-22` | Fresh-login tests prove exact backend-read `FACEID = Ativo` requires backend-bound Face, exact `Inativo` creates authenticated authority directly regardless of photo state, and missing/blank/other values fail `503` without a target identifier, legacy handle, or `Set-Cookie`; edits affect only fresh logins, existing provisional/authenticated sessions retain their captured policy and normal lifetime, browser assertions cannot waive Face, and the later account-authority cutover leaves exactly one policy source |
 
 ## Later implementation ownership
 

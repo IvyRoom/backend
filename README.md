@@ -129,7 +129,10 @@ After a successful active-account login, the backend returns a four-hour signed 
 The approved replacement is documented separately in the
 [session-authority target decision](docs/session-authority.md). It is not
 implemented: the signed row handle, current route behavior, and current risks
-remain exactly as described here and in the API inventory.
+remain exactly as described here and in the API inventory. That target keeps
+the current per-account Face exception during the workbook migration, but
+makes the backend—not browser state—interpret exact `FACEID` policy for each
+fresh login.
 
 `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` must be stable canonical Base64 that
 decodes to exactly 32 random bytes. Generate it once through an approved
