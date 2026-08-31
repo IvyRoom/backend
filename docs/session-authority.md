@@ -8,7 +8,7 @@
 
 This ADR defines the future authority boundary for revocable learning-platform
 sessions across the backend and the
-[`sistemas` consumer](https://github.com/IvyRoom/sistemas/blob/81bb2f77b3625961db51dda32f72d1510c332e08/docs/learning-platform-contracts.md#approved-future-session-authority-consumer-decision).
+[`sistemas` consumer](https://github.com/IvyRoom/sistemas/blob/d7e220ee60bfb5aceb98094f72fb7d8bc5ead727/docs/learning-platform-contracts.md#approved-future-session-authority-consumer-decision).
 It is a target decision, not a description of deployed behavior. Publishing it
 does not create a session store, set a cookie, change CORS, protect a route,
 revoke a handle, alter logout, or remediate any current runtime risk.
