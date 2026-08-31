@@ -44,7 +44,7 @@ function createPlatformRowAuthorizationHandle(rowIndex, signingKey, nowMs = Date
     return `${payloadSegment}.${signatureSegment}`;
 }
 
-function readPlatformRowIndex(handle, signingKey, nowMs = Date.now()) {
+function readPlatformRowAuthorization(handle, signingKey, nowMs = Date.now()) {
     validateSigningKey(signingKey);
     const now = toEpochSeconds(nowMs);
 
@@ -72,7 +72,11 @@ function readPlatformRowIndex(handle, signingKey, nowMs = Date.now()) {
         throw invalidHandle();
     }
 
-    return readValidatedRowIndex(payloadBuffer, now);
+    return readValidatedAuthorization(payloadBuffer, now);
+}
+
+function readPlatformRowIndex(handle, signingKey, nowMs = Date.now()) {
+    return readPlatformRowAuthorization(handle, signingKey, nowMs).rowIndex;
 }
 
 function createPlatformRowAuthorizer(signingKey) {
@@ -87,6 +91,11 @@ function createPlatformRowAuthorizer(signingKey) {
             return res.status(401).json({});
         }
     };
+}
+
+function createPlatformRowAuthorizationInspector(signingKey) {
+    validateSigningKey(signingKey);
+    return (handle, nowMs = Date.now()) => readPlatformRowAuthorization(handle, signingKey, nowMs);
 }
 
 function validateSigningKey(signingKey) {
@@ -127,7 +136,7 @@ function decodeCanonicalBase64Url(segment) {
     return decoded;
 }
 
-function readValidatedRowIndex(payloadBuffer, now) {
+function readValidatedAuthorization(payloadBuffer, now) {
     let payload;
 
     try {
@@ -183,7 +192,11 @@ function readValidatedRowIndex(payloadBuffer, now) {
         throw invalidHandle();
     }
 
-    return payload.rowIndex;
+    return {
+        rowIndex: payload.rowIndex,
+        issuedAt: new Date(payload.iat * 1000),
+        expiresAt: new Date(payload.exp * 1000),
+    };
 }
 
 function invalidHandle() {
@@ -193,7 +206,9 @@ function invalidHandle() {
 module.exports = {
     PLATFORM_ROW_AUTHORIZATION_DURATION_SECONDS,
     createPlatformRowAuthorizer,
+    createPlatformRowAuthorizationInspector,
     decodePlatformRowAuthorizationKey,
     createPlatformRowAuthorizationHandle,
+    readPlatformRowAuthorization,
     readPlatformRowIndex,
 };

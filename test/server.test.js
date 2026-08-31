@@ -7,8 +7,10 @@ const { spawnSync } = require('node:child_process');
 const {
     createGraphTokenLifecycle,
     createProductionDependencies,
+    createSessionAuthorityContinuityLifecycle,
     startProductionServer,
 } = require('../server');
+const { KEY_ENVIRONMENT_NAMES } = require('../domains/session-authority/configuration');
 
 const GRAPH_SCOPE = 'https://graph.microsoft.com/.default';
 const NOW_MS = 1_800_000_000_000;
@@ -47,7 +49,7 @@ function createQueuedAcquireToken(outcomes) {
     return { calls, acquireToken };
 }
 
-function runSyntheticServer({ port } = {}) {
+function runSyntheticServer({ port, withSessionAuthority = false } = {}) {
     const events = [];
     const runtimeHooks = { synthetic: true };
     const appDependencies = { synthetic: true };
@@ -66,6 +68,14 @@ function runSyntheticServer({ port } = {}) {
         },
         stop() {
             events.push('stop-token-lifecycle');
+        },
+    };
+    const sessionAuthorityLifecycle = {
+        start() {
+            events.push('start-session-authority');
+        },
+        async stop() {
+            events.push('stop-session-authority');
         },
     };
     const app = {
@@ -89,7 +99,11 @@ function runSyntheticServer({ port } = {}) {
             assert.equal(receivedEnvironment, environment);
             assert.deepEqual(receivedKey, SIGNING_KEY);
             assert.equal(receivedRuntimeHooks, runtimeHooks);
-            return { appDependencies, graphTokenLifecycle };
+            return {
+                appDependencies,
+                graphTokenLifecycle,
+                ...(withSessionAuthority ? { sessionAuthorityLifecycle } : {}),
+            };
         },
         createApplication(receivedDependencies) {
             events.push('create-application');
@@ -381,6 +395,154 @@ test('startup defaults to port 3000 and stops token lifecycle before closing lis
         'acquire',
         'stop-token-lifecycle',
         'close',
+    ]);
+});
+
+test('durable-store latch composes an inert SQL authority with every rollout permission off', async () => {
+    let poolConstructions = 0;
+    class SyntheticConnectionPool {
+        constructor() {
+            poolConstructions += 1;
+        }
+    }
+    SyntheticConnectionPool.parseConnectionString = () => ({});
+
+    const sdk = {
+        Client: { init: () => ({}) },
+        ConfidentialClientApplication: class {
+            acquireTokenByClientCredential() {
+                return new Promise(() => {});
+            }
+        },
+        AzureKeyCredential: class {},
+        FaceClient: () => ({}),
+        sql: { ConnectionPool: SyntheticConnectionPool },
+    };
+    const environment = {
+        CLIENT_ID: 'synthetic-client-id',
+        TENANT_ID: 'synthetic-tenant-id',
+        CLIENT_SECRET: 'synthetic-client-secret',
+        AZURE_FACE_API_KEY: 'synthetic-face-key',
+        AZURE_FACE_API_ENDPOINT: 'https://synthetic-face.invalid',
+        SESSION_AUTHORITY_DURABLE_STORE_REQUIRED: 'true',
+        SESSION_AUTHORITY_EXPECTED_GENERATION: '1',
+        SESSION_AUTHORITY_LEGACY_SIGNING_KEY_ID: 'synthetic-legacy-signing-key',
+        SESSION_AUTHORITY_SQL_CONNECTION_STRING: 'Server=sql.example.test;Database=authority;Encrypt=true',
+        PLATFORM_ROW_AUTHORIZATION_KEY_BASE64: SIGNING_KEY_BASE64,
+    };
+    let fill = 40;
+    for (const names of Object.values(KEY_ENVIRONMENT_NAMES)) {
+        environment[names.keyId] = `synthetic-key-${fill}`;
+        environment[names.key] = Buffer.alloc(32, fill).toString('base64');
+        fill += 1;
+    }
+
+    const dependencies = createProductionDependencies(environment, SIGNING_KEY, {}, sdk);
+    assert.equal(dependencies.appDependencies.sessionAuthority.runtimeControls.durableStoreRequired, true);
+    assert.equal(
+        Object.values(dependencies.appDependencies.sessionAuthority.runtimeControls).filter(Boolean).length,
+        1,
+    );
+    assert.equal(typeof dependencies.appDependencies.sessionAuthority.store.readControl, 'function');
+    assert.equal(typeof dependencies.sessionAuthorityLifecycle.stop, 'function');
+    assert.equal(poolConstructions, 0);
+    await dependencies.sessionAuthorityLifecycle.stop();
+    assert.equal(poolConstructions, 0);
+});
+
+test('session-authority continuity starts immediately and retries on the fixed heartbeat interval', async () => {
+    const scheduler = createFakeScheduler();
+    const ownerId = '00000000-0000-4000-8000-000000000091';
+    const calls = [];
+    let attempts = 0;
+    const store = {
+        async heartbeatLegacySeedingContinuity(input) {
+            calls.push(input);
+            attempts += 1;
+            if (attempts === 1) throw new Error('synthetic unavailable');
+        },
+        async close() {},
+    };
+    const lifecycle = createSessionAuthorityContinuityLifecycle({
+        store,
+        enabled: true,
+        ownerId,
+        schedule: scheduler.schedule,
+        cancel: scheduler.cancel,
+    });
+
+    await lifecycle.start();
+    assert.deepEqual(calls, [{ ownerId }]);
+    assert.deepEqual(scheduler.scheduled.map(({ delay }) => delay), [30_000]);
+    await scheduler.scheduled[0].callback();
+    assert.deepEqual(calls, [{ ownerId }, { ownerId }]);
+    assert.deepEqual(scheduler.scheduled.map(({ delay }) => delay), [30_000, 30_000]);
+    await lifecycle.stop();
+    assert.deepEqual(scheduler.cancelled, [scheduler.scheduled[1]]);
+});
+
+test('session-authority continuity remains inert while disabled', async () => {
+    const scheduler = createFakeScheduler();
+    let heartbeats = 0;
+    let closes = 0;
+    const lifecycle = createSessionAuthorityContinuityLifecycle({
+        store: {
+            async heartbeatLegacySeedingContinuity() { heartbeats += 1; },
+            async close() { closes += 1; },
+        },
+        enabled: false,
+        schedule: scheduler.schedule,
+        cancel: scheduler.cancel,
+    });
+
+    assert.equal(lifecycle.start(), undefined);
+    assert.equal(heartbeats, 0);
+    assert.equal(scheduler.scheduled.length, 0);
+    await lifecycle.stop();
+    assert.equal(closes, 1);
+});
+
+test('session-authority stop awaits an active heartbeat before closing the pool', async () => {
+    const scheduler = createFakeScheduler();
+    let releaseHeartbeat;
+    const events = [];
+    const pendingHeartbeat = new Promise((resolve) => { releaseHeartbeat = resolve; });
+    const lifecycle = createSessionAuthorityContinuityLifecycle({
+        store: {
+            async heartbeatLegacySeedingContinuity() {
+                events.push('heartbeat-started');
+                await pendingHeartbeat;
+                events.push('heartbeat-finished');
+            },
+            async close() { events.push('pool-closed'); },
+        },
+        enabled: true,
+        ownerId: '00000000-0000-4000-8000-000000000092',
+        schedule: scheduler.schedule,
+        cancel: scheduler.cancel,
+    });
+
+    lifecycle.start();
+    const stopping = lifecycle.stop();
+    await Promise.resolve();
+    assert.deepEqual(events, ['heartbeat-started']);
+    releaseHeartbeat();
+    await stopping;
+    assert.deepEqual(events, ['heartbeat-started', 'heartbeat-finished', 'pool-closed']);
+    assert.equal(scheduler.scheduled.length, 0);
+});
+
+test('graceful stop closes the SQL authority pool after the listener', async () => {
+    const { closeResult, events, result } = runSyntheticServer({ withSessionAuthority: true });
+    const stopped = new Promise((resolve, reject) => {
+        const returned = result.stop((error) => (error ? reject(error) : resolve()));
+        assert.equal(returned, closeResult);
+    });
+    await stopped;
+    assert.deepEqual(events.slice(-3), [
+        'stop-token-lifecycle',
+        'close',
+        'stop-session-authority',
     ]);
 });
 

@@ -1,17 +1,30 @@
 # Session authority target decision
 
-- **Status:** approved target contract; not implemented
+- **Status:** backend implementation complete behind production-disabled gates;
+  durable-store and first-party-topology qualification plus frontend adoption
+  remain blocked
 - **Decision owner:** Machado backend
 - **Decision scope:** Topic 05 · Session authority and logout
 - **Source bases:** backend `00bac84c7ef9d9a1aaa014719043451a1362602c`;
   frontend `1afd814adc02fa2da5ab4c55c1eeb6ebb5bb05b7`
+- **Implementation base:** backend `aee93369916dd1c90182f7f5e68b86232f717f0a`;
+  verified consumer `2404dc96833f5aee658fe913239367346e1763e2`
+- **Production qualification:**
+  [`docs/runbooks/qualify-session-authority.md`](runbooks/qualify-session-authority.md)
 
-This ADR defines the future authority boundary for revocable learning-platform
+This ADR defines the authority boundary for revocable learning-platform
 sessions across the backend and the
 [`sistemas` consumer](https://github.com/IvyRoom/sistemas/blob/d7e220ee60bfb5aceb98094f72fb7d8bc5ead727/docs/learning-platform-contracts.md#approved-future-session-authority-consumer-decision).
-It is a target decision, not a description of deployed behavior. Publishing it
-does not create a session store, set a cookie, change CORS, protect a route,
-revoke a handle, alter logout, or remediate any current runtime risk.
+The backend now contains the selected five-record migration, SQL authority
+adapter, stable-subject mapping, verifier-only target and legacy records,
+provisional phases, backend-bound Face completion, target APIs, and dual-stack
+middleware. The durable-store latch, every runtime rollout control, and every
+target database activation control remain off by default. The database
+compatibility-issuance and acceptance booleans start open but remain inert
+until the durable-store latch is separately enabled. The migration is not
+applied automatically, target routes are absent from the default route table,
+no target cookie is issued, and the current frontend and legacy authority
+remain unchanged.
 
 The source-observed compatibility contract remains
 [`api-contracts.md`](api-contracts.md). Where this ADR says **current**, it
@@ -100,11 +113,11 @@ handles BFCache restoration.
 
 Current evidence:
 
-- ordered route registration: [`app.js` lines 77-90](../app.js#L77-L90);
+- ordered route registration: [`app.js` lines 161-204](../app.js#L161-L204);
 - signed-handle implementation:
-  [`platform-row-authorization.js` lines 5-187](../platform-row-authorization.js#L5-L187);
+  [`platform-row-authorization.js` lines 5-214](../platform-row-authorization.js#L5-L214);
 - current learning-platform handlers:
-  [`domains/learning-platform.js` lines 19-184](../domains/learning-platform.js#L19-L184);
+  [`domains/learning-platform.js` lines 19-190](../domains/learning-platform.js#L19-L190);
 - current API characterization: [signed authorization](api-contracts.md#signed-platform-row-authorization)
   and [route inventory](api-contracts.md#route-inventory); and
 - pinned frontend evidence: [storage and API](https://github.com/IvyRoom/sistemas/blob/1afd814adc02fa2da5ab4c55c1eeb6ebb5bb05b7/docs/learning-platform-contracts.md#L825-L914),
@@ -136,6 +149,29 @@ rather than minting duplicates. The lookup-token key ID and encrypted-value key
 ID are stored; neither the plaintext login nor either key is stored in the
 token column.
 
+The configured lookup key is fenced by the singleton control record together
+with every other authority key. SQL stores the four rotatable key IDs and
+domain-separated 32-byte leaf commitments, independent domain-framed bindings
+for login lookup and account mapping, a canonical aggregate over all six
+purposes, and an independent binding for the existing signed-handle key; it
+never stores a key. The complete binding set starts
+`NULL` and can be initialized explicitly only while every rollout state is
+dormant and all four non-control authority-data tables are empty. Ordinary startup and
+requests never claim it. Every authority transaction verifies each binding,
+recomputes the aggregate, and fails as `503` before a read or write when an
+instance uses a different ID or different material under the same ID.
+Consequently an ordinary configuration swap cannot fork subject, session,
+Face, or legacy authority across instances.
+
+The login-lookup and exact-account-mapping bindings are immutable in this
+milestone. Their rotation is blocked until a separately reviewed, suspended,
+generation-fenced rekey migration can preserve every existing `subject_id` and
+mapping; neither is an online key swap or request-time fallback. The other four
+purpose bindings may change only during the incident-recovery protocol below.
+The separately fenced legacy signing key follows the same recovery entry but,
+because existing signed handles carry no key ID, changing it permanently
+retires legacy issuance and acceptance before authority can resume.
+
 The adapter must re-find and verify the exact encrypted value before a
 row-scoped operation; insertion, deletion, or movement of a workbook row must
 not change the subject. A controlled login change updates the encrypted value
@@ -144,6 +180,18 @@ mints a new subject merely because login text or row position changed. Missing,
 duplicate, ambiguous, or unique-constraint-conflicting mappings fail closed and
 block session issuance until reconciled. The login value and row hint never
 leave the backend and never become session authority.
+
+The implementation exposes that remap only as a non-HTTP backend authority
+operation. It accepts the expected old and replacement exact login transiently,
+derives their keyed lookup tokens, encrypts the replacement, and asks the store
+to compare-and-replace the mapping for the existing `subject_id`. Its result
+contains only idempotency and server-time metadata; neither login nor mapping
+material is returned. Because the workbook edit and SQL transaction cannot be
+one atomic commit, an operator must drain login and authority traffic and
+coordinate both changes as one maintenance action. If that exclusive boundary
+cannot be established, the workbook login must not be renamed. This milestone
+adds no public route, request field, management UI, or automatic identity guess;
+account/password migration remains out of scope.
 
 Client-supplied name, email, row, progress, or other identity fields remain
 compatibility input until their own domain-authority milestones. They may not
@@ -164,9 +212,9 @@ The minimum owned schema is:
 | --- | --- |
 | `learning_subject` | immutable `subject_id`; unique keyed legacy-login lookup token and key ID; encrypted exact legacy-account mapping and key ID; mutable row hint; credential version; keyed credential fingerprint and fingerprint-key ID; subject session epoch; irreversible `legacy_authority_disabled_at`; normalized eligibility state; entitlement expiry; eligibility observation and revalidation instants |
 | `learning_session` | HMAC-SHA-256 identifier verifier and verifier-key ID; `subject_id`; phase; original issue time; phase start; absolute expiry; Face-requirement snapshot captured at credential validation; subject, credential, and global epoch snapshots; revocation time/reason; replacement relation |
-| `learning_session_flow` | current provisional session; registration state; one private provider Face challenge reference; creation/consumption state; no client assertion of result |
+| `learning_session_flow` | current provisional session plus immutable challenge-session lineage; registration/Face-policy snapshots; one private provider Face challenge reference; creation/consumption state; no client assertion of result |
 | `legacy_session_compatibility` | unique HMAC-SHA-256 verifier of the complete signed legacy handle and dedicated key ID; immutable bound `subject_id`; original issue/expiry instants; revocation/incident state; never the raw handle or a mutable row as authority |
-| `session_authority_control` | global session epoch; legacy-ledger seeding/enforcement state; legacy-handle issuance/acceptance flags and hard sunset; incident state |
+| `session_authority_control` | global session epoch and authority generation; four rotatable purpose IDs/leaf commitments; independent login-lookup and account-mapping bindings; canonical aggregate over all six purposes; independent legacy signing-key ID/commitment; recovery state; legacy-ledger seeding/enforcement and continuity-lease evidence; legacy-handle issuance/acceptance flags and hard sunset; incident state |
 
 Of the browser identifier, only an HMAC-SHA-256 verifier and its non-secret key
 ID are persisted. The verifier key is owned by approved secret management and
@@ -180,8 +228,10 @@ login computes the verifier over the complete signed handle, binds it to the
 already resolved stable subject in the same SQL transaction, and returns the
 raw handle only after that commit. The raw legacy value is never persisted or
 logged. The target identifier verifier, legacy compatibility verifier,
-credential fingerprint, and login lookup token all use distinct keys and key
-IDs.
+credential fingerprint, login lookup token, exact-account encryption,
+Face-reference encryption, and legacy signed-handle signature all use distinct
+keys and key IDs. Durable authority separately fences the signed-handle key
+rather than including it in the canonical six-purpose session-key aggregate.
 
 Current legacy issuance is deterministic for a row within one second. Ledger
 insert is therefore idempotent: when the verifier already has the identical
@@ -201,7 +251,7 @@ has not already completed authorization.
 `Implement revocable sessions` cannot start production implementation until a
 narrow session slice of Topic 12 is moved ahead of it:
 
-1. model and review the four records above as the session subset of **Model the
+1. model and review the five records above as the session subset of **Model the
    relational target**;
 2. provision and secure Azure SQL Database Basic as the session subset of
    **Provision Azure SQL Basic**;
@@ -210,9 +260,11 @@ narrow session slice of Topic 12 is moved ahead of it:
    data; and
 4. install secret/configuration ownership without exposing a connection string.
 
-This dependency does not mark the broader relational-data foundation or any
-workbook migration complete. It explicitly reorders only the production
-session-authority slice. If the store is not ready, Topic 05 runtime work stops;
+This pulled-forward implementation does not mark the broader relational-data
+foundation or any workbook migration complete. It explicitly reorders only the
+production session-authority slice. Local implementation and inert verification
+are complete, but production activation remains blocked until the store and
+first-party topology are authorized and qualified under the linked runbook;
 there is no process-memory or signed-handle production substitute.
 
 ## Session states and transitions
@@ -228,7 +280,7 @@ capabilities.
 | `registration-pending` | The backend accepted registration enrollment for this subject | Registration upload/reconciliation, one Face challenge creation, current-session inspection, and logout only |
 | `face-pending` | One backend-created provider challenge is bound to this subject and provisional session | Face completion for that bound challenge, current-session inspection, and logout only |
 | `authenticated` | Credentials and every backend-required factor succeeded and an authenticated session was created | Protected learning operations, current-session inspection, current-session logout, and revoke-all |
-| `expired` | Server time reached the provisional, authenticated, or entitlement deadline | No protected or provisional operation; status rejects without mutating the cookie |
+| `expired` | Server time reached the provisional or authenticated absolute deadline | No protected or provisional operation; status rejects without mutating the cookie |
 | `revoked` | Logout, eligibility, reset, administrator, incident, or failed-factor policy ended authority | No protected or provisional operation; status rejects without mutating the cookie |
 | `rotated-out` | A replacement identifier committed for an allowed phase change | No operation; status rejects the predecessor immediately, does not mutate the cookie, and follows no replacement link for client recovery |
 
@@ -391,7 +443,7 @@ Browser clocks and `Horário-Encerramento-Sessão` have no authority effect.
 | Extension | No request, refresh, activity, registration step, or Face retry extends a deadline |
 | Provisional rotation | Rotate the identifier but preserve the original provisional expiry |
 | Authenticated elevation | Rotate the identifier and start a new four-hour authenticated clock |
-| Entitlement limit | Effective session expiry is the earlier of its absolute deadline and the normalized account-entitlement expiry |
+| Entitlement limit | Effective authority ends at the earlier of the immutable session deadline and normalized account-entitlement expiry; when they are equal, entitlement takes precedence. Crossing the entitlement deadline uses the subject-wide ineligibility/revocation transaction and `403`; the session record and status projection retain the original absolute `expiresAt` |
 
 ### Face-requirement account policy
 
@@ -438,10 +490,14 @@ backend-owned boolean such as `face_auth_required`. The cutover switches the
 read authority and stops consulting `BD - PLATAFORMA.FACEID` for new logins;
 there is no workbook/SQL dual authority, precedence rule, or fallback window.
 
-Credential validation synchronously reads current backend-owned account input,
+Target credential issuance, and bound legacy authorization after ledger
+enforcement, synchronously reads current backend-owned account input,
 normalizes entitlement expiry to a UTC instant, and records an eligibility
 observation. Invalid, ambiguous, inactive, or already expired eligibility
-fails closed without a session.
+fails closed for those authority decisions. Pre-enforcement ledger seeding is
+evidence-only: an exact active legacy credential match records the normalized
+observation and binds the handle but does not newly deny the current legacy
+login because of access-date eligibility, and it creates no target session.
 
 While the workbook remains the account adapter, its numeric Excel access-date
 cell is interpreted as an inclusive `America/Sao_Paulo` civil date. Authority
@@ -453,7 +509,11 @@ status and that entitlement instant must both pass.
 
 Every authority-bearing request and phase transition reads the session record.
 A known entitlement expiry is compared with server time before provisional as
-well as authenticated work. Workbook-driven eligibility may be reused only
+well as authenticated work. When that instant is reached, the store marks the
+subject ineligible and revokes all of its sessions in the same transaction;
+the authority failure is `403`, while each session's immutable absolute
+deadline remains unchanged as record evidence. Workbook-driven eligibility may
+be reused only
 until `eligibility_revalidate_at`, at most five minutes after the prior
 successful observation. At or after that instant, authorization synchronously
 revalidates before registration, Face challenge/completion, authenticated
@@ -537,7 +597,7 @@ cache delays a committed revocation.
 | Current-session logout | Commit `revoked: logout`, then return `204` without mutating the inert cookie | Effective at SQL commit for requests not already authorized |
 | Absolute provisional/authenticated expiry | Compare SQL UTC on every authorization | At the exact expiry instant |
 | Idle expiry | None | Not applicable; no idle timeout |
-| Known access-entitlement expiry | Compare normalized UTC entitlement on every request | At the exact known instant |
+| Known access-entitlement expiry | Compare normalized UTC entitlement on every request; when reached, transactionally mark the subject ineligible and revoke all of its sessions before returning `403` | At the exact known instant |
 | Manual workbook deactivation, earlier entitlement change, or credential-cell change | Synchronous revalidation when the central observation reaches five minutes; fingerprint change revokes all | No more than five minutes of reusable positive eligibility for any provisional/authenticated transition or request |
 | `FACEID` changes between exact `Ativo` and `Inativo` | No mutation or revocation of an existing session; capture the new policy only after fresh credential validation | The next fresh credential login reads it synchronously; existing sessions retain their issuance-time policy and ordinary deadlines |
 | Backend-owned account deactivation | Revoke all and increment subject epoch in the account transaction | Effective at SQL commit |
@@ -545,9 +605,10 @@ cache delays a committed revocation.
 | Administrator revoke-all | Increment subject epoch and revoke matching records | Effective at SQL commit |
 | Target identifier leakage | Revoke current or all affected subject sessions | Effective at SQL commit |
 | Legacy-handle leakage during migration | Set the mapped subject's irreversible legacy cutoff, or disable legacy acceptance globally when scope is uncertain | Effective at the central SQL commit |
-| Session-store corruption, loss, or restore incident | Fail session traffic closed; retire every pre-incident verifier-key ID outside SQL; restore/reconcile records; create a new global epoch and verifier key; if legacy compatibility is or was in scope, force its acceptance flag off and retire/rotate the legacy signing key outside the restored store; resume only after every instance acknowledges the new epoch/keys | Failed lookups block immediately; every pre-incident target identifier and legacy handle is permanently invalid before traffic resumes, including credentials represented by a restored backup |
-| Legacy signing-key incident during migration | Atomically disable legacy acceptance, increment the global epoch, then rotate the legacy key | Effective at the central control commit for new authorization attempts |
-| New verifier-key exposure or authority incident | Fail session traffic closed, retire the affected key ID in external secret control, increment the global epoch, deploy a new key, and require every instance to acknowledge it before resume | New authorization is blocked immediately on incident-control activation; affected identifiers are rejected no later than five minutes after activation and before traffic resumes |
+| Session-store corruption, loss, or restore incident | Fail session traffic closed; retire affected material outside SQL; restore/reconcile; use a suspended old-generation transaction to advance global epoch and generation and enter `recovering`; then allow only the complete replacement generation to perform a separate `recovering`-to-`normal` resume. If legacy compatibility is or was in scope, permanently disable its issuance/acceptance before resume | Failed lookups block immediately; every pre-incident target identifier and legacy handle is permanently invalid before traffic resumes, including credentials represented by a restored backup |
+| Legacy signing-key incident during migration | Suspend authority, permanently disable legacy issuance and acceptance, quarantine the legacy ledger, then replace the signing binding while advancing global epoch/generation into `recovering`; only a separately fenced new-generation transaction may resume | Effective at the central recovery commit; there is no overlapping old-key validation because legacy handles carry no key ID |
+| New verifier, legacy-compatibility, credential-fingerprint, or Face-reference key exposure | Suspend authority, retire the affected key externally, quarantine every unresolved Face flow and revoke its active provisional session, apply any additional purpose-specific invalidation, advance global epoch/generation into `recovering`, deploy the complete replacement keyset, and require its separate resume transaction | New authorization is blocked immediately on incident-control activation; old and mixed instances remain `503`; affected authority is invalid before traffic resumes |
+| Login-lookup or account-mapping key exposure or planned replacement | Suspend authority and do not change ordinary application configuration; retain stable subjects and resume only after a separately implemented, reviewed, generation-fenced rekey migration atomically replaces the immutable mappings and control binding | A mismatched ID or same-ID/different-material instance fails every fenced transaction as `503` before authority data is read or written; rotation remains blocked in this milestone |
 
 An already authorized request may continue under the current domain behavior
 after a concurrent revocation commits. Topic 05 makes no wall-clock or
@@ -556,6 +617,15 @@ cancellation. No request that begins authorization after the commit may
 succeed. Later idempotency and transaction milestones must decide whether a
 specific high-risk write needs a second pre-commit authorization check; this
 ADR does not redesign progress, assessment, feedback, or certificate authority.
+
+No suspended state can return directly to `normal`, and recovery never uses
+the same generation or epoch. The only resume path begins in `recovering`,
+rechecks the already advanced generation/epoch and the complete replacement
+binding set without changing them, proves irreversible legacy retirement when
+required, proves that no pending Face authority survived any key recovery,
+and then stamps `normal`. Suspension or recovery also breaks the continuous
+four-hour legacy-seeding horizon; its first healthy post-resume heartbeat
+starts a new SQL-UTC horizon rather than inheriting elapsed incident time.
 
 ## Failure contract
 
@@ -571,7 +641,7 @@ reuse a generic communication message as an invalid-session transition.
 | Session subject differs from an independently owned resource subject | `403`; no domain work; privacy-safe audit event |
 | Invalid credentials | `401`; issue no cookie and leave any existing valid profile session unchanged |
 | Missing, blank, unreadable, or unexpected `BD - PLATAFORMA.FACEID` policy during credential login | `503` authority-data/configuration failure; issue no target identifier or legacy handle, emit no `Set-Cookie`, and leave any existing valid profile session unchanged |
-| Matched subject newly known to be ineligible | `403`; revoke all sessions for that subject in the eligibility transaction; emit no `Set-Cookie` and never disturb another subject's valid profile session |
+| Matched subject newly known to be ineligible during target issuance, an authority-bearing target operation, or enforced bound-legacy authorization | `403`; revoke all sessions for that subject in the eligibility transaction; emit no `Set-Cookie` and never disturb another subject's valid profile session. Pre-enforcement evidence-only seeding retains the current legacy login result |
 | Invalid/missing Origin or session request header | `403` before body/domain work |
 | Competing transition, already active challenge, or not-yet-final bound Face result | `409`; current record remains authoritative |
 | Session store unavailable or transaction outcome unknown | `503`; no legacy/memory fallback and no `Set-Cookie`; optional bounded `Retry-After` |
@@ -609,12 +679,12 @@ session roles. None exists merely because it is listed here.
 
 | Method and path | Owner and allowed phase | Success/cookie behavior | Idempotency and failure classes |
 | --- | --- | --- | --- |
-| `POST /plataforma_v2/login-FaceID` | Session authority; public credential validation; backend reads the exact `BD - PLATAFORMA.FACEID` policy | A target-mode request carries `X-Machado-Session-Request: 1`; exact `Inativo` creates `authenticated` directly, while exact `Ativo` creates only the minimum provisional phase required for registration/Face; `200` atomically sets `legacy_authority_disabled_at`, conditionally replaces an active profile session or overwrites an absent/unusable cookie, and issues the selected identifier; it never returns `IndexVerificado`. Before global stop-issuance, a cookie-less legacy-mode request may return the current handle only after its verifier-to-subject binding commits; an identical deterministic binding repeat is `200` | No automatic transport retry; missing/blank/unexpected Face policy is `503` without a target identifier, legacy handle, or `Set-Cookie`; same-active-predecessor conflict is `409` with no `Set-Cookie`; legacy mode with any target cookie or for a target-adopted subject is `409` upgrade-required without a handle; store/eligibility or binding-integrity unavailability is `503`; invalid credentials are `401`; known ineligibility is `403` without cookie mutation |
+| `POST /plataforma_v2/login-FaceID` | Session authority; public credential validation; backend reads the exact `BD - PLATAFORMA.FACEID` policy | A target-mode request carries `X-Machado-Session-Request: 1`; exact `Inativo` creates `authenticated` directly, while exact `Ativo` creates only the minimum provisional phase required for registration/Face; `200` atomically sets `legacy_authority_disabled_at`, conditionally replaces an active profile session or overwrites an absent/unusable cookie, and issues the selected identifier; it never returns `IndexVerificado`. Before global stop-issuance, a cookie-less legacy-mode request may return the current handle only after its verifier-to-subject binding commits; an identical deterministic binding repeat is `200` | No automatic transport retry; missing/blank/unexpected Face policy is `503` without a target identifier, legacy handle, or `Set-Cookie`; same-active-predecessor conflict is `409` with no `Set-Cookie`; a target cookie without the exact session-request header is transport-rejected as `403`; cookie-less legacy mode for a target-adopted subject is `409` upgrade-required without a handle; store/eligibility or binding-integrity unavailability is `503`; invalid credentials are `401`; known ineligibility is `403` for target issuance and bound legacy authorization after enforcement, but is recorded rather than newly rejected during pre-enforcement seeding |
 | `POST /plataforma_v2/sessions/current/registration-enrollment` | Session authority; `credential-verified` with required registration, or already `registration-pending` | `204`; first success rotates to `registration-pending`; no body identifier | Repeated in registration-pending is `204` without another rotation; `401`, `403`, `409`, `503` |
-| `POST /plataforma_v2/CadastroFoto_e_FaceID` | Registration domain plus session authority; `registration-pending`; a `face-pending` repeat is conflict only | `200` after registration state is reconciled and one provider challenge is durably bound; returns only provider data required by the SDK and rotates to `face-pending`; application session/provider session identifiers are absent | No blind retry of upload/external creation; an ambiguous external outcome does not promote or rotate, keeps the phase provisional, marks the private flow reconciliation-required, and makes repeat return `409` until the separately authorized registration-reconciliation decision resolves it; session failures use `401`/`403`/`409`/`503`; current non-session domain status/body remains unchanged until its own redesign |
+| `POST /plataforma_v2/CadastroFoto_e_FaceID` | Registration domain plus session authority; `registration-pending`; a `face-pending` repeat is conflict only | `200` after registration state is reconciled and one provider challenge is durably bound; returns only provider data required by the SDK and rotates to `face-pending`; application session/provider session identifiers are absent | No blind retry of upload/external creation; an ambiguous external outcome issues no cookie and performs no authenticated promotion. If the bind did not commit, the presented provisional remains; a committed-but-unacknowledged rotation invalidates it and requires fresh login. In either case the private flow is reconciliation-required and repeat returns `409` until the separately authorized registration-reconciliation decision resolves it; session failures use `401`/`403`/`409`/`503`; current non-session domain status/body remains unchanged until its own redesign |
 | `POST /plataforma_v2/FaceID` | Face domain plus session authority; `credential-verified` with existing registration; a `face-pending` repeat is conflict only | `200`; creates at most one active bound challenge, returns only provider data required by the SDK, and rotates to `face-pending` | Repeated while creating/active is `409`, never a second untracked challenge; session failures use `401`/`403`/`503`; current non-session domain status/body remains unchanged until its own redesign |
 | `POST /plataforma_v2/sessions/current/face-completion` | Session authority plus private Face adapter; `face-pending`; the resulting `authenticated` state supports a current-state repeat | `200` on passing result; accepts no client result or provider session ID, reads the one bound result, atomically creates authenticated session, rotates cookie, and returns current status | Bound result pending is `409` and preserves phase/cookie; definitive factor failure atomically revokes the active verifier without cookie mutation and returns `403`; provider/network/store unavailability is `503` and preserves `face-pending`/cookie; challenge is consumed once; repeat under the resulting authenticated cookie returns `200` current status without creating another session |
-| `GET /plataforma_v2/sessions/current` | Session authority; any active phase | `200` no-store JSON with `authenticationPhase`, `serverTime`, `expiresAt`, `eligibilityRevalidateAt`, and allowed next-operation roles; never an identifier | Safe/idempotent; invalid `401` and preserving `503` emit no `Set-Cookie` |
+| `GET /plataforma_v2/sessions/current` | Session authority; any active phase | `200` no-store JSON with `authenticationPhase`, `serverTime`, the immutable phase/session absolute deadline in `expiresAt`, `eligibilityRevalidateAt`, and allowed next-operation roles; never an identifier. Entitlement may end server authority earlier, and its revalidation hint never extends the absolute deadline | Safe/idempotent; invalid `401` and preserving `503` emit no `Set-Cookie` |
 | `DELETE /plataforma_v2/sessions/current` | Session authority; any/none | `204`; revoke the active record when present; every outcome leaves the cookie untouched and an active success makes its retained value inert | Effect-idempotent; `503` only when a presented well-formed record cannot be authoritatively checked; no response emits `Set-Cookie` |
 | `DELETE /plataforma_v2/sessions` | Session authority; `authenticated` | `204`; revoke all subject sessions without mutating the caller cookie | Do not automatically retry an ambiguous response; after success the revoked caller cannot invoke it again and a repeat without new authentication is `401`; `403`, `503`; no response emits `Set-Cookie` |
 | Existing protected learning routes | Session middleware then existing owning domain; `authenticated` | Authenticate cookie, derive subject, strip session credential from domain input, preserve scoped domain response until its own redesign | Read/write idempotency remains owned by the later API reliability/domain milestones; session failures follow this ADR |
@@ -635,7 +705,8 @@ protects the current route.
 ## Current-versus-target endpoint matrix
 
 This table covers the unchanged 14-route inventory. **Target** entries are
-future authorization classifications, not implemented behavior.
+implemented behind the production-disabled target/adoption controls; they do
+not describe the safe-default production behavior.
 
 | Current endpoint | Source-observed current authority | Topic 05 target disposition |
 | --- | --- | --- |
@@ -662,7 +733,8 @@ protected API.
 ## Browser-key disposition
 
 No key is added, renamed, removed, or given new runtime behavior by this ADR.
-Later Topic 05 implementation follows this disposition:
+The backend implementation does not change those keys; later frontend adoption
+follows this disposition:
 
 | Exact current key | Target authority | Bounded disposition |
 | --- | --- | --- |
@@ -671,7 +743,7 @@ Later Topic 05 implementation follows this disposition:
 | `Horário-Encerramento-Sessão` | None | During adoption it may display a server-returned expiry only; remove after server-time countdown/status is adopted |
 | `Usuário_Logado` | None | During adoption it may mirror presentation; it never gates backend work; remove after direct and restored pages use current-session validation |
 | `Usuário_Autorização_Cadastro` | None | Replace with server-side `registration-pending`; remove when registration enrollment is adopted |
-| `Origem_Aviso_Dispositivo` | None | Preserve as the current UI/history compatibility marker through this definition task; decide/remove it in **Guard restored protected pages** alongside restored-page and login-history reconciliation |
+| `Origem_Aviso_Dispositivo` | None | Preserve as the current UI/history compatibility marker through this milestone; decide/remove it in **Guard restored protected pages** alongside restored-page and login-history reconciliation |
 | `TempoSessão_Segundos` | None | Remove the dead read when the server-time session timer is adopted |
 
 Malformed or forged storage affects at most presentation/navigation. It never
@@ -732,6 +804,13 @@ and the four-hour horizon restarts after repair. Handles issued before seeding
 therefore expire before enforcement begins; this task performs no production
 inspection or backfill.
 
+Specifically, exact `Usuário_Status_Login = Ativo` retains the current `200`
+payload and four-hour `IndexVerificado` outcome even when the recorded
+normalized entitlement is already ineligible; the binding grants no
+SQL-derived authority while enforcement is off. Store, binding, or continuity
+failure still fails closed, and the separately selected invalid-`FACEID` rule
+still applies.
+
 Only after that horizon may the central ledger-enforcement flag turn on and the
 dual-stack window start. From then on, a validly signed handle with no unique
 compatibility binding is `401`; a duplicate, conflicting, or corrupt binding is
@@ -758,7 +837,11 @@ compute the full-handle verifier, derive authority only from its immutable
 ledger-bound `subject_id`, and consult SQL for the cutoff plus the same bounded
 current eligibility decision. The signed row remains compatibility evidence
 for the private adapter, never the authority mapping; row insertion, deletion,
-or movement cannot change the bound subject. A set subject cutoff rejects all
+or movement cannot change the bound subject. After enforcement, an expired
+handle whose deadline came first fails `401`; an entitlement deadline that came
+first or tied transactionally revokes the subject sessions and fails `403`.
+Pre-enforcement compatibility still rejects an expired handle immediately and
+does not newly enforce eligibility. A set subject cutoff rejects all
 of that subject's legacy handles with `401`, even if the target cookie was
 evicted, manually removed, expired, or never delivered. SQL or due-eligibility
 outage is `503`. This per-subject cutover is deliberately cross-device: old
@@ -800,8 +883,13 @@ even if present with an invalid target cookie.
 
 ### Rollback boundaries
 
-- Before target issuance, rollback is code/config only and no target-session
-  data is authoritative; legacy handles remain the current authority.
+- Before production ledger seeding, rollback may remove a never-authoritative
+  durable-store composition latch under the reviewed plan. Once seeding starts,
+  every release and configuration rollback must retain that latch and consult
+  the stronger central controls; disabling a rollout permission must never
+  select unchecked legacy issuance or row-derived authorization.
+- Before target issuance, no target-session data is authoritative; qualified
+  ledger rollback still preserves its central admission and binding evidence.
 - While legacy issuance remains enabled inside the seven-day window, the
   frontend and backend may roll back together to the reviewed dual-stack pair
   only for subjects that have not adopted target authority. Any adopted subject
@@ -836,7 +924,7 @@ even if present with an invalid target cookie.
 | Backend restart or scale-out | Durable shared SQL records and no process-memory authority |
 | Session-store outage | `503` fail closed, no legacy/memory fallback, no false invalid-credential or successful-logout response |
 | Eligibility-source outage | Fresh observation usable only within five minutes; when due, `503` before provisional transition, promotion, or protected work |
-| Store restore or verifier/signing-key compromise | Fail closed, retire keys outside restored SQL, advance epoch, disable legacy when applicable, and resume only after every instance acknowledges the new authority generation |
+| Store restore or authority-key compromise | Fail closed, retire keys outside restored SQL, enter the separately generation/epoch-advanced `recovering` state, apply purpose-specific quarantine and permanent legacy retirement when applicable, and permit only a complete new-key-fenced `recovering`-to-`normal` resume |
 | Identifier leakage through logs/diagnostics | No raw/verifier logging; separate trace IDs; redaction tests and diagnostic review |
 | Cache replay | `no-store`, no validators, `Vary` rules, no identifier in response body |
 | Cross-site or sibling-origin request | SameSite Strict, exact Origin, exact allow-origin, credentialed CORS, custom preflighted header |
@@ -852,7 +940,7 @@ All examples use invented identifiers, fake UTC clocks, synthetic accounts,
 inert SQL records, injected Graph/Face adapters, and denied production
 networking.
 
-| ID | Future acceptance coverage |
+| ID | Acceptance coverage |
 | --- | --- |
 | `SESSION-TARGET-01` | Every protected operation accepts a valid `authenticated` session and derives the one expected subject; no provisional state reaches it |
 | `SESSION-TARGET-02` | Missing, malformed, unknown, expired, revoked, rotated-out, and wrong-subject sessions fail closed with the selected class, no domain call, and no stale-response cookie mutation |
@@ -873,7 +961,7 @@ networking.
 | `SESSION-TARGET-17` | Public status report, client intake, quote, Conecta, certificate validation, viewport warning, and device/browser warning retain their existing session-free behavior |
 | `SESSION-TARGET-18` | Credential, registration, challenge, completion, status, logout, revoke-all, wrong-stage, and store-outage APIs match their methods, phases, status classes, cookie, and idempotency rules |
 | `SESSION-TARGET-19` | Restart and multi-instance tests observe committed rotation/revocation and subject legacy cutoffs without a positive authorization cache; same-predecessor races let only the compare-and-replace winner issue a cookie, every non-issuance response has no `Set-Cookie` in either response order, fresh login overwrites unusable cookies, and cookie-less login/logout races follow the documented last-processed-response/new-authentication policy |
-| `SESSION-TARGET-20` | Runtime, dependencies, 14-route current inventory, five legacy placements, current seven-key inventory, public Face-result behavior, and artifact identities remain unchanged by this definition task |
+| `SESSION-TARGET-20` | Safe-default runtime retains the 14-route current inventory, five legacy placements, current seven-key inventory, public Face-result behavior, and frontend artifact identity; the added SQL dependency and dormant modules make no connection or authority claim while the latch is off |
 | `SESSION-TARGET-21` | A full four-hour ledger-seeding horizon precedes dual-stack enforcement; every accepted legacy handle resolves through one immutable verifier-to-subject binding; an identical same-second deterministic issuance is idempotent success; pre-ledger/missing bindings fail `401`, differing/corrupt bindings fail `503`, and workbook row movement never changes the subject |
 | `SESSION-TARGET-22` | Fresh-login tests prove exact backend-read `FACEID = Ativo` requires backend-bound Face, exact `Inativo` creates authenticated authority directly regardless of photo state, and missing/blank/other values fail `503` without a target identifier, legacy handle, or `Set-Cookie`; edits affect only fresh logins, existing provisional/authenticated sessions retain their captured policy and normal lifetime, browser assertions cannot waive Face, and the later account-authority cutover leaves exactly one policy source |
 
@@ -897,11 +985,13 @@ transitions, progress/assessment/feedback/certificate authority, account and
 password migration, workbook/SQL domain migration, public status-report
 security, Face-result route protection, and media/DRM authority.
 
-## Definition-task non-effects
+## Implementation-task production non-effects
 
-This decision task intentionally changes no runtime JavaScript, dependency,
-route, method, payload, status, cookie, CORS rule, workflow, deployment
-manifest, infrastructure, account, workbook, Face session, live session,
-storage key, logout path, timer, refresh behavior, BFCache behavior, public
-surface, frontend artifact, or import graph. No production request or
-integration is required to validate it.
+This implementation adds runtime JavaScript, one dependency, a forward-only
+migration, dormant target roles, and synthetic verification. It does not apply
+the migration, provision or mutate infrastructure, enable the durable-store
+latch or any rollout/database control, issue a production target cookie, seed a
+production ledger, start the sunset, or inspect production authority data. With
+safe defaults, it changes no deployed route inventory, current legacy payload,
+frontend runtime/artifact, browser storage, logout, timer, refresh, BFCache,
+public Face-result behavior, workbook layout, or non-session domain behavior.

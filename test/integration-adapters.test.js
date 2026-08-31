@@ -108,3 +108,119 @@ test('integration adapters keep response-shape projection separate from SDK atte
         assert.equal(bodyAccesses, 3);
     });
 });
+
+test('backend-bound Azure Face projection distinguishes pending, unavailable, and definitive responses', () => {
+    const azureFace = createAzureFaceAdapter({ faceClient: {} });
+
+    assert.deepEqual(azureFace.extractBoundLivenessSessionResult({
+        body: { status: 'Running', results: { attempts: [] } },
+    }), { providerState: 'pending' });
+    assert.throws(
+        () => azureFace.extractBoundLivenessSessionResult({
+            body: {
+                status: 'Failed',
+                results: { attempts: [{ attemptId: 1, attemptStatus: 'Failed', error: {} }] },
+            },
+        }),
+        /Unavailable Face liveness result/,
+    );
+    assert.throws(
+        () => azureFace.extractBoundLivenessSessionResult({
+            body: {
+                status: 'Succeeded',
+                results: { attempts: [{ attemptId: 1, attemptStatus: 'Canceled', error: {} }] },
+            },
+        }),
+        /Unavailable Face liveness attempt/,
+    );
+    for (const body of [
+        {
+            status: 'Unknown',
+            results: { attempts: [{ attemptId: 1, attemptStatus: 'Succeeded', result: {} }] },
+        },
+        {
+            status: 'Succeeded',
+            results: { attempts: [{ attemptId: 0, attemptStatus: 'Succeeded', result: {} }] },
+        },
+        {
+            status: 'Succeeded',
+            results: {
+                attempts: [
+                    { attemptId: 1, attemptStatus: 'Succeeded', result: {} },
+                    { attemptId: 1, attemptStatus: 'Succeeded', result: {} },
+                ],
+            },
+        },
+        {
+            status: 'Succeeded',
+            results: { attempts: [{ attemptId: 1, attemptStatus: 'Running', result: {} }] },
+        },
+        {
+            status: 'Succeeded',
+            results: {
+                attempts: [{
+                    attemptId: 1,
+                    attemptStatus: 'Succeeded',
+                    result: {
+                        livenessDecision: 'unexpected',
+                        verifyResult: { isIdentical: false },
+                    },
+                }],
+            },
+        },
+        {
+            status: 'Succeeded',
+            results: {
+                attempts: [{
+                    attemptId: 1,
+                    attemptStatus: 'Succeeded',
+                    result: {
+                        livenessDecision: 'realface',
+                        verifyResult: { matchConfidence: '0.99', isIdentical: true },
+                    },
+                }],
+            },
+        },
+        {
+            status: 'Succeeded',
+            results: {
+                attempts: [{
+                    attemptId: 1,
+                    attemptStatus: 'Succeeded',
+                    result: {
+                        livenessDecision: 'realface',
+                        verifyResult: { matchConfidence: 1.01, isIdentical: true },
+                    },
+                }],
+            },
+        },
+    ]) {
+        assert.throws(
+            () => azureFace.extractBoundLivenessSessionResult({ body }),
+            /Malformed (?:definitive )?Face liveness/,
+        );
+    }
+    assert.deepEqual(azureFace.extractBoundLivenessSessionResult({
+        body: {
+            status: 'Succeeded',
+            results: {
+                attempts: [{
+                    attemptId: 1,
+                    attemptStatus: 'Succeeded',
+                    result: {
+                        livenessDecision: 'spoofface',
+                        verifyResult: { matchConfidence: 0.1, isIdentical: false },
+                    },
+                }],
+            },
+        },
+    }), {
+        livenessDecision: 'spoofface',
+        matchConfidence: 0.1,
+        matchDecision: false,
+    });
+    assert.throws(
+        () => azureFace.extractBoundLivenessSessionResult({ body: { status: 'Succeeded' } }),
+        /Malformed Face liveness attempts/,
+    );
+});

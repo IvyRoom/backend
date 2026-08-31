@@ -23,12 +23,16 @@ function createLearningPlatformHandlers({
     uuid: createUuid,
     createPlatformRowAuthorizationHandle,
 }) {
+    function sendPlatformDataReadFailure(res) {
+        return res.status(500).json({ error: learningPlatformErrorValues.platformDataReadFailure });
+    }
+
     async function loginWithFaceId(req, res) {
         let { Usuário_Login, Usuário_Senha } = req.body;
 
         let BD_PlataformaResponse;
         try { BD_PlataformaResponse = await retry(() => microsoftGraph.readPlatformRows()); }
-        catch (err) { return res.status(500).json({ error: learningPlatformErrorValues.platformDataReadFailure }); }
+        catch (err) { return sendPlatformDataReadFailure(res); }
         const BD_Plataforma = microsoftGraph.extractRows(BD_PlataformaResponse);
 
         for (let i = 0; i < BD_Plataforma.length; i++) {
@@ -174,6 +178,7 @@ function createLearningPlatformHandlers({
 
     return {
         loginWithFaceId,
+        sendPlatformDataReadFailure,
         registerPhotoAndFaceId,
         createFaceIdSession,
         getFaceIdResult,
@@ -184,4 +189,4 @@ function createLearningPlatformHandlers({
     };
 }
 
-module.exports = { createLearningPlatformHandlers };
+module.exports = { ConverteData, createLearningPlatformHandlers };

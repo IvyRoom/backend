@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --require ./test/deny-production-network.js --test"
   },
   "dependencies": {
     "@azure-rest/ai-vision-face": "^1.0.0-beta.3",
@@ -15,6 +15,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "ical-generator": "^8.0.1",
+    "mssql": "^12.7.0",
     "multer": "^1.4.5-lts.2",
     "node-cron": "^3.0.3",
     "uuid": "^11.1.0",
