@@ -2,7 +2,7 @@
 
 const net = require('node:net');
 
-const GUARD_INSTALLED = Symbol.for('machado.session-authority.test-network-guard');
+const GUARD_INSTALLED = Symbol.for('machado.backend.test-network-guard');
 const LOOPBACK_HOSTS = new Set([
     'localhost',
     '127.0.0.1',

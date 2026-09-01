@@ -178,7 +178,6 @@ function createLearningPlatformHandlers({
 
     return {
         loginWithFaceId,
-        sendPlatformDataReadFailure,
         registerPhotoAndFaceId,
         createFaceIdSession,
         getFaceIdResult,
@@ -189,4 +188,4 @@ function createLearningPlatformHandlers({
     };
 }
 
-module.exports = { ConverteData, createLearningPlatformHandlers };
+module.exports = { createLearningPlatformHandlers };
