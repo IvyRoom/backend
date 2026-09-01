@@ -2,9 +2,9 @@
 
 This document is the compatibility baseline preserved by the Express
 application/server seam. It describes wire behavior observed in backend commit
-`0f39f020387d9e41f17fc1a4490272ccb14a7745` and in the frozen `sistemas`
+`ba286cc0b3d3e67176d46dee84a5ba7d55b7162c` and in the retained `sistemas`
 consumer snapshot
-[`c68f361de054a936b7a6871d82d75a1cdb457c97`](https://github.com/IvyRoom/sistemas/tree/c68f361de054a936b7a6871d82d75a1cdb457c97).
+[`e543dc6cf72d7c8b077b07e4f7dc79b3453054cc`](https://github.com/IvyRoom/sistemas/tree/e543dc6cf72d7c8b077b07e4f7dc79b3453054cc).
 The explicit ordered route table remains registered by the import-safe
 [`app.js`](../app.js) composition root. It constructs thin, import-safe
 Microsoft Graph and Azure Face adapters under [`integrations/`](../integrations/)
@@ -56,10 +56,8 @@ exports `createApp(dependencies)` with the existing raw-client and deterministic
 dependency seam; calling the factory creates a fresh Express application, the
 shared retry function, and thin adapters around the injected Graph and Face
 clients, composes the domain handler factories from adapter capabilities, and
-under the safe-default dependency set registers the middleware and 14 routes,
-but does not access either raw client or listen. A deliberately injected,
-durable session-authority dependency may add the conditional transport boundary
-and five gated routes described below.
+registers the middleware and exact 14-route table, but does not access either
+raw client or listen.
 
 Explicit production startup proceeds as follows:
 
@@ -78,14 +76,10 @@ Explicit production startup proceeds as follows:
    `AzureKeyCredential` built from `AZURE_FACE_API_KEY`, with no pipeline options
    that would replace SDK defaults. Production row authorization is constructed
    from the decoded signing key.
-5. `createApp(...)` creates the application. With the durable-store latch off,
-   its global middleware order remains exactly `cors()`, `express.json()`, then
+5. `createApp(...)` creates the application. Its global middleware order is
+   exactly `cors()`, `express.json()`, then
    `app.use('/img', express.static('img'))`, followed by the explicit ordered
-   table of 14 routes. A durable session-authority dependency conditionally
-   inserts the target request boundary before compatibility CORS; requests not
-   classified as target still traverse the same CORS/JSON/static pipeline, and
-   the five target additions are registered only when their route gate is on.
-   Adapter and domain composition remains import-safe in either case.
+   table of 14 routes. Adapter and domain composition remains import-safe.
 6. `app.listen(process.env.PORT || 3000)` is called and its listener is retained.
    Only after that call, the initial Graph acquisition is invoked without being
    awaited, so the listener has no token-readiness gate. The returned production
@@ -96,11 +90,11 @@ Explicit production startup proceeds as follows:
    but preserves its path in `argv[1]`. Ordinary module imports do not satisfy
    either entry-point check.
 
-Source: [`app.js` lines 21-207](../app.js#L21-L207),
+Source: [`app.js` lines 18-97](../app.js#L18-L97),
 [`integrations/microsoft-graph.js` lines 14-78](../integrations/microsoft-graph.js#L14-L78),
-[`integrations/azure-face.js` lines 6-101](../integrations/azure-face.js#L6-L101),
-[`server.js` lines 26-257](../server.js#L26-L257), and
-[`platform-row-authorization.js` lines 12-99](../platform-row-authorization.js#L12-L99).
+[`integrations/azure-face.js` lines 6-40](../integrations/azure-face.js#L6-L40),
+[`server.js` lines 20-148](../server.js#L20-L148), and
+[`platform-row-authorization.js` lines 12-90](../platform-row-authorization.js#L12-L90).
 
 Graph token acquisition requests client credentials for the exact scope
 `https://graph.microsoft.com/.default` and has its own startup policy, separate
@@ -115,15 +109,12 @@ from the route retry helper:
   seconds, then 4, 8, 16, 32, and at most 60 seconds for subsequent failures.
 - Any existing timer is cleared before the next timer is assigned.
 
-Source: [`server.js` lines 30-68](../server.js#L30-L68) and
-[`server.js` lines 137-157](../server.js#L137-L157).
+Source: [`server.js` lines 20-59](../server.js#L20-L59) and
+[`server.js` lines 70-90](../server.js#L70-L90).
 
 ### Request middleware
 
-Under the safe-default composition, all requests traverse the following order
-before route-specific middleware. Durable session-authority composition first
-classifies the narrowly enumerated target transport; every pass-through request
-then enters this unchanged compatibility pipeline:
+All requests traverse the following order before route-specific middleware:
 
 1. `cors()` uses its defaults: `Access-Control-Allow-Origin: *`; preflight
    methods `GET,HEAD,PUT,PATCH,POST,DELETE`; reflected requested headers; no
@@ -150,8 +141,8 @@ property lookups remain case-sensitive. Express also supplies `HEAD` handling
 for registered `GET` routes, while CORS terminates matching preflights before
 routing.
 
-Source: [`app.js` lines 95-110](../app.js#L95-L110) and
-[`app.js` lines 161-204](../app.js#L161-L204).
+Source: [`app.js` lines 37-40](../app.js#L37-L40) and
+[`app.js` lines 79-92](../app.js#L79-L92).
 
 ### Default parser, 404, and error behavior
 
@@ -244,11 +235,11 @@ recheck current login status, prove that the row still exists, or rotate the
 handle. A valid handle is reusable before, but not at, its exact expiration
 time.
 
-Source: [`platform-row-authorization.js` lines 47-93](../platform-row-authorization.js#L47-L93)
-and [`platform-row-authorization.js` lines 139-205](../platform-row-authorization.js#L139-L205).
+Source: [`platform-row-authorization.js` lines 47-90](../platform-row-authorization.js#L47-L90)
+and [`platform-row-authorization.js` lines 130-191](../platform-row-authorization.js#L130-L191).
 Production authorization wiring is in
-[`server.js` lines 200-207](../server.js#L200-L207); the five route placements are
-in [`app.js` lines 172-201](../app.js#L172-L201).
+[`server.js` lines 99-106](../server.js#L99-L106); the five route placements are
+in [`app.js` lines 84-89](../app.js#L84-L89).
 
 `CadastroFoto_e_FaceID` is the one middleware-order exception: its Multer
 middleware parses and buffers the multipart request before authorization.
@@ -326,7 +317,7 @@ multipart inputs, or route-specific authorization.
 
 ### `POST /landingpage/solicitacaoorcamento`
 
-Source: route registration in [`app.js` line 161](../app.js#L161), business
+Source: route registration in [`app.js` line 79](../app.js#L79), business
 behavior in [`domains/quote-requests.js` lines 3-14](../domains/quote-requests.js#L3-L14),
 and Graph `/sendMail` mechanics in
 [`integrations/microsoft-graph.js` lines 72-74](../integrations/microsoft-graph.js#L72-L74).
@@ -357,7 +348,7 @@ and Graph `/sendMail` mechanics in
 
 ### `POST /conecta/processa-recomendacao`
 
-Source: route registration in [`app.js` line 162](../app.js#L162), business
+Source: route registration in [`app.js` line 80](../app.js#L80), business
 behavior in
 [`domains/conecta-recommendations.js` lines 5-109](../domains/conecta-recommendations.js#L5-L109),
 Graph row/read/write/mail mechanics in
@@ -411,7 +402,7 @@ and shared escaping in [`shared/escape-html.js` lines 3-13](../shared/escape-htm
 
 ### `POST /clientes/processa-formulario`
 
-Source: route registration in [`app.js` line 163](../app.js#L163), business
+Source: route registration in [`app.js` line 81](../app.js#L81), business
 behavior in
 [`domains/client-onboarding.js` lines 5-128](../domains/client-onboarding.js#L5-L128),
 Graph row/read/write/mail mechanics in
@@ -470,7 +461,7 @@ and shared escaping in [`shared/escape-html.js` lines 3-13](../shared/escape-htm
 
 ### `POST /clientes/liberacao-acesso-plataforma`
 
-Source: route registration in [`app.js` line 164](../app.js#L164), business and
+Source: route registration in [`app.js` line 82](../app.js#L82), business and
 background ordering in
 [`domains/client-onboarding.js` lines 130-192](../domains/client-onboarding.js#L130-L192),
 and Graph row/read/mail mechanics in
@@ -535,7 +526,7 @@ catches receive no newly invented mapping.
 
 ### `POST /plataforma_v2/login-FaceID`
 
-Source: route registration in [`app.js` line 165](../app.js#L165), business
+Source: route registration in [`app.js` line 83](../app.js#L83), business
 behavior in
 [`domains/learning-platform.js` lines 30-48](../domains/learning-platform.js#L30-L48),
 and Graph read/projection mechanics in
@@ -564,13 +555,13 @@ and Graph read/projection mechanics in
   `200` drives its expired-login UI. The current backend merely projects
   workbook index `4`; the browser alone interprets exact Face status `Inativo`
   as permission to skip registration/Face and enter study. That current
-  client-side factor decision is not backend-enforced session authority.
+  client-side factor decision is not revalidated by the backend.
 - **Other errors:** malformed workbook rows, including a non-stringifiable
   password cell, have no explicit unexpected-error contract.
 
 ### `POST /plataforma_v2/CadastroFoto_e_FaceID`
 
-Source: route and middleware composition in [`app.js` lines 172-188](../app.js#L172-L188),
+Source: route and middleware composition in [`app.js` line 84](../app.js#L84),
 business and retry ordering in
 [`domains/learning-platform.js` lines 50-69](../domains/learning-platform.js#L50-L69),
 Graph upload/update mechanics in
@@ -623,7 +614,7 @@ and Face multipart/projection mechanics in
 
 ### `POST /plataforma_v2/FaceID`
 
-Source: route and middleware composition in [`app.js` lines 180-188](../app.js#L180-L188),
+Source: route and middleware composition in [`app.js` line 85](../app.js#L85),
 business and retry ordering in
 [`domains/learning-platform.js` lines 71-87](../domains/learning-platform.js#L71-L87),
 Graph photo-download mechanics in
@@ -662,7 +653,7 @@ and Face multipart/projection mechanics in
 
 ### `GET /plataforma_v2/FaceID_resultado/:Azure_Face_API_LivenessSession_sessionID`
 
-Source: route registration in [`app.js` line 198](../app.js#L198), business and
+Source: route registration in [`app.js` line 86](../app.js#L86), business and
 retry ordering in
 [`domains/learning-platform.js` lines 89-102](../domains/learning-platform.js#L89-L102),
 and Face result-path/projection mechanics in
@@ -701,7 +692,7 @@ and Face result-path/projection mechanics in
 
 ### `POST /plataforma_v2/refresh`
 
-Source: route and middleware composition in [`app.js` line 199](../app.js#L199),
+Source: route and middleware composition in [`app.js` line 87](../app.js#L87),
 date conversion in [`domains/learning-platform.js` lines 14-17](../domains/learning-platform.js#L14-L17),
 business behavior in
 [`domains/learning-platform.js` lines 104-133](../domains/learning-platform.js#L104-L133),
@@ -734,7 +725,7 @@ and Graph read/projection mechanics in
 
 ### `POST /plataforma_v2/updates`
 
-Source: route and middleware composition in [`app.js` line 200](../app.js#L200),
+Source: route and middleware composition in [`app.js` line 88](../app.js#L88),
 business and retry ordering in
 [`domains/learning-platform.js` lines 135-148](../domains/learning-platform.js#L135-L148),
 and Graph row-update mechanics in
@@ -773,7 +764,7 @@ and Graph row-update mechanics in
 
 ### `POST /plataforma_v2/processa-feedback`
 
-Source: route and middleware composition in [`app.js` line 201](../app.js#L201),
+Source: route and middleware composition in [`app.js` line 89](../app.js#L89),
 business and partial-success ordering in
 [`domains/learning-platform.js` lines 150-161](../domains/learning-platform.js#L150-L161),
 and Graph update/append mechanics in
@@ -810,7 +801,7 @@ and [`integrations/microsoft-graph.js` lines 60-62](../integrations/microsoft-gr
 
 ### `GET /ezdrm-playready-authorization-url`
 
-Source: route registration in [`app.js` line 202](../app.js#L202) and handler
+Source: route registration in [`app.js` line 90](../app.js#L90) and handler
 implementation in [`domains/drm.js` lines 3-13](../domains/drm.js#L3-L13).
 
 - **Input:** exact, case-sensitive query keys `token` and `CustomData`. Missing
@@ -835,7 +826,7 @@ implementation in [`domains/drm.js` lines 3-13](../domains/drm.js#L3-L13).
 
 ### `POST /plataforma_v2/statusreport`
 
-Source: route registration in [`app.js` line 203](../app.js#L203), business and
+Source: route registration in [`app.js` line 91](../app.js#L91), business and
 response-projection ordering in
 [`domains/learning-platform.js` lines 163-177](../domains/learning-platform.js#L163-L177),
 and Graph read/row-shape mechanics in
@@ -869,7 +860,7 @@ and Graph read/row-shape mechanics in
 
 ### `GET /validacaocertificados/:Solicitante_CertificadoID`
 
-Source: route registration in [`app.js` line 204](../app.js#L204), business and
+Source: route registration in [`app.js` line 92](../app.js#L92), business and
 threshold behavior in
 [`domains/certificate-validation.js` lines 3-36](../domains/certificate-validation.js#L3-L36),
 and Graph read/row-shape mechanics in
@@ -900,54 +891,6 @@ and Graph read/row-shape mechanics in
   currently render `Certificado_ID`, which remains part of the backend response.
 - **Other errors:** processing failures after a successful read have no
   explicit unexpected-error contract.
-
-## Dormant session-authority implementation
-
-The decision-complete replacement for signed workbook-row authority is
-documented in [`session-authority.md`](session-authority.md). It selects a
-durable backend-owned session record, stable subject identity, host-only
-partitioned-cookie transport, explicit provisional phases, server-time expiry,
-revocation, bounded eligibility revalidation, session-bound Face promotion,
-and a bounded legacy cutover. While the workbook remains the account adapter,
-the backend reads exact `BD - PLATAFORMA.FACEID`: `Ativo` requires Face and
-`Inativo` permits direct authenticated issuance after credentials and
-eligibility. The setting applies only to a fresh login, requires no dedicated
-change-audit workflow, and later moves once to backend account authority
-without workbook/SQL dual authority.
-
-The five-record schema, SQL store, state machine, cookie/CORS boundary, target
-APIs, Face completion, revocation, and legacy ledger now exist behind explicit
-runtime and database controls. The durable-store latch, all six runtime rollout
-controls, and every database activation control default off. Database legacy
-issuance and acceptance start open so an inert migration cannot stop current
-clients, but they have no authority while the latch is off. The migration is
-not applied automatically, and no production infrastructure or topology has
-been qualified. The safe production composition therefore still registers the
-14 routes inventoried above and preserves their legacy payload, retry, error,
-and signed-handle behavior. Qualified synthetic target mode registers exactly
-the five approved additions, for 19 registrations. Frontend adoption,
-authoritative browser logout, BFCache protection, target issuance, ledger
-seeding, and the legacy sunset remain inactive.
-
-When the durable latch is enabled, every authority transaction is fenced by
-the configured authority generation, four rotatable purpose leaf bindings,
-independent login-lookup and account-mapping bindings, the canonical aggregate
-over all six purposes, and an independent binding for the existing legacy
-signed-handle key. The complete set is initialized only
-by an explicit empty/dormant store operation; startup and requests never claim
-it. A missing, mixed, or mismatched set fails as unavailable authority before
-data access. Login-lookup and account-mapping keys are immutable in this
-milestone. Permitted incident rotation is suspended and two-step: it advances
-generation/global epoch into `recovering`, then a separate transaction under
-the complete replacement configuration may resume. Changing the signing key
-permanently retires legacy authority because existing handles carry no key ID.
-
-If separately approved, pre-enforcement ledger seeding preserves the
-source-observed login contract above: exact active credentials still receive
-the same four-field payload plus four-hour handle regardless of access-date
-eligibility, while the backend records an evidence-only subject and binding.
-The normalized eligibility decision becomes authoritative for legacy use only
-after central enforcement; target issuance enforces it immediately.
 
 ## Compatibility contracts versus known-risk legacy behavior
 
@@ -1076,10 +1019,9 @@ Source:
 [`main_plataforma-backend-v3.yml` lines 19-41](../.github/workflows/main_plataforma-backend-v3.yml#L19-L41),
 and [`main_plataforma-backend-v3.yml` lines 43-71](../.github/workflows/main_plataforma-backend-v3.yml#L43-L71).
 
-The earlier session-authority definition task changed only ignored Markdown.
-This implementation changes production JavaScript, dependencies, and a SQL
-migration, so a merge triggers the Node.js 24 build/test and App Service
-deployment workflow. Safe defaults keep the deployed 14-route legacy behavior;
-the workflow does not apply the migration, provision SQL, change App Service
-settings, qualify DNS/TLS, or enable the durable-store latch or any rollout
-control.
+This simplification changes production JavaScript and dependencies, so merging
+it triggers the Node.js 24 build/test and App Service deployment workflow. The
+deployed application continues to register the same 14 routes and use the same
+signed row-authorization behavior. The deployment removes unused code from the
+artifact; it does not change App Service settings, workbook data, DNS, TLS, or
+other infrastructure.

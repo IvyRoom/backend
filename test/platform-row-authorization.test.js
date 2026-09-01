@@ -7,9 +7,7 @@ const {
     PLATFORM_ROW_AUTHORIZATION_DURATION_SECONDS,
     decodePlatformRowAuthorizationKey,
     createPlatformRowAuthorizationHandle,
-    createPlatformRowAuthorizationInspector,
     createPlatformRowAuthorizer,
-    readPlatformRowAuthorization,
     readPlatformRowIndex,
 } = require('../platform-row-authorization');
 
@@ -55,20 +53,6 @@ test('creates and reads a four-hour platform row authorization handle', () => {
     assert.match(signatureSegment, /^[A-Za-z0-9_-]+$/);
     assert.deepEqual(payload, validPayload());
     assert.equal(readPlatformRowIndex(handle, SIGNING_KEY, NOW_MS), 42);
-});
-
-test('legacy-ledger inspection returns verified immutable issue metadata', () => {
-    const handle = createPlatformRowAuthorizationHandle(42, SIGNING_KEY, NOW_MS);
-    const expected = {
-        rowIndex: 42,
-        issuedAt: new Date(NOW_MS),
-        expiresAt: new Date(NOW_MS + PLATFORM_ROW_AUTHORIZATION_DURATION_SECONDS * 1000),
-    };
-    assert.deepEqual(readPlatformRowAuthorization(handle, SIGNING_KEY, NOW_MS), expected);
-    assert.deepEqual(
-        createPlatformRowAuthorizationInspector(SIGNING_KEY)(handle, NOW_MS),
-        expected,
-    );
 });
 
 test('accepts zero and the largest safe row index', () => {
