@@ -119,7 +119,8 @@ function formatSessionIssuanceCookie({ identifier, expiresAt, now = new Date() }
         'Path=/',
         'Secure',
         'HttpOnly',
-        'SameSite=Strict',
+        'SameSite=None',
+        'Partitioned',
         `Max-Age=${maxAgeSeconds}`,
         `Expires=${authoritativeExpiry.toUTCString()}`,
     ].join('; ');

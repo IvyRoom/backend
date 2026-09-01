@@ -4,7 +4,7 @@ const SESSION_COOKIE_NAME = '__Host-machado-session';
 const SESSION_REQUEST_HEADER = 'x-machado-session-request';
 const SESSION_REQUEST_HEADER_VALUE = '1';
 const SESSION_FRONTEND_ORIGIN = 'https://machadogestao.com';
-const SESSION_API_HOSTNAME = 'api.machadogestao.com';
+const SESSION_API_HOSTNAME = 'plataforma-backend-v3.azurewebsites.net';
 
 const PROVISIONAL_LIFETIME_MS = 20 * 60 * 1000;
 const AUTHENTICATED_LIFETIME_MS = 4 * 60 * 60 * 1000;

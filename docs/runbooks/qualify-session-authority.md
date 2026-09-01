@@ -3,11 +3,11 @@
 ## Current boundary
 
 The backend implementation is intentionally dormant. No Azure SQL database,
-DNS record, TLS certificate, App Service hostname binding, secret, application
-setting, production ledger, or target session was created or changed by the
-implementation task. The durable-store latch, all six runtime rollout controls,
-and every database activation control default off. The compatibility issuance
-and acceptance booleans deliberately start open so applying the inert schema
+secret, application setting, production ledger, or target session was created
+or changed by the implementation task. The existing F1 App Service endpoint,
+default TLS, and hostname remain unchanged. The durable-store latch, all six
+runtime rollout controls, and every database activation control default off.
+The compatibility issuance and acceptance booleans deliberately start open so applying the inert schema
 cannot itself stop current clients; they gain authority only after the latch is
 separately approved and enabled. The migration is forward-only and is never
 applied by application startup or deployment.
@@ -29,8 +29,12 @@ names all of the following exactly:
   current monthly cost from the official Azure calculator;
 - private/public network exposure, firewall rules, TLS requirements, database
   authentication, and the least-privilege migration/runtime principals;
-- `api.machadogestao.com` DNS record, managed-certificate resource, and the
-  intended App Service custom-hostname binding;
+- the existing `plataforma-backend-v3.azurewebsites.net` endpoint and F1 App
+  Service plan, including its zero added monthly plan cost, no SLA, daily CPU
+  quota, memory/data limits, and the capacity threshold that would require a
+  separately approved plan change;
+- supported Edge versions/profiles and the qualification matrix for host-only
+  partitioned cookies with ordinary third-party cookies blocked;
 - secret owner, App Service setting owner, rotation procedure, and the six
   distinct authority key IDs without including any key or connection value;
 - exact migration, qualification, ledger-seeding, adoption, monitoring, and
@@ -62,10 +66,11 @@ Rollout controls are separate environment settings:
 5. `SESSION_AUTHORITY_SUBJECT_ADOPTION_ENABLED`
 6. `SESSION_AUTHORITY_PROTECTED_ROUTES_ENABLED`
 
-`SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED` is independent evidence for
-the topology gate. A request header cannot enable a disabled control. Runtime
-activation also requires its corresponding central database state; disagreement
-fails closed.
+`SESSION_AUTHORITY_PARTITIONED_COOKIE_TOPOLOGY_QUALIFIED` is independent
+evidence for the topology gate. The retired first-party latch name is ignored.
+A request header, cookie, URL value, or other browser-controlled input cannot
+enable a disabled control. Runtime activation also requires its corresponding
+central database state; disagreement fails closed.
 
 With the latch enabled, central SQL admission owns legacy issuance and
 authorization even when a rollout permission is false. Before seeding, the
@@ -150,14 +155,20 @@ prove and record:
 Any failed or interrupted proof leaves all activation controls off. Do not
 substitute a file, cache, workbook, signed token, or process-memory store.
 
-## First-party topology qualification
+## Partitioned-cookie topology qualification
 
-Before target issuance, verify controlled DNS, managed TLS, the intended App
-Service hostname binding, and supported-browser first-party behavior for
-`https://api.machadogestao.com`. With synthetic traffic, verify exact
-credentialed CORS, `Origin`, custom-header/CSRF, host-only cookie, no-store,
-validator suppression, `Vary`, and response boundaries. The existing
-`azurewebsites.net` cross-site topology is not sufficient.
+Before target issuance, verify the existing default-TLS App Service endpoint
+`https://plataforma-backend-v3.azurewebsites.net` in every supported Edge
+profile: Stable, Extended Stable, InPrivate, and the supported tracking-
+prevention configuration with ordinary third-party cookies blocked. With only
+synthetic accounts and denied production side effects, prove that the host-only
+`Secure; HttpOnly; SameSite=None; Partitioned` cookie survives the complete
+credentialed flow when top-level `https://machadogestao.com` is the partition
+key, is unavailable under an unrelated synthetic top-level site, rotates on
+fresh login, and remains unreadable to JavaScript. Also verify exact
+credentialed CORS, `Origin`, custom-header/CSRF, no-store, validator suppression,
+`Vary`, referrer, preflight, and cookie-mutation boundaries. Any failed browser
+profile leaves target issuance and protected-route adoption off.
 
 ## Ordered rollout and rollback boundaries
 
@@ -166,8 +177,8 @@ validator suppression, `Vary`, and response boundaries. The existing
    fingerprint. In the separately approved inert qualification boundary,
    initialize the complete key-binding set before any authority record exists;
    production initialization remains blocked without that approval.
-2. After explicit approval, qualify the SQL schema and topology using inert
-   data. Then enable the durable-store latch with every rollout permission still
+2. After explicit approval, qualify the SQL schema and partitioned-cookie
+   topology with inert data. Then enable the durable-store latch with every rollout permission still
    off and verify central admission plus the same 14-route client behavior.
    Enabling dormant routes alone must not permit issuance.
 3. If separately approved, start legacy-ledger seeding while all client-visible
@@ -176,8 +187,9 @@ validator suppression, `Vary`, and response boundaries. The existing
 4. Only after a continuous four-hour horizon may central legacy enforcement be
    enabled. Missing bindings then fail `401`; integrity/store failures fail
    `503` and never fall back to the signed row.
-5. Target issuance, protected-route adoption, per-subject adoption, topology
-   proof, and the frontend release must be coordinated. The implementation task
+5. Target issuance, protected-route adoption, per-subject adoption,
+   partitioned-cookie topology proof, and the frontend release must be
+   coordinated. The implementation task
    does not authorize this step.
 6. Global stop-issuance begins only with at least four hours remaining before
    the fixed seven-day sunset. Existing handles age for a full four hours before

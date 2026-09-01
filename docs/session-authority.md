@@ -1,8 +1,8 @@
 # Session authority target decision
 
 - **Status:** backend implementation complete behind production-disabled gates;
-  durable-store and first-party-topology qualification plus frontend adoption
-  remain blocked
+  durable-store and partitioned-cookie-topology qualification plus frontend
+  adoption remain blocked
 - **Decision owner:** Machado backend
 - **Decision scope:** Topic 05 · Session authority and logout
 - **Source bases:** backend `00bac84c7ef9d9a1aaa014719043451a1362602c`;
@@ -50,7 +50,10 @@ client clock, URL value, or request-body identity will grant backend authority.
 
 The selected production design is:
 
-1. a verified first-party API origin at `https://api.machadogestao.com`;
+1. the existing HTTPS API origin at
+   `https://plataforma-backend-v3.azurewebsites.net`, carrying a host-only
+   partitioned cookie scoped by the browser to top-level
+   `https://machadogestao.com`;
 2. an opaque, cryptographically random 256-bit session identifier;
 3. a backend-owned durable session record in Azure SQL Database Basic;
 4. a stable backend subject identifier independent of workbook row position;
@@ -64,9 +67,9 @@ The selected production design is:
    sessions on other devices allowed; and
 10. a centrally committed revocation decision read on every protected request.
 
-No fallback may replace this design with a third-party cookie on the current
-App Service hostname, a bearer token in `sessionStorage` or `localStorage`, a
-signed workbook-row token, or process-memory session state.
+No fallback may replace this design with an unpartitioned cross-site cookie, a
+bearer token in `sessionStorage` or `localStorage`, a signed workbook-row token,
+or process-memory session state.
 
 ## Source-observed current contract
 
@@ -264,8 +267,8 @@ This pulled-forward implementation does not mark the broader relational-data
 foundation or any workbook migration complete. It explicitly reorders only the
 production session-authority slice. Local implementation and inert verification
 are complete, but production activation remains blocked until the store and
-first-party topology are authorized and qualified under the linked runbook;
-there is no process-memory or signed-handle production substitute.
+partitioned-cookie topology are authorized and qualified under the linked
+runbook; there is no process-memory or signed-handle production substitute.
 
 ## Session states and transitions
 
@@ -346,7 +349,7 @@ A provisional capability is not a weak authenticated session. It cannot read
 study state, submit progress or assessment data, append feedback, create a
 certificate, or authorize any other authenticated operation.
 
-## Identifier, transport, and first-party topology
+## Identifier, transport, and partitioned-cookie topology
 
 ### Identifier and cookie
 
@@ -355,7 +358,7 @@ and is encoded as unpadded base64url only for cookie transport. It contains no
 subject, phase, time, row, or other meaning. The target cookie is exactly:
 
 ```text
-__Host-machado-session=<opaque value>; Path=/; Secure; HttpOnly; SameSite=Strict
+__Host-machado-session=<opaque value>; Path=/; Secure; HttpOnly; SameSite=None; Partitioned
 ```
 
 `Domain` is absent, making the cookie host-only. `Max-Age` and `Expires` match
@@ -371,25 +374,28 @@ or until a later successful credential login overwrites it. This is deliberate:
 HTTP cannot conditionally delete only the predecessor carried by a request, so
 a delayed deletion response could otherwise erase a newer login cookie.
 
-The cookie is accepted and set only by `api.machadogestao.com`. There is no
-redirect, mirrored cookie, or fallback to an `azurewebsites.net` host. The
-identifier never appears in Web Storage, JavaScript, URLs, API bodies, public
-diagnostics, or unredacted telemetry.
+The cookie is accepted and set only by
+`plataforma-backend-v3.azurewebsites.net`. There is no redirect, mirrored
+cookie, custom-domain copy, or fallback origin. The identifier never appears in
+Web Storage, JavaScript, URLs, API bodies, public diagnostics, or unredacted
+telemetry.
 
 ### Infrastructure prerequisite
 
-Before any target cookie is issued, operations must prove that
-`api.machadogestao.com` has controlled DNS, a valid managed TLS certificate,
-and an App Service custom-hostname binding for the intended production backend.
-They must qualify first-party behavior in supported browsers. Until that proof
-exists, the target is blocked; current cross-site fetches do not become safe
-cookie sessions merely by adding `HttpOnly`.
+Before any target cookie is issued, operations must qualify the existing App
+Service HTTPS endpoint and partitioned-cookie behavior in every supported Edge
+profile: Stable, Extended Stable, InPrivate, and the supported tracking-
+prevention configuration with ordinary third-party cookies blocked. The cookie
+must remain double-keyed to top-level `https://machadogestao.com`; an unrelated
+top-level site must not receive it. Until that proof exists, target issuance is
+blocked. `HttpOnly` alone is not sufficient.
 
-At adoption, this verified hostname becomes the sole shared production API
-origin for all eight current frontend consumers. Only learning session and
-protected consumers opt into credentials and the session request header;
-public consumers continue to omit credentials and remain session-free. The
-frontend does not create a second competing backend-origin constant.
+The existing App Service URL remains the sole shared production API origin for
+all eight current frontend consumers before and after adoption. Only learning
+session and protected consumers opt into credentials and the session request
+header; public consumers continue to omit credentials and remain session-free.
+The frontend does not create a second competing backend-origin constant,
+hostname selector, stored override, or fallback base.
 
 ### CORS, Origin, and CSRF
 
@@ -415,10 +421,11 @@ Production session and protected responses use this exact browser boundary:
 - public routes remain session-free and do not derive authority from an
   incidental cookie.
 
-SameSite is defense in depth, not the only CSRF control. Exact Origin and the
-preflighted custom header prevent another same-site or cross-site origin from
-using the cookie. Preview and local validation use invented origins and
-synthetic transports; they never credential a request to production.
+`Partitioned` isolates the cookie by top-level site. `SameSite=None` is required
+for this cross-site transport and is not a CSRF control. Exact Origin and the
+preflighted custom header prevent another origin from using the cookie. Preview
+and local validation use invented origins and synthetic transports; they never
+credential a request to production.
 
 ### Cache and response rules
 
@@ -758,9 +765,9 @@ Before the dual stack begins:
 
 1. keep `GATE-01` and `GATE-02` ahead of Topic 05 work;
 2. provision and qualify the pulled-forward Azure SQL session slice;
-3. verify `api.machadogestao.com`, TLS, host binding, cookie behavior,
-   credentialed CORS, exact Origin/CSRF rejection, and no-store behavior with
-   synthetic accounts;
+3. verify the existing App Service HTTPS endpoint, supported-browser
+   partitioned-cookie behavior and top-level-site isolation, credentialed CORS,
+   exact Origin/CSRF rejection, and no-store behavior with synthetic accounts;
 4. implement the stable subject mapping and five-minute eligibility
    revalidation; and
 5. run the durable legacy-binding seeding gate described below for one full
@@ -910,7 +917,7 @@ even if present with an invalid target cookie.
 
 | Threat/failure | Required target control |
 | --- | --- |
-| Stolen or replayed target identifier | HttpOnly first-party cookie, no URL/body/storage exposure, verifier-only persistence, absolute expiry, per-session/revoke-all, and rotation |
+| Stolen or replayed target identifier | HttpOnly host-only partitioned cookie, no URL/body/storage exposure, verifier-only persistence, absolute expiry, per-session/revoke-all, and rotation |
 | Stolen or replayed legacy handle during migration | Accept only with an immutable verifier-to-subject binding for a not-yet-adopted subject within the unchanged four-hour lifetime; first target issuance disables every subject handle and global rejection ends the bounded exception |
 | Forged browser flags, Face waiver, or malformed storage | Backend ignores Web Storage and client-projected `Usuário_Status_FaceID` for subject, phase, permission, expiry, eligibility, and Face policy; only the backend-read policy at fresh credential validation can waive Face |
 | Stale tab | Shared cookie plus current-session validation; invalid response blocks protected work and reconciles presentation |
@@ -927,7 +934,7 @@ even if present with an invalid target cookie.
 | Store restore or authority-key compromise | Fail closed, retire keys outside restored SQL, enter the separately generation/epoch-advanced `recovering` state, apply purpose-specific quarantine and permanent legacy retirement when applicable, and permit only a complete new-key-fenced `recovering`-to-`normal` resume |
 | Identifier leakage through logs/diagnostics | No raw/verifier logging; separate trace IDs; redaction tests and diagnostic review |
 | Cache replay | `no-store`, no validators, `Vary` rules, no identifier in response body |
-| Cross-site or sibling-origin request | SameSite Strict, exact Origin, exact allow-origin, credentialed CORS, custom preflighted header |
+| Cross-site or sibling-origin request | Partitioned top-level-site scope, exact Origin, exact allow-origin, credentialed CORS, custom preflighted header |
 | Same-origin script compromise/XSS | HttpOnly blocks identifier reads but not credentialed same-origin requests; backend phase/permission/subject checks still apply, while CSP, output safety, and XSS prevention remain later perimeter work |
 | Face client assertion or provider-ID replay | Provider challenge stored privately and bound to subject/session; completion accepts neither result nor provider session ID |
 | Workbook row movement | Stable `subject_id`; target sessions use it directly, and legacy authority uses the issuance-time verifier binding before the private adapter re-finds/verifies a mutable row hint |

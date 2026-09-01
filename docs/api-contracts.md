@@ -905,8 +905,8 @@ and Graph read/row-shape mechanics in
 
 The decision-complete replacement for signed workbook-row authority is
 documented in [`session-authority.md`](session-authority.md). It selects a
-durable backend-owned session record, stable subject identity, first-party
-host-only cookie transport, explicit provisional phases, server-time expiry,
+durable backend-owned session record, stable subject identity, host-only
+partitioned-cookie transport, explicit provisional phases, server-time expiry,
 revocation, bounded eligibility revalidation, session-bound Face promotion,
 and a bounded legacy cutover. While the workbook remains the account adapter,
 the backend reads exact `BD - PLATAFORMA.FACEID`: `Ativo` requires Face and
