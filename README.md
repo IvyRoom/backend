@@ -97,7 +97,7 @@ behavior.
 | `SESSION_AUTHORITY_LEGACY_ENFORCEMENT_ENABLED` | Requires every accepted legacy handle to have a qualified immutable ledger binding. |
 | `SESSION_AUTHORITY_SUBJECT_ADOPTION_ENABLED` | Permits the irreversible per-subject legacy cutoff on first target issuance. |
 | `SESSION_AUTHORITY_PROTECTED_ROUTES_ENABLED` | Selects target middleware for the existing protected learning routes. |
-| `SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED` | Records the separately reviewed DNS, TLS, App Service hostname, browser, CORS, Origin, CSRF, cache, and response-boundary proof. |
+| `SESSION_AUTHORITY_PARTITIONED_COOKIE_TOPOLOGY_QUALIFIED` | Records the separately reviewed existing-App-Service HTTPS, supported-browser partitioned-cookie, CORS, Origin, CSRF, cache, and response-boundary proof. The retired `SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED` name is ignored and cannot activate target sessions. |
 | `SESSION_AUTHORITY_SQL_CONNECTION_STRING` | Private least-privilege Azure SQL connection string. |
 | `SESSION_AUTHORITY_EXPECTED_GENERATION` | Positive database authority generation acknowledged by this deployment; mismatched instances fail session traffic closed during recovery. |
 | `SESSION_AUTHORITY_LEGACY_SIGNING_KEY_ID` | Non-secret identity for the existing `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` material. It is required only with the durable-store latch and is fenced independently from the six session-authority keys. |
@@ -179,9 +179,9 @@ After a successful active-account login, the backend returns a four-hour signed 
 The approved replacement is documented separately in the
 [session-authority target decision](docs/session-authority.md). Its durable
 schema, backend authority, target APIs, and compatibility ledger are
-implemented but dormant. No production SQL store or first-party topology has
-been qualified, no activation control has been approved, and the frontend has
-not adopted the target. Consequently, the signed row handle and current
+implemented but dormant. No production SQL store or partitioned-cookie topology
+has been qualified, no activation control has been approved, and the frontend
+has not adopted the target. Consequently, the signed row handle and current
 four-hour client behavior remain unchanged after merge. See the
 [qualification runbook](docs/runbooks/qualify-session-authority.md) for the
 blocked production boundary.

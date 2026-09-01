@@ -207,7 +207,7 @@ test('no rollout control can bypass the durable-store latch', () => {
     }), /requires the durable-store latch/);
 });
 
-test('target issuance requires coordinated routes, adoption, protected routes, and topology proof', () => {
+test('target issuance requires coordinated routes, adoption, protected routes, and partitioned-cookie proof', () => {
     const base = qualifiedEnvironment({
         SESSION_AUTHORITY_TARGET_ISSUANCE_ENABLED: 'true',
     });
@@ -223,9 +223,13 @@ test('target issuance requires coordinated routes, adoption, protected routes, a
     assert.throws(() => readSessionAuthorityConfiguration(base), /requires ledger seeding/);
 
     base.SESSION_AUTHORITY_LEGACY_SEEDING_ENABLED = 'true';
-    assert.throws(() => readSessionAuthorityConfiguration(base), /qualified first-party topology/);
+    assert.throws(() => readSessionAuthorityConfiguration(base), /qualified partitioned-cookie topology/);
 
     base.SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED = 'true';
+    assert.throws(() => readSessionAuthorityConfiguration(base), /qualified partitioned-cookie topology/);
+    delete base.SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED;
+
+    base.SESSION_AUTHORITY_PARTITIONED_COOKIE_TOPOLOGY_QUALIFIED = 'true';
     const configuration = readSessionAuthorityConfiguration(base);
     assert.equal(configuration.runtimeControls.targetSessionIssuanceEnabled, true);
     assert.equal(configuration.runtimeControls.subjectTargetAdoptionEnabled, true);

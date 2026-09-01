@@ -125,13 +125,13 @@ function invokeBoundary(boundary, req, res = createResponse()) {
     return { res, nextCalls };
 }
 
-test('cookie transport uses the shared exact names and origin', () => {
+test('cookie transport uses the exact partitioned host, names, and origin', () => {
     assert.equal(SESSION_COOKIE_NAME, '__Host-machado-session');
     assert.equal(SESSION_REQUEST_HEADER, 'x-machado-session-request');
     assert.equal(SESSION_REQUEST_HEADER_VALUE, '1');
     assert.equal(TARGET_ORIGIN, SESSION_FRONTEND_ORIGIN);
     assert.equal(TARGET_ORIGIN, 'https://machadogestao.com');
-    assert.equal(SESSION_API_HOSTNAME, 'api.machadogestao.com');
+    assert.equal(SESSION_API_HOSTNAME, 'plataforma-backend-v3.azurewebsites.net');
 });
 
 test('session cookie parsing returns only canonical generated identifiers', async (t) => {
@@ -184,7 +184,7 @@ test('session cookie parsing returns only canonical generated identifiers', asyn
     });
 });
 
-test('issuance cookies have host-only strict flags and authoritative cleanup hints', () => {
+test('issuance cookies have host-only partitioned flags and authoritative cleanup hints', () => {
     const identifier = createIdentifier();
     const now = new Date('2030-01-02T03:04:05.250Z');
     const expiresAt = new Date('2030-01-02T07:04:05.750Z');
@@ -198,10 +198,12 @@ test('issuance cookies have host-only strict flags and authoritative cleanup hin
         'Path=/',
         'Secure',
         'HttpOnly',
-        'SameSite=Strict',
+        'SameSite=None',
+        'Partitioned',
         'Max-Age=14401',
         `Expires=${expiresAt.toUTCString()}`,
     ]);
+    assert.equal(segments.filter((segment) => segment === 'Partitioned').length, 1);
     assert.equal(cookie.includes('Domain='), false);
     assert.equal(cookie.includes('Max-Age=0'), false);
 
@@ -472,7 +474,7 @@ test('target actual responses use exact CORS, cache, Origin, Host, and header bo
         }
     });
 
-    await t.test('wrong, missing, and App Service hosts fail closed', () => {
+    await t.test('missing, synthetic, and unrelated App Service hosts fail closed', () => {
         for (const host of [undefined, `${SYNTHETIC_TARGET_HOSTNAME}:443`, 'backend.azurewebsites.net']) {
             const headers = {};
             if (host !== undefined) headers.Host = host;

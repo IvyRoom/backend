@@ -107,7 +107,7 @@ function readSessionAuthorityConfiguration(environment = {}) {
     };
     const topologyQualified = readBoolean(
         environment,
-        'SESSION_AUTHORITY_FIRST_PARTY_TOPOLOGY_QUALIFIED',
+        'SESSION_AUTHORITY_PARTITIONED_COOKIE_TOPOLOGY_QUALIFIED',
     );
 
     validateControlDependencies(runtimeControls, topologyQualified);
@@ -443,7 +443,7 @@ function validateControlDependencies(controls, topologyQualified) {
             || controls.protectedRoutesEnabled)
         && !topologyQualified
     ) {
-        throw new TypeError('Target activation requires qualified first-party topology');
+        throw new TypeError('Target activation requires qualified partitioned-cookie topology');
     }
 }
 

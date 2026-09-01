@@ -496,7 +496,7 @@ test('dual-mode login keeps legacy dispatch separate from target cookie transpor
     assertTargetEnvelope(target);
     assert.equal(
         target.headers.get('set-cookie'),
-        `${SESSION_COOKIE_NAME}=${ISSUED_IDENTIFIER}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=60; Expires=${EXPIRES_AT.toUTCString()}`,
+        `${SESSION_COOKIE_NAME}=${ISSUED_IDENTIFIER}; Path=/; Secure; HttpOnly; SameSite=None; Partitioned; Max-Age=60; Expires=${EXPIRES_AT.toUTCString()}`,
     );
     assert.equal(graphClient.calls.length, 1);
     assert.deepEqual(harness.authorityCalls.map(({ name }) => name), ['loginTarget']);
