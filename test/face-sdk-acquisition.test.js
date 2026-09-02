@@ -12,6 +12,7 @@ const repositoryRoot = path.resolve(__dirname, '..');
 const moduleUrl = pathToFileURL(
     path.join(repositoryRoot, 'scripts', 'prepare-face-sdk-update.mjs'),
 ).href;
+const SYNTHETIC_REGISTRY_PASSWORD = 'A'.repeat(16);
 
 const REQUIRED_ASSET_FILES = [
     'i18n/pt-BR/en.json',
@@ -71,7 +72,7 @@ async function makeFixture(t, currentVersion = '1.5.0') {
     };
 }
 
-function successFetch(secret = 'U0VDUkVUX1NFTlRJTkVM') {
+function successFetch(secret = SYNTHETIC_REGISTRY_PASSWORD) {
     return async (url, options) => {
         assert.equal(url.protocol, 'https:');
         assert.equal(url.hostname, 'face-fixture.cognitiveservices.azure.com');
@@ -95,7 +96,7 @@ function synchronousSuccessfulSpawn(calls, options = {}) {
         }
         if (args[0] === 'install') {
             if (options.installFailure) {
-                return { status: 1, stdout: 'U0VDUkVUX1NFTlRJTkVM', stderr: 'registry-response-sentinel' };
+                return { status: 1, stdout: SYNTHETIC_REGISTRY_PASSWORD, stderr: 'registry-response-sentinel' };
             }
             const installRoot = args[args.indexOf('--prefix') + 1];
             const mainRoot = path.join(installRoot, 'node_modules', '@azure', 'ai-vision-face-ui');
@@ -122,7 +123,7 @@ function synchronousSuccessfulSpawn(calls, options = {}) {
             return { status: 0, stdout: 'private-package-output-must-not-be-logged' };
         }
         if (options.sistemasFailure) {
-            return { status: 1, stdout: 'U0VDUkVUX1NFTlRJTkVM', stderr: 'private-contents-sentinel' };
+            return { status: 1, stdout: SYNTHETIC_REGISTRY_PASSWORD, stderr: 'private-contents-sentinel' };
         }
         return {
             status: 0,
@@ -196,7 +197,7 @@ test('successful acquisition is isolated, secret-sanitized, and always cleaned',
         '--loglevel=silent',
     ]) assert.ok(installCall.args.includes(flag), `${flag} must isolate the temporary install`);
     assert.equal(installCall.options.shell, false);
-    assert.equal(installCall.options.env.AZURE_AI_VISION_NPM_TOKEN_BASE64, 'U0VDUkVUX1NFTlRJTkVM');
+    assert.equal(installCall.options.env.AZURE_AI_VISION_NPM_TOKEN_BASE64, SYNTHETIC_REGISTRY_PASSWORD);
     assert.match(installCall.options.env.NPM_CONFIG_USERCONFIG, /face-sdk-fixture[\\/]\.npmrc$/);
     assert.match(installCall.options.env.npm_config_cache, /face-sdk-fixture[\\/]npm-cache$/);
 
@@ -308,7 +309,8 @@ for (const failure of ['install', 'sistemas']) {
                 spawnImpl: synchronousSuccessfulSpawn(calls, options),
             }),
             (error) => {
-                assert.doesNotMatch(error.message, /U0VDUkVUX1NFTlRJTkVM|registry-response|private-contents/);
+                assert.equal(error.message.includes(SYNTHETIC_REGISTRY_PASSWORD), false);
+                assert.doesNotMatch(error.message, /registry-response|private-contents/);
                 return true;
             },
         );
