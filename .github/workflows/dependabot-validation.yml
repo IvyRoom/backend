@@ -1,0 +1,45 @@
+name: Validate Dependabot updates
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: windows-latest
+    name: Validate dependency update
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js version
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          package-manager-cache: false
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check production syntax
+        shell: bash
+        run: |
+          node --check app.js
+          node --check server.js
+          node --check platform-row-authorization.js
+          node --check domains/quote-requests.js
+          node --check domains/conecta-recommendations.js
+          node --check domains/client-onboarding.js
+          node --check domains/learning-platform.js
+          node --check domains/drm.js
+          node --check domains/certificate-validation.js
+          node --check integrations/microsoft-graph.js
+          node --check integrations/azure-face.js
+          node --check shared/retry.js
+          node --check shared/escape-html.js
+      - name: Test application
+        run: npm test
