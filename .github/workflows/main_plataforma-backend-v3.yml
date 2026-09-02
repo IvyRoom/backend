@@ -11,9 +11,16 @@ on:
       - '**/*.md'
       - '.agents/**'
       - '.github/dependabot.yml'
+      - '.github/workflows/face-sdk-update.yml'
+      - '.github/workflows/face-sdk-validation.yml'
+      - '.github/workflows/main_plataforma-backend-v3.yml'
       - '.gitignore'
       - 'docs/**'
+      - 'docs/runbooks/update-face-liveness-sdk.md'
+      - 'scripts/prepare-face-sdk-update.mjs'
       - 'test/**'
+      - 'test/face-sdk-acquisition.test.js'
+      - 'test/face-sdk-workflows.test.js'
   workflow_dispatch:
 
 jobs:

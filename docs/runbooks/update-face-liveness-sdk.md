@@ -2,14 +2,14 @@
 
 Current vendored version: **1.5.0**
 
-This runbook documents the current manual process for updating the Face Liveness Web SDK used by `sistemas/plataforma_v2`. The backend repository is an authenticated download workspace; the browser bundle and assets used in production live in the frontend repository.
+The browser SDK is vendored in
+`sistemas/apps/learning-platform/azure-ai-vision-face-ui`. Both
+`apps/learning-platform/login` and `apps/learning-platform/photo-registration`
+load that copy through the public `/plataforma/azure-ai-vision-face-ui/` path.
+The Backend repository owns only the trusted package-acquisition automation and
+this version record; the private UI packages are never application dependencies.
 
-Both `plataforma_v2/login` and `plataforma_v2/cadastro` import the vendored bundle.
-
-This procedure changes both repositories:
-
-- `backend`, for the temporary package installation and this version record
-- `sistemas`, for the vendored SDK file and assets
+This process intentionally remains separate from ordinary npm Dependabot.
 
 ## Official references
 
@@ -19,164 +19,172 @@ This procedure changes both repositories:
 - [Web SDK sample and installation guidance](https://github.com/Azure-Samples/azure-ai-vision-sdk/blob/main/samples/web/README.md)
 - [Get Client Assets Access Token API](https://learn.microsoft.com/en-us/rest/api/face/liveness-session-operations/get-client-assets-access-token?view=rest-face-v1.3-preview)
 
-## Before starting
+## Trusted automation boundary
 
-1. Review both the official release feed and the Azure Face “What's new” page. The latter can lag behind the release feed.
-2. Read the target version's release and migration notes. Choose the exact version before installing it.
-3. Confirm that `backend` and `sistemas` have clean working trees.
-4. Create the same feature branch in both repositories, for example `chore/update-face-liveness-sdk`.
-5. Confirm that Node.js 24, npm, the ignored `backend/npmrc_password.http` request file, and the backend's ignored `.env` are available.
-6. Confirm that the test browser has webcam permission and that the frontend can be served locally from the `sistemas` repository root.
-7. Use an approved test account for the final FaceID test. A locally running backend can still reach live Microsoft Graph and Azure resources.
+`.github/workflows/face-sdk-update.yml` checks for a release every Tuesday at
+12:23 UTC and also accepts a manual exact-version request. It runs only from the
+Backend default branch. The job uses the non-production
+`face-sdk-automation` environment with deployment records disabled; it does not
+use Azure login, OIDC, either production environment, deployment credentials, or
+an application deployment action.
 
-Do not combine this update with unrelated formatting, comment cleanup, or application changes.
+Configure that environment once, restrict it to `main`, and store:
 
-## Update procedure
+- `AZURE_FACE_API_ENDPOINT` and `AZURE_FACE_API_KEY` as environment secrets;
+- `FACE_SDK_APP_PRIVATE_KEY` as an environment secret; and
+- `FACE_SDK_APP_CLIENT_ID` as an environment variable.
 
-### 1. Obtain the temporary package token
+The private GitHub App must be installed only on `IvyRoom/backend` and
+`IvyRoom/sistemas`. Grant it only repository contents read/write and pull request
+read/write; metadata read is implicit. Do not grant Actions, deployments,
+environments, secrets, workflows, administration, bypass, or Azure permissions.
+GitHub Apps do not expose separate approval or merge permissions to withhold from
+these required write scopes, so keep the App out of branch-protection bypass
+lists and require the ordinary human review and green-check policy. The workflow
+creates drafts and contains no approve, ready-for-review, merge, or auto-merge
+API call.
 
-Run the request in `backend/npmrc_password.http` and copy the response field named `base64AccessToken`. Do not copy the separate `accessToken` field.
+Before enabling the schedule, rotate or retire the old repository-level
+`AZURE_FACE_API_NPM_TEMPORARY_TOKEN`. A private package credential must exist
+only in the main-restricted `face-sdk-automation` environment. Pull-request jobs
+must not reference that environment or any of its secrets.
 
-In the PowerShell terminal attached to `backend`, store the token only for that terminal session:
+The tracked Backend `.npmrc` contains only the private scope and an environment
+variable placeholder. Never commit a package password, Face key, registry
+response, GitHub App key, or installation token.
+
+## What the updater does
+
+1. It first requires the Backend version record and the Sistemas vendor manifest
+   to agree, then reads the latest public `@azure/ai-vision-face-ui` version or
+   validates the exact version supplied by a manual run. Drift fails before any
+   network or package work. An equal version exits without requesting a private
+   credential; downgrades are rejected.
+2. Only when a newer version exists, it exchanges the Face resource key for the
+   short-lived `base64AccessToken` required by the private Azure Artifacts feed.
+   The response and child-process output are captured and never printed.
+3. It installs `@azure/ai-vision-face-ui` under a new
+   `$RUNNER_TEMP/face-sdk-*` directory with lifecycle scripts, lockfile writes,
+   audit, funding output, and development dependencies disabled. npm's cache and
+   temporary `.npmrc` stay inside the same directory.
+4. It verifies the exact package identities
+   `@azure/ai-vision-face-ui` and `@azure-ai-vision-face/ui-assets`, the requested
+   package version, the loader's `clientSDKversion`, required JavaScript and
+   WebAssembly engines, images, localization, and the absence of symlinks or
+   special files. Windows-reserved, invalid, or case-colliding paths are rejected.
+5. It removes Face, registry, GitHub, password, token, and private-key variables
+   before invoking the credential-free Sistemas synchronizer. That synchronizer
+   first refuses any drift in the existing vendor tree, then builds and validates
+   a complete candidate before replacement. It removes files retired upstream
+   instead of merging directories and canonicalizes Git-tracked text to LF before
+   recording hashes.
+6. It restores the login-owned `Brightness.svg` byte-for-byte and these three
+   Brazilian Portuguese overrides:
+
+   ```json
+   {
+     "AZAIF_IncreaseBrightness": "Coloque o brilho da tela no máximo e afaste-se de janelas muito iluminadas.",
+     "AZAIF_IncreaseBrightnessHighestSetting": "A tela piscará algumas vezes para processar o FaceID.",
+     "AZAIF_IncreaseBrightnessTurnedUp": "Coloquei o brilho no máximo e me afastei de janelas muito iluminadas."
+   }
+   ```
+
+7. It updates the Backend current-version marker and the Sistemas vendor manifest
+   together, verifies that they agree, and proves Backend `package.json`,
+   `package-lock.json`, and `.npmrc` are unchanged.
+8. It prepares and structurally validates both repositories before obtaining a
+   narrowly scoped GitHub App installation token. It verifies that neither
+   repository's `main` tip advanced during preparation, then proposes the same
+   deterministic branch, such as `chore/update-face-liveness-sdk-1-6-0`, in each
+   repository and opens two cross-linked draft pull requests.
+9. A `finally` cleanup and a separate always-running workflow cleanup remove the
+   install tree, cache, temporary configuration, and downloaded packages after
+   success or failure.
+
+The updater stops rather than competing with an existing Face SDK proposal. A
+rerun may continue an exact matching branch and draft pull request; it updates
+only its delimited description block and preserves maintainer notes outside that
+block. A validated matching pair already marked ready for review is a successful
+no-op. The updater never force-pushes, closes a pull request or preview, deletes a
+branch, approves, merges, enables auto-merge, or changes Azure.
+
+## Pull-request isolation
+
+The generated pull-request workflows use only `contents: read`, check out with
+persisted credentials disabled, and run the repository verification suites
+without secrets. They have no environment, artifact handoff, OIDC, Azure,
+deployment, reusable-workflow, server-start, approval, or merge path.
+
+The Sistemas Static Web Apps workflow rejects same-repository branches beginning
+`chore/update-face-liveness-sdk-` in both its build/deploy job and its preview
+close job. Therefore an automated proposal cannot deploy, create or close a
+preview, enter Production, or receive the Static Web Apps token. Merging a
+separately reviewed Sistemas SDK update to `main` retains the ordinary production
+deployment path. Backend runbook-only changes remain excluded from its runtime
+deployment workflow.
+
+The automation does not rewrite frozen Sistemas release-qualification baselines,
+opaque WASM expectations, compatibility prose, or the canonical production
+artifact identity. A genuine SDK proposal can therefore make those deliberate
+checks fail until a reviewer qualifies the new release and updates each expected
+value on the proposal branch. Do not mechanically bless new hashes.
+
+## Review a generated proposal
+
+1. Read the target release and migration notes in the official sources. The Face
+   “What's new” page can lag behind the SDK release feed.
+2. Confirm both draft pull requests have the same version and branch, are
+   cross-linked, and contain only the expected runbook and vendored-SDK changes.
+3. Confirm the Backend dependency files and tracked `.npmrc` are unchanged. No
+   credential, registry response, temporary package metadata, or package content
+   outside the intended Sistemas vendor tree may appear in a diff or log.
+4. Review removed and added vendor files. Confirm the complete asset directory
+   was replaced, `clientSDKversion` matches the proposal, the custom brightness
+   image is byte-identical to
+   `sistemas/apps/learning-platform/login/img/Brightness.svg`, and all three
+   Portuguese messages are exact.
+5. Deliberately update any frozen version, file, WASM, or artifact expectations
+   only after reviewing the release. Run the complete Backend and Sistemas suites
+   from their `AGENTS.md` files and `git diff --check` in both repositories.
+6. In Sistemas, run `node scripts/check-face-sdk-vendor.mjs` and inspect the
+   generated vendor manifest. Do not waive structural, browser, runtime, API,
+   workbook, retry, signed-handle, artifact, or production-network-denial checks.
+
+Do not combine an SDK proposal with unrelated formatting, dependency, application,
+or infrastructure changes.
+
+## Browser qualification
+
+Serve the Sistemas source preview with:
 
 ```powershell
-$env:AZURE_AI_VISION_NPM_TOKEN_BASE64 = '<TOKEN_BASE64>'
+node scripts/serve-frontend.mjs
 ```
 
-The tracked `.npmrc` reads this variable for both `_password` entries. Do not paste the token into `.npmrc`, another file, a commit, or a message. Closing the terminal removes the session variable.
+Use `/plataforma/login/` for the login flow and
+`/plataforma/cadastro-foto/` for enrollment. Do not edit a source file to replace
+the Backend URL. The learning-platform runtime reads the production origin from
+`apps/shared/backend-origin.js`; automated tests use an injected synthetic origin
+and deny the production network. The browser routes moved to `/plataforma/`, but
+the Backend API namespace intentionally remains `/plataforma_v2`.
 
-### 2. Install the selected package version
+With an approved test account and webcam permission, confirm that the liveness
+interface loads, JavaScript/WebAssembly/image/localization requests do not return
+404, the Machado brightness guidance appears, success completes, and cancellation
+plus one expected failure remain understandable. This smoke test creates live
+Face sessions. Exercise photo registration only with explicit approval because
+it can write a reference photo and update the live workbook.
 
-In the same terminal, replace `x.y.z` with the version chosen from the release notes and run:
+## Release and recovery
 
-```powershell
-$targetVersion = 'x.y.z'
-npm install "@azure/ai-vision-face-ui@$targetVersion"
-node -p "require('./node_modules/@azure/ai-vision-face-ui/package.json').version"
-```
+Keep both pull requests draft until review and every required check are complete.
+Merge only during an appropriate maintenance window. Merge and verify the
+Sistemas proposal first because it supplies the production browser files; then
+merge the Backend version record, which does not require a runtime deployment.
+Any version mismatch left between the repositories makes the next automation run
+fail loudly before network or package work.
 
-Confirm that the reported installed version matches `$targetVersion`. Using an explicit version keeps the reviewed release and the downloaded release aligned.
-
-### 3. Validate the installed file layout
-
-Run:
-
-```powershell
-Test-Path .\node_modules\@azure\ai-vision-face-ui\FaceLivenessDetector.js
-Test-Path .\node_modules\@azure-ai-vision-face\ui-assets\facelivenessdetector-assets
-```
-
-Both commands must return `True`. If either path is missing, stop and consult the current official Web SDK instructions instead of guessing a replacement path.
-
-The two source paths intentionally use different package scopes:
-
-- `@azure/ai-vision-face-ui` contains `FaceLivenessDetector.js`.
-- `@azure-ai-vision-face/ui-assets` contains `facelivenessdetector-assets`.
-
-### 4. Replace the vendored frontend files
-
-Copy:
-
-- `backend/node_modules/@azure/ai-vision-face-ui/FaceLivenessDetector.js`
-  to `sistemas/plataforma_v2/azure-ai-vision-face-ui/FaceLivenessDetector.js`
-- `backend/node_modules/@azure-ai-vision-face/ui-assets/facelivenessdetector-assets`
-  to `sistemas/plataforma_v2/azure-ai-vision-face-ui/facelivenessdetector-assets`
-
-Replace the existing asset directory rather than merging the two versions. This prevents files removed by Microsoft from remaining in the vendored copy.
-
-### 5. Reapply Machado's frontend overrides
-
-Replace:
-
-`sistemas/plataforma_v2/azure-ai-vision-face-ui/facelivenessdetector-assets/images/Brightness.svg`
-
-with:
-
-`sistemas/plataforma_v2/login/img/Brightness.svg`
-
-Then update these values in:
-
-`sistemas/plataforma_v2/azure-ai-vision-face-ui/facelivenessdetector-assets/i18n/pt-BR/en.json`
-
-```json
-{
-  "AZAIF_IncreaseBrightness": "Coloque o brilho da tela no máximo e afaste-se de janelas muito iluminadas.",
-  "AZAIF_IncreaseBrightnessHighestSetting": "A tela piscará algumas vezes para processar o FaceID.",
-  "AZAIF_IncreaseBrightnessTurnedUp": "Coloquei o brilho no máximo e me afastei de janelas muito iluminadas."
-}
-```
-
-These are excerpts to locate and replace in the existing JSON file, not a replacement for the whole file.
-
-### 6. Update the version record
-
-Change **Current vendored version** at the top of this runbook to the installed version.
-
-Also verify that `clientSDKversion` inside the new `FaceLivenessDetector.js` reports the same version.
-
-### 7. Remove the temporary backend dependency
-
-Preserve the existing cleanup sequence:
-
-1. Delete `backend/node_modules`.
-2. Delete `backend/package-lock.json`.
-3. Remove the `@azure/ai-vision-face-ui` dependency added to `backend/package.json`.
-4. Close the terminal containing `AZURE_AI_VISION_NPM_TOKEN_BASE64`.
-5. Open a new terminal in `backend` and run:
-
-```powershell
-npm install
-```
-
-The final backend dependency files must not retain `@azure/ai-vision-face-ui`; it is only a temporary source for the vendored frontend assets.
-
-Run `git diff -- package.json package-lock.json`. It should show no dependency-file changes. Stop and investigate any remaining diff rather than committing regenerated dependency versions accidentally.
-
-Automating this temporary installation, asset synchronization, and cleanup is a separate future improvement.
-
-### 8. Test locally
-
-1. Start the backend with `npm start`.
-2. In `sistemas/plataforma_v2/login/main.js`, temporarily change the backend base URL to:
-
-```text
-http://localhost:3000/plataforma_v2
-```
-
-3. Serve the frontend locally from the `sistemas` repository root so that the existing `/plataforma_v2/` paths remain valid.
-4. Complete the login FaceID flow with an approved test account. This flow performs live Microsoft Graph reads and creates live Azure Face sessions.
-5. Confirm that:
-   - the liveness interface loads;
-   - its JavaScript, WebAssembly, image, and localization assets load without `404` responses;
-   - the customized brightness instructions appear;
-   - the success path completes;
-   - cancellation and one expected failure path remain understandable.
-6. Test the enrollment flow in `plataforma_v2/cadastro` only when explicitly approved. It can write a reference photo and update a live workbook record.
-7. Restore the production base URL before committing:
-
-```text
-https://plataforma-backend-v3.azurewebsites.net/plataforma_v2
-```
-
-### 9. Review the changes
-
-Before committing, confirm:
-
-- The backend package files contain no temporary Face UI dependency.
-- No token or credential appears in either repository's diff.
-- The frontend production backend URL has been restored.
-- The custom `Brightness.svg` and Brazilian Portuguese strings are present.
-- The runbook and vendored JavaScript report the same SDK version.
-- Each repository contains only the intended SDK-update changes.
-- `git diff --check` passes in both repositories.
-
-### 10. Deploy and verify
-
-1. Commit and open one reviewable pull request in each repository that has an intended final change.
-2. Merge during an appropriate platform maintenance window.
-3. Deploy `sistemas`; that repository contains the production Web SDK files.
-4. Do not deploy backend runtime changes merely because it was used to download the package. Deploy backend code only if the target release explicitly requires compatible backend changes.
-5. A runbook-only merge is excluded by the backend workflow's Markdown and `docs/**` path filters, so it does not trigger a production backend deployment.
-6. Repeat the FaceID smoke test in production.
-
-If a pre-merge test fails, do not merge the SDK update. If the production smoke test fails, create and merge a new revert PR for the frontend SDK update, then redeploy the previous known-good assets.
+After deployment, repeat the approved production FaceID smoke test. If it fails,
+create and review a new revert pull request for the Sistemas SDK change, deploy
+the last known-good assets, and keep the failed version out of the current-version
+record. Never rewrite history or force-push a recovery.
