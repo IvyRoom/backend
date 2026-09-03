@@ -172,3 +172,85 @@ test('Dependabot pull requests are validated without a production deployment pat
         /^[ \t]*(?:-[ \t]*)?uses: azure\/webapps-deploy@(?:v\d+(?:\.\d+\.\d+)?|[0-9a-f]{40})$/im,
     );
 });
+
+test('Face SDK checker reads public metadata and only opens a review issue', () => {
+    const workflowPath = '.github/workflows/face-sdk-version-check.yml';
+    const workflow = readRepositoryFile(workflowPath);
+    const deploymentWorkflow = readRepositoryFile(
+        '.github/workflows/main_plataforma-backend-v3.yml',
+    );
+    const eventBlock = yamlMappingBlock(workflow, 0, 'on');
+    const jobsBlock = yamlMappingBlock(workflow, 0, 'jobs');
+    const checkJob = yamlMappingBlock(workflow, 2, 'check');
+    const notifyJob = yamlMappingBlock(workflow, 2, 'notify');
+    const checkPermissions = yamlMappingBlock(checkJob, 4, 'permissions');
+    const notifyPermissions = yamlMappingBlock(notifyJob, 4, 'permissions');
+
+    assert.deepEqual(yamlDirectKeys(eventBlock, 2), ['schedule', 'workflow_dispatch']);
+    assert.match(eventBlock, /^    - cron: '23 12 \* \* 2'$/m);
+    assert.deepEqual(yamlDirectKeys(jobsBlock, 2), ['check', 'notify']);
+    assert.match(workflow, /^permissions: \{\}$/m);
+    assert.deepEqual(yamlDirectKeys(checkPermissions, 6), ['contents']);
+    assert.match(checkPermissions, /^      contents: read$/m);
+    assert.deepEqual(yamlDirectKeys(notifyPermissions, 6), ['issues']);
+    assert.match(notifyPermissions, /^      issues: write$/m);
+
+    assert.match(checkJob, /github\.repository == 'IvyRoom\/backend'/);
+    assert.match(checkJob, /github\.ref == 'refs\/heads\/main'/);
+    assert.match(checkJob, /github\.event_name == 'schedule'/);
+    assert.match(checkJob, /github\.event_name == 'workflow_dispatch'/);
+    assert.match(checkJob, /^          persist-credentials: false$/m);
+    assert.match(checkJob, /^          package-manager-cache: false$/m);
+    assert.match(
+        checkJob,
+        /npm view '@azure\/ai-vision-face-ui@latest' version --userconfig=\/dev\/null --registry=https:\/\/registry\.npmjs\.org\/ --ignore-scripts --silent/,
+    );
+    assert.ok(checkJob.indexOf('cd "$RUNNER_TEMP"') < checkJob.indexOf('npm view'));
+    assert.match(checkJob, /latest_major > current_major/);
+    assert.match(checkJob, /Public latest version .* is older than vendored version/);
+    assert.match(notifyJob, /^    needs: check$/m);
+    assert.match(notifyJob, /^    if: needs\.check\.outputs\.update_available == 'true'$/m);
+    assert.match(notifyJob, /^          GH_TOKEN: \$\{\{ github\.token \}\}$/m);
+    assert.match(notifyJob, /^          ISSUE_ASSIGNEE: IvyRoom$/m);
+    assert.doesNotMatch(notifyJob, /github\.actor/);
+    assert.match(
+        notifyJob,
+        /gh api --paginate --method GET[\s\S]*repos\/\$GITHUB_REPOSITORY\/issues[\s\S]*-f state=all/,
+    );
+    assert.doesNotMatch(notifyJob, /gh issue list/);
+    assert.match(notifyJob, /gh issue create[\s\S]*--assignee "\$ISSUE_ASSIGNEE"/);
+
+    const actions = Array.from(
+        workflow.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)$/gm),
+        ([, action]) => action.slice(0, action.lastIndexOf('@')),
+    );
+    assert.deepEqual(actions, ['actions/checkout', 'actions/setup-node']);
+
+    for (const forbidden of [
+        /\bsecrets\b/,
+        /\bvars\b/,
+        /^\s*pull_request(?:_target)?:/m,
+        /^\s*environment:/m,
+        /^\s*id-token:/m,
+        /^\s*(?:-\s*)?uses:\s*azure\//im,
+        /actions\/create-github-app-token@/,
+        /\bnpm (?:ci|install|pack)\b/,
+        /\bgit push\b/,
+        /\bgh pr\b/,
+        /^\s*repository:\s*IvyRoom\/sistemas\s*$/im,
+        /\bdeploy(?:ment)?\b/i,
+    ]) {
+        assert.doesNotMatch(workflow, forbidden);
+    }
+
+    assert.match(
+        deploymentWorkflow,
+        /^      - '\.github\/workflows\/face-sdk-version-check\.yml'$/m,
+    );
+    for (const runtimePath of ['app.js', 'server.js', 'package.json', 'package-lock.json']) {
+        assert.doesNotMatch(
+            deploymentWorkflow,
+            new RegExp("^      - '" + runtimePath.replace('.', '\\.') + "'$", 'm'),
+        );
+    }
+});

@@ -11,6 +11,8 @@ on:
       - '**/*.md'
       - '.agents/**'
       - '.github/dependabot.yml'
+      - '.github/workflows/face-sdk-version-check.yml'
+      - '.github/workflows/main_plataforma-backend-v3.yml'
       - '.gitignore'
       - 'docs/**'
       - 'test/**'
