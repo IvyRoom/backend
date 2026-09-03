@@ -111,7 +111,7 @@ function createProductionDependencies(environment, platformRowAuthorizationKey, 
 
 function startProductionServer({
     environment = process.env,
-    loadEnvironment = () => require('dotenv').config(),
+    loadEnvironment = () => require('dotenv').config({ quiet: true }),
     createDependencies = createProductionDependencies,
     createApplication = createApp,
     runtimeHooks,
