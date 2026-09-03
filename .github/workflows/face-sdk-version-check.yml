@@ -89,7 +89,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CURRENT_VERSION: ${{ needs.check.outputs.current_version }}
           LATEST_VERSION: ${{ needs.check.outputs.latest_version }}
-          ISSUE_ASSIGNEE: ${{ github.actor }}
+          ISSUE_ASSIGNEE: IvyRoom
         run: |
           set -euo pipefail
           issue_title="Face Liveness Web SDK $LATEST_VERSION is available"

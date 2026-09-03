@@ -211,6 +211,8 @@ test('Face SDK checker reads public metadata and only opens a review issue', () 
     assert.match(notifyJob, /^    needs: check$/m);
     assert.match(notifyJob, /^    if: needs\.check\.outputs\.update_available == 'true'$/m);
     assert.match(notifyJob, /^          GH_TOKEN: \$\{\{ github\.token \}\}$/m);
+    assert.match(notifyJob, /^          ISSUE_ASSIGNEE: IvyRoom$/m);
+    assert.doesNotMatch(notifyJob, /github\.actor/);
     assert.match(
         notifyJob,
         /gh api --paginate --method GET[\s\S]*repos\/\$GITHUB_REPOSITORY\/issues[\s\S]*-f state=all/,

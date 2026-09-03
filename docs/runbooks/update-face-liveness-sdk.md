@@ -13,19 +13,20 @@ This process intentionally remains separate from ordinary npm Dependabot.
 ## Automatic version check
 
 Backend's `.github/workflows/face-sdk-version-check.yml` runs every Tuesday at
-12:23 UTC and can also be started manually. It compares the version marker above
-with the stable `latest` metadata for `@azure/ai-vision-face-ui` on the public npm
-registry.
+12:23 UTC and can also be started manually. Tuesday provides a fixed weekly
+cadence; minute 23 avoids the higher GitHub Actions load around the start of an
+hour. It compares the version marker above with the stable `latest` metadata for
+`@azure/ai-vision-face-ui` on the public npm registry.
 
 The checker uses no repository or Azure secret, private registry, environment,
 OIDC credential, or deployment action. It reads metadata only: it does not
 download package contents, modify either repository, or create a pull request.
 
 When the versions differ, it opens one Backend issue for that published version
-and assigns the workflow actor. GitHub notifies the assignee; email delivery
-depends on that account's GitHub notification settings. An existing open or
-closed issue prevents duplicate notices. When the versions match, the workflow
-finishes successfully without creating an issue.
+and assigns the `IvyRoom` account. GitHub notifies the assignee through that
+account's configured GitHub and email channels. An existing open or closed issue
+prevents duplicate notices. When the versions match, the workflow finishes
+successfully without creating an issue.
 
 The issue is a prompt for Lucas and Codex to review the release and perform the
 manual process below.
