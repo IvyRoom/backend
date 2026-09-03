@@ -152,14 +152,20 @@ test('importing server is configuration-, SDK-, listener-, and timer-safe', () =
     assert.equal(child.stdout, '');
 });
 
-test('IISNode-style require invokes configuration validation without production dependencies', () => {
+test('IISNode-style require loads dotenv quietly before configuration validation', () => {
     const serverPath = require.resolve('../server');
     const environment = { ...process.env };
     const script = `
         const Module = require('node:module');
         const originalLoad = Module._load;
         Module._load = function (request, parent, isMain) {
-            if (request === 'dotenv') return { config() {} };
+            if (request === 'dotenv') {
+                return {
+                    config(options) {
+                        if (options?.quiet !== true) throw new Error('dotenv must load quietly');
+                    },
+                };
+            }
             if (request.startsWith('@microsoft/') || request.startsWith('@azure/') || request.startsWith('@azure-rest/')) {
                 throw new Error('production SDK loaded before signing-key validation: ' + request);
             }
