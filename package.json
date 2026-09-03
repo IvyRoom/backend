@@ -17,6 +17,9 @@
     "multer": "^2.3.0",
     "uuid": "^14.0.2"
   },
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "engines": {
     "node": "24.x"
   },
