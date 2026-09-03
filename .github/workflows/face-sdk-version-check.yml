@@ -1,0 +1,117 @@
+name: Check Face Liveness SDK version
+
+on:
+  schedule:
+    - cron: '23 12 * * 2'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: face-sdk-version-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: >-
+      github.repository == 'IvyRoom/backend' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      current_version: ${{ steps.versions.outputs.current_version }}
+      latest_version: ${{ steps.versions.outputs.latest_version }}
+      update_available: ${{ steps.versions.outputs.update_available }}
+    steps:
+      - name: Check out Backend main without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          package-manager-cache: false
+      - name: Compare vendored and published versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          runbook="$GITHUB_WORKSPACE/docs/runbooks/update-face-liveness-sdk.md"
+          current_version="$(sed -nE 's/^Current vendored version: \*\*([0-9]+\.[0-9]+\.[0-9]+)\*\*$/\1/p' "$runbook")"
+          cd "$RUNNER_TEMP"
+          latest_version="$(npm view '@azure/ai-vision-face-ui@latest' version --userconfig=/dev/null --registry=https://registry.npmjs.org/ --ignore-scripts --silent)"
+
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          [[ "$current_version" =~ $version_pattern ]] || {
+            echo 'The runbook must contain one stable current-version marker.' >&2
+            exit 1
+          }
+          [[ "$latest_version" =~ $version_pattern ]] || {
+            echo 'The public registry did not return one stable version.' >&2
+            exit 1
+          }
+
+          echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "latest_version=$latest_version" >> "$GITHUB_OUTPUT"
+          IFS=. read -r current_major current_minor current_patch <<< "$current_version"
+          IFS=. read -r latest_major latest_minor latest_patch <<< "$latest_version"
+          if [[ "$current_version" == "$latest_version" ]]; then
+            echo 'update_available=false' >> "$GITHUB_OUTPUT"
+            echo "Face Liveness Web SDK $current_version is current."
+          elif ((
+            latest_major > current_major ||
+            (latest_major == current_major && latest_minor > current_minor) ||
+            (latest_major == current_major && latest_minor == current_minor && latest_patch > current_patch)
+          )); then
+            echo 'update_available=true' >> "$GITHUB_OUTPUT"
+            echo "Face Liveness Web SDK $latest_version requires review; vendored version is $current_version."
+          else
+            echo "Public latest version $latest_version is older than vendored version $current_version." >&2
+            exit 1
+          fi
+
+  notify:
+    needs: check
+    if: needs.check.outputs.update_available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open one review issue for the published version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_VERSION: ${{ needs.check.outputs.current_version }}
+          LATEST_VERSION: ${{ needs.check.outputs.latest_version }}
+          ISSUE_ASSIGNEE: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          issue_title="Face Liveness Web SDK $LATEST_VERSION is available"
+          existing_issue="$(
+            gh api --paginate --method GET \
+              "repos/$GITHUB_REPOSITORY/issues" \
+              -f state=all \
+              -f per_page=100 \
+              --jq ".[] | select(.pull_request == null and .title == \"$issue_title\") | .number"
+          )"
+          if [[ -n "$existing_issue" ]]; then
+            echo 'An issue already records this version.'
+            exit 0
+          fi
+
+          issue_body="$(printf '%s\n\n%s\n\n%s\n\n%s\n' \
+            "Public npm metadata reports Face Liveness Web SDK $LATEST_VERSION; Backend records the current vendored version as $CURRENT_VERSION." \
+            'No package contents were downloaded and no repository files or pull requests were changed.' \
+            "Review the release: https://www.npmjs.com/package/@azure/ai-vision-face-ui/v/$LATEST_VERSION" \
+            "Perform the upgrade manually with the runbook: https://github.com/$GITHUB_REPOSITORY/blob/main/docs/runbooks/update-face-liveness-sdk.md")"
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$issue_title" \
+            --body "$issue_body" \
+            --assignee "$ISSUE_ASSIGNEE"
