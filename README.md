@@ -146,7 +146,7 @@ The project does not currently define lint or build scripts.
 
 ## Deployment
 
-Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs dependencies with Node.js 24 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
+Non-filtered pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_plataforma-backend-v3.yml). It installs locked dependencies with `npm ci` on Node.js 24 and deploys the repository artifact to the Production slot of the Azure App Service `Plataforma-Backend-v3`.
 
 > **Deployment gate:** configure `PLATFORM_ROW_AUTHORIZATION_KEY_BASE64` in
 > the App Service before merging a version that requires signed row handles.
@@ -157,8 +157,10 @@ Pushes to `main` trigger [the GitHub Actions workflow](.github/workflows/main_pl
 
 The workflow also supports manual execution through GitHub Actions. It runs the automated tests; build commands run only when a corresponding package script exists.
 
-The workflow's path filters exclude Markdown, `docs/**`, and `test/**`, so a
-merge limited to those paths does not trigger a production backend deployment.
+The workflow's path filters exclude Markdown, `docs/**`, `test/**`, its own
+deployment YAML, and the Face-monitor YAML, so a merge limited to those paths
+does not trigger a production backend deployment. The Dependabot-validation
+YAML is not excluded: changes to it trigger deployment on merge.
 They do not exclude production JavaScript, including `app.js`, `server.js`,
 `platform-row-authorization.js`, `domains/**`, `integrations/**`, and
 `shared/**`; a merge that changes any of those files triggers the production
@@ -169,6 +171,7 @@ the domain, integration, and shared modules.
 
 - [Current API contract inventory](docs/api-contracts.md)
 - [Update the Face Liveness Web SDK](docs/runbooks/update-face-liveness-sdk.md)
+- [Actions and Node lifecycle](docs/actions-node-lifecycle.md)
 - [Repository collaboration guidance](AGENTS.md)
 
 ## Current technical constraints

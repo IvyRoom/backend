@@ -36,6 +36,17 @@ function yamlDirectKeys(block, indentation) {
         .filter(Boolean);
 }
 
+function workflowActionReferences(source) {
+    return Array.from(
+        source.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)(?:[^\S\r\n]+# ([^\r\n]+))?$/gm),
+        ([, reference, version]) => ({
+            action: reference.slice(0, reference.lastIndexOf('@')),
+            ref: reference.slice(reference.lastIndexOf('@') + 1),
+            version,
+        }),
+    );
+}
+
 function dependabotUpdateBlocks(configuration) {
     const lines = configuration.replace(/\r\n/g, '\n').split('\n');
     const starts = lines.flatMap((line, index) => (
@@ -78,6 +89,102 @@ test('Dependabot proposes grouped non-major npm updates without changing securit
     }
 });
 
+test('repository workflows pin reviewed actions and bound each job with explicit authority', () => {
+    const expectedActions = new Map([
+        ['main_plataforma-backend-v3.yml', [
+            'actions/checkout',
+            'actions/setup-node',
+            'actions/upload-artifact',
+            'actions/download-artifact',
+            'azure/login',
+            'azure/webapps-deploy',
+        ]],
+        ['dependabot-validation.yml', ['actions/checkout', 'actions/setup-node']],
+        ['face-sdk-version-check.yml', ['actions/checkout', 'actions/setup-node']],
+    ]);
+    const workflowNames = fs.readdirSync(path.join(repositoryRoot, '.github/workflows'))
+        .filter((name) => /\.ya?ml$/u.test(name)).sort();
+    assert.deepEqual(workflowNames, [...expectedActions.keys()].sort());
+
+    for (const [name, actions] of expectedActions) {
+        const workflow = readRepositoryFile(`.github/workflows/${name}`);
+        const references = workflowActionReferences(workflow);
+        assert.match(workflow, /^permissions: \{\}$/m);
+        assert.equal((workflow.match(/^permissions:/gm) || []).length, 1);
+        assert.deepEqual(references.map(({ action }) => action), actions);
+        for (const { action, ref, version } of references) {
+            assert.match(ref, /^[0-9a-f]{40}$/, `${action} must use a full commit SHA`);
+            assert.match(version || '', /^v\d+\.\d+\.\d+$/, `${action} must retain its release comment`);
+        }
+
+        const jobs = yamlDirectKeys(yamlMappingBlock(workflow, 0, 'jobs'), 2);
+        for (const jobName of jobs) {
+            const job = yamlMappingBlock(workflow, 2, jobName);
+            const timeout = job.match(/^    timeout-minutes: (\d+)$/m);
+            assert.ok(timeout, `${name}/${jobName} must have a timeout`);
+            assert.ok(Number(timeout[1]) > 0 && Number(timeout[1]) <= 20);
+            yamlMappingBlock(job, 4, 'permissions');
+        }
+        assert.equal((workflow.match(/^          persist-credentials: false$/gm) || []).length, 1);
+        assert.equal((workflow.match(/^          node-version: '24\.x'$/gm) || []).length, 1);
+        assert.equal((workflow.match(/^          package-manager-cache: false$/gm) || []).length, 1);
+        assert.doesNotMatch(workflow, /^\s*(?:cache|cache-dependency-path):/m);
+        assert.doesNotMatch(workflow, /\bpull_request_target\b|\bwrite-all\b/);
+    }
+});
+
+test('production deployment serializes complete runs and installs the unchanged lock deterministically', () => {
+    const workflow = readRepositoryFile('.github/workflows/main_plataforma-backend-v3.yml');
+    const eventBlock = yamlMappingBlock(workflow, 0, 'on');
+    const concurrency = yamlMappingBlock(workflow, 0, 'concurrency');
+    const buildJob = yamlMappingBlock(workflow, 2, 'build');
+    const deployJob = yamlMappingBlock(workflow, 2, 'deploy');
+    const buildPermissions = yamlMappingBlock(buildJob, 4, 'permissions');
+    const deployPermissions = yamlMappingBlock(deployJob, 4, 'permissions');
+
+    assert.deepEqual(yamlDirectKeys(eventBlock, 2), ['push', 'workflow_dispatch']);
+    assert.match(eventBlock, /^      - main$/m);
+    assert.deepEqual(
+        Array.from(eventBlock.matchAll(/^      - '([^']+)'$/gm), ([, value]) => value),
+        [
+            '**/*.md', '.agents/**', '.github/dependabot.yml',
+            '.github/workflows/face-sdk-version-check.yml',
+            '.github/workflows/main_plataforma-backend-v3.yml',
+            '.gitignore', 'docs/**', 'test/**',
+        ],
+    );
+    assert.deepEqual(yamlDirectKeys(concurrency, 2), ['group', 'cancel-in-progress']);
+    assert.match(concurrency, /^  group: backend-production-deployment$/m);
+    assert.match(concurrency, /^  cancel-in-progress: false$/m);
+    assert.equal((workflow.match(/^[ \t]*concurrency:/gm) || []).length, 1);
+    assert.deepEqual(yamlDirectKeys(buildPermissions, 6), ['contents']);
+    assert.match(buildPermissions, /^      contents: read$/m);
+    assert.deepEqual(yamlDirectKeys(deployPermissions, 6), ['id-token']);
+    assert.match(deployPermissions, /^      id-token: write(?: #.*)?$/m);
+    assert.match(buildJob, /^    runs-on: windows-latest$/m);
+    assert.match(deployJob, /^    runs-on: ubuntu-latest$/m);
+    assert.match(deployJob, /^    needs: build$/m);
+    assert.match(deployJob, /^      name: 'Production'$/m);
+    assert.match(deployJob, /^          app-name: 'Plataforma-Backend-v3'$/m);
+    assert.match(deployJob, /^          slot-name: 'Production'$/m);
+    assert.deepEqual(
+        Array.from(buildJob.matchAll(/^        run: (.+)$/gm), ([, command]) => command),
+        ['npm ci', 'npm run build --if-present', 'npm test'],
+    );
+    assert.doesNotMatch(buildJob, /^        run: [|>]|\bnpm install\b/m);
+    assert.doesNotMatch(buildJob, /\bsecrets\b|\bid-token\b|\bAzure\//i);
+    assert.match(buildJob, /^          name: node-app$/m);
+    assert.match(buildJob, /^          path: \.$/m);
+    assert.match(deployJob, /^          name: node-app$/m);
+    assert.match(deployJob, /^          package: \.$/m);
+
+    const packageManifest = JSON.parse(readRepositoryFile('package.json'));
+    const lock = JSON.parse(readRepositoryFile('package-lock.json'));
+    assert.equal(packageManifest.engines.node, '24.x');
+    assert.equal(lock.packages[''].engines.node, '24.x');
+    assert.equal(packageManifest.scripts.test, 'node --require ./test/deny-production-network.js --test');
+});
+
 test('Dependabot pull requests are validated without a production deployment path', () => {
     const validationWorkflow = readRepositoryFile('.github/workflows/dependabot-validation.yml');
     const deploymentWorkflow = readRepositoryFile(
@@ -87,17 +194,20 @@ test('Dependabot pull requests are validated without a production deployment pat
     const jobsBlock = yamlMappingBlock(validationWorkflow, 0, 'jobs');
     const validationJob = yamlMappingBlock(validationWorkflow, 2, 'validate');
     const deploymentJob = yamlMappingBlock(deploymentWorkflow, 2, 'deploy');
+    const validationPermissions = yamlMappingBlock(validationJob, 4, 'permissions');
+    const concurrency = yamlMappingBlock(validationWorkflow, 0, 'concurrency');
 
     assert.deepEqual(yamlDirectKeys(eventBlock, 2), ['pull_request']);
     assert.deepEqual(yamlDirectKeys(jobsBlock, 2), ['validate']);
     assert.doesNotMatch(validationWorkflow, /\bpull_request_target\b/);
     assert.doesNotMatch(validationWorkflow, /\bworkflow_dispatch\b/);
-    assert.match(
-        validationWorkflow,
-        /^permissions:\r?\n  contents: read\r?\n\r?\njobs:/m,
-    );
+    assert.match(validationWorkflow, /^permissions: \{\}$/m);
     assert.equal((validationWorkflow.match(/^permissions:/gm) || []).length, 1);
-    assert.equal((validationWorkflow.match(/^[ \t]+permissions:/gm) || []).length, 0);
+    assert.equal((validationWorkflow.match(/^[ \t]+permissions:/gm) || []).length, 1);
+    assert.deepEqual(yamlDirectKeys(validationPermissions, 6), ['contents']);
+    assert.match(validationPermissions, /^      contents: read$/m);
+    assert.match(concurrency, /^  group: dependabot-validation-\$\{\{ github\.event\.pull_request\.number \}\}$/m);
+    assert.match(concurrency, /^  cancel-in-progress: true$/m);
     assert.match(
         validationJob,
         /^\s*if: github\.event\.pull_request\.user\.login == 'dependabot\[bot\]'$/m,
@@ -134,17 +244,11 @@ test('Dependabot pull requests are validated without a production deployment pat
         );
     }
 
-    const validationActions = Array.from(
-        validationJob.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)$/gm),
-        ([, action]) => action,
-    );
+    const validationActions = workflowActionReferences(validationJob);
     assert.deepEqual(
-        validationActions.map((action) => action.slice(0, action.lastIndexOf('@'))),
+        validationActions.map(({ action }) => action),
         ['actions/checkout', 'actions/setup-node'],
     );
-    for (const action of validationActions) {
-        assert.match(action, /^(?:actions\/checkout|actions\/setup-node)@(?:v\d+(?:\.\d+\.\d+)?|[0-9a-f]{40})$/);
-    }
 
     for (const forbidden of [
         /\bsecrets\b/,
@@ -165,11 +269,11 @@ test('Dependabot pull requests are validated without a production deployment pat
     assert.match(deploymentJob, /^\s*id-token: write/m);
     assert.match(
         deploymentJob,
-        /^[ \t]*(?:-[ \t]*)?uses: azure\/login@(?:v\d+(?:\.\d+\.\d+)?|[0-9a-f]{40})$/im,
+        /^[ \t]*(?:-[ \t]*)?uses: azure\/login@[0-9a-f]{40} # v\d+\.\d+\.\d+$/im,
     );
     assert.match(
         deploymentJob,
-        /^[ \t]*(?:-[ \t]*)?uses: azure\/webapps-deploy@(?:v\d+(?:\.\d+\.\d+)?|[0-9a-f]{40})$/im,
+        /^[ \t]*(?:-[ \t]*)?uses: azure\/webapps-deploy@[0-9a-f]{40} # v\d+\.\d+\.\d+$/im,
     );
 });
 
@@ -220,10 +324,7 @@ test('Face SDK checker reads public metadata and only opens a review issue', () 
     assert.doesNotMatch(notifyJob, /gh issue list/);
     assert.match(notifyJob, /gh issue create[\s\S]*--assignee "\$ISSUE_ASSIGNEE"/);
 
-    const actions = Array.from(
-        workflow.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)$/gm),
-        ([, action]) => action.slice(0, action.lastIndexOf('@')),
-    );
+    const actions = workflowActionReferences(workflow).map(({ action }) => action);
     assert.deepEqual(actions, ['actions/checkout', 'actions/setup-node']);
 
     for (const forbidden of [
