@@ -1014,10 +1014,14 @@ triggered the Node.js 24 build/test job and deployment of the resulting
 repository artifact to the Production slot. That earlier merge was
 production-affecting even though its documentation and test paths were
 individually ignored. Manual `workflow_dispatch` also remains available.
-Source:
-[`main_plataforma-backend-v3.yml` lines 6-17](../.github/workflows/main_plataforma-backend-v3.yml#L6-L17),
-[`main_plataforma-backend-v3.yml` lines 19-41](../.github/workflows/main_plataforma-backend-v3.yml#L19-L41),
-and [`main_plataforma-backend-v3.yml` lines 43-71](../.github/workflows/main_plataforma-backend-v3.yml#L43-L71).
+Source: the authoritative
+[deployment workflow](../.github/workflows/main_plataforma-backend-v3.yml).
+The workflow also ignores its own YAML and the Face-monitor YAML, but not
+`dependabot-validation.yml`; changing the latter triggers production deployment
+on merge. Deployment now runs locked `npm ci`, an optional build, and mandatory
+network-denied tests in separate steps. Action pins, permissions, concurrency,
+timeouts, and distinct Node/runtime evidence are recorded in
+[Actions and Node lifecycle](actions-node-lifecycle.md).
 
 This simplification changes production JavaScript and dependencies, so merging
 it triggers the Node.js 24 build/test and App Service deployment workflow. The
