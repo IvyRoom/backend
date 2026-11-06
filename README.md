@@ -6,8 +6,9 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 
 Develop support management locally with `npm run support:dev`. It serves the
 companion frontend sources directly and restarts the support backend after code
-changes; refresh the browser for frontend edits. It uses the real read-only users
-workbook and Pagar.me test API. Run `npm run support:test` for focused checks.
+changes; refresh the browser for frontend edits. It reads user access from the
+real workbook, synchronizes masked company-card metadata, and uses the Pagar.me
+test API. Run `npm run support:test` for focused checks.
 Keep checkpoint commits local until Lucas explicitly requests publication.
 See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for test-key
 and permitted-origin setup. `npm run support:sandbox` remains the unwatched runner.

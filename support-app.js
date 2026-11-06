@@ -28,6 +28,7 @@ function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
     app.post(`${base}/logout`, handlers.authorize, handlers.logout);
     app.get(`${base}/card`, handlers.authorize, handlers.getCard);
     app.put(`${base}/card`, handlers.authorize, handlers.saveCard);
+    app.post(`${base}/card/sync`, handlers.authorize, handlers.syncCard);
     app.get('/', (req, res) => res.redirect('/support-management/login/'));
     if (frontendDirectory) app.use('/support-management', express.static(path.resolve(frontendDirectory), { index: 'index.html' }));
     app.use((error, req, res, next) => {

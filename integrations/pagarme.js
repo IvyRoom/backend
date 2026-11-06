@@ -5,15 +5,16 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
 const DEFINITE_REJECTIONS = new Set([400, 401, 403, 404, 412, 422]);
 
-function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch }) {
+function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = Date.now }) {
     if (!/^sk_test_[A-Za-z0-9_-]+$/u.test(secretKey || '') ||
-        !/^pk_test_[A-Za-z0-9_-]+$/u.test(publicKey || '') || typeof fetchImpl !== 'function') {
+        !/^pk_test_[A-Za-z0-9_-]+$/u.test(publicKey || '') ||
+        typeof fetchImpl !== 'function' || typeof now !== 'function') {
         throw failure('invalid_configuration');
     }
 
     const authorization = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
 
-    async function request(path, { method = 'GET', body } = {}) {
+    async function request(path, { method = 'GET', body, cardVerification = false } = {}) {
         let response;
         try {
             response = await fetchImpl(`${API_ORIGIN}${path}`, {
@@ -33,7 +34,9 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch }) {
         }
         if (!response?.ok) {
             const definiteRejection = DEFINITE_REJECTIONS.has(response?.status);
-            const error = failure(definiteRejection ? 'request_rejected' : 'request_failed');
+            const code = cardVerification && response?.status === 412 ? 'card_verification_failed'
+                : definiteRejection ? 'request_rejected' : 'request_failed';
+            const error = failure(code);
             if (definiteRejection) error.definiteRejection = true;
             throw error;
         }
@@ -96,10 +99,25 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch }) {
         async createCard(customerId, { token, billingAddress }) {
             requireId(customerId, 'cus');
             requireId(token, 'token');
-            return projectCard(await request(`/customers/${customerId}/cards`, {
+            const card = projectCard(await request(`/customers/${customerId}/cards`, {
                 method: 'POST',
-                body: { token, billing_address: projectAddress(billingAddress) },
+                cardVerification: true,
+                body: {
+                    token,
+                    billing_address: projectAddress(billingAddress),
+                    // The v5 SDK documents authorization before saving with options.verify_card.
+                    options: { verify_card: true },
+                },
             }));
+            const current = new Date(now());
+            const year = card.expYear < 100 ? 2000 + card.expYear : card.expYear;
+            if (card.status !== 'active' || !Number.isFinite(current.getTime()) ||
+                year < current.getUTCFullYear() ||
+                (year === current.getUTCFullYear() && card.expMonth < current.getUTCMonth() + 1)) {
+                throw failure('invalid_response');
+            }
+            // Only a successful explicit verification request can create this evidence; GET cannot.
+            return { ...card, verificationRequested: true };
         },
     };
 }
@@ -135,6 +153,8 @@ function projectCard(value) {
         !/^\d{4}$/u.test(value.last_four_digits || '') ||
         !Number.isInteger(value.exp_month) || value.exp_month < 1 || value.exp_month > 12 ||
         !Number.isInteger(value.exp_year) || value.exp_year < 0 || value.exp_year > 9999 ||
+        (value.holder_name !== undefined && (typeof value.holder_name !== 'string'
+            || value.holder_name.length > 64 || /[\u0000-\u001f\u007f]/u.test(value.holder_name))) ||
         (value.status !== undefined && !['active', 'deleted', 'expired'].includes(value.status)) ||
         (value.created_at !== undefined && (typeof value.created_at !== 'string' ||
             !Number.isFinite(Date.parse(value.created_at))))) {
@@ -146,6 +166,7 @@ function projectCard(value) {
         lastFour: value.last_four_digits,
         expMonth: value.exp_month,
         expYear: value.exp_year,
+        holderName: value.holder_name,
         createdAt: value.created_at,
         status: value.status,
     };

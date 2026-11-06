@@ -35,10 +35,11 @@ repository separately.
   prohibited Git operations or external side effects.
 
 ### Git and publication
-- Support-management exception: iterate locally with the real read-only users
-  workbook and Pagar.me test API. Keep local feature-branch checkpoint commits;
-  do not push, open or update publication PRs, mark drafts ready, or deploy until
-  Lucas explicitly requests publication. Existing support-management PRs stay
+- Support-management exception: iterate locally with the users workbook and
+  Pagar.me test API. Authentication reads A:G; approved card registration writes
+  only masked card metadata to H:K and M, never CVV. Keep local feature-branch
+  checkpoint commits; do not push, open or update publication PRs, mark drafts
+  ready, or deploy until Lucas explicitly requests publication. Existing support-management PRs stay
   parked as drafts during iteration; draft status does not prevent preview
   deployment after a push. Run focused support checks during ordinary edits;
   run relevant cross-application regression checks for shared changes and the

@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 
 const SESSION_DURATION = 4 * 60 * 60 * 1000;
+const CARD_VERIFICATION = 'pagarme_verify_card_v1';
 const normalize = (value) => String(value || '').trim().replace(/\s+/gu, ' ').toLowerCase();
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -43,6 +44,23 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
     function sweep() {
         for (const [key, session] of sessions) if (session.expiresAt <= now()) sessions.delete(key);
         for (const [key, attempt] of attempts) if (attempt.until <= now()) attempts.delete(key);
+    }
+
+    function usableCard(card) {
+        const year = card?.expYear < 100 ? 2000 + card.expYear : card?.expYear;
+        return card?.status === 'active'
+            && Number.isInteger(card.expMonth) && card.expMonth >= 1 && card.expMonth <= 12
+            && Number.isInteger(year) && year >= 2000 && year <= 9999
+            && Date.UTC(year, card.expMonth, 1) > now();
+    }
+
+    const hasVerification = (record) => record.verification === CARD_VERIFICATION;
+
+    async function synchronizeWorkbook(code, record, company, card) {
+        if (!hasVerification(record) || !usableCard(card)) throw new Error('Card verification required');
+        await users.writeCompanyCard(company, card);
+        await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, verification: CARD_VERIFICATION, workbookSynced: true });
+        return { card: publicCard(card) };
     }
 
     return {
@@ -101,9 +119,15 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             const code = companyCode(res.locals.supportUser.company);
             try {
                 const record = await cardStore.read(code);
-                if (record.pending) return fail(res, 409, 'card_review_required');
+                if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
                 if (!record.cardId) return res.json({ card: null });
-                return res.json({ card: publicCard(await pagarme.getCard(record.customerId, record.cardId)) });
+                if (!hasVerification(record)) return res.json({ card: null, verificationRequired: true });
+                const card = await pagarme.getCard(record.customerId, record.cardId);
+                if (!usableCard(card)) return res.json({ card: null, verificationRequired: true });
+                return res.json({
+                    card: publicCard(card),
+                    ...(record.workbookSynced !== true ? { workbookSyncPending: true } : {}),
+                });
             } catch {
                 return fail(res, 503, 'card_unavailable');
             }
@@ -118,7 +142,9 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             busyCompanies.add(code);
             try {
                 let record = await cardStore.read(code);
-                if (record.pending) return fail(res, 409, 'card_review_required');
+                if (record.pending === 'workbook' && hasVerification(record)
+                    && usableCard(await pagarme.getCard(record.customerId, record.cardId))) return fail(res, 409, 'workbook_sync_required');
+                if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
                 if (!record.customerId) {
                     let customer = await pagarme.findCompanyCustomer(code);
                     if (!customer) {
@@ -140,12 +166,48 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                     card = await pagarme.createCard(record.customerId, { token, billingAddress });
                 } catch (error) {
                     if (error.definiteRejection) await cardStore.write(code, record);
+                    if (error.code === 'pagarme.card_verification_failed') return fail(res, 422, 'card_verification_failed');
                     throw error;
                 }
-                await cardStore.write(code, { customerId: record.customerId, cardId: card.id });
-                return res.json({ card: publicCard(card) });
+                // Wallet existence or an active status alone is not accepted verification evidence.
+                if (card.verificationRequested !== true || !usableCard(card)) throw new Error('Card verification not confirmed');
+                if (!hasVerification(record) && card.id === record.cardId) {
+                    // The API can reuse an existing wallet card; undocumented replay is not fresh verification.
+                    await cardStore.write(code, record);
+                    return fail(res, 422, 'card_verification_unconfirmed');
+                }
+                const confirmed = { customerId: record.customerId, cardId: card.id, verification: CARD_VERIFICATION, pending: 'workbook' };
+                // Persist the confirmed provider card before Excel so a retry cannot register it twice.
+                await cardStore.write(code, confirmed);
+                try {
+                    return res.json(await synchronizeWorkbook(code, confirmed, user.company, card));
+                } catch {
+                    return res.json({ card: publicCard(card), workbookSyncPending: true });
+                }
             } catch {
                 return fail(res, 503, 'card_save_failed');
+            } finally {
+                busyCompanies.delete(code);
+            }
+        },
+        async syncCard(req, res) {
+            const user = res.locals.supportUser;
+            if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
+            if (Object.keys(req.body || {}).length) return fail(res, 400, 'invalid_request');
+            const code = companyCode(user.company);
+            if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
+            busyCompanies.add(code);
+            try {
+                const record = await cardStore.read(code);
+                if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
+                if (!record.cardId) return fail(res, 404, 'card_unavailable');
+                if (!hasVerification(record)) return fail(res, 409, 'card_verification_required');
+                const card = await pagarme.getCard(record.customerId, record.cardId);
+                if (!usableCard(card)) return fail(res, 409, 'card_verification_required');
+                await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, verification: CARD_VERIFICATION, pending: 'workbook' });
+                return res.json(await synchronizeWorkbook(code, record, user.company, card));
+            } catch {
+                return fail(res, 503, 'workbook_sync_failed');
             } finally {
                 busyCompanies.delete(code);
             }
