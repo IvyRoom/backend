@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.support-sandbox
+.support-sandbox-data/
 
 # Dependencies
 node_modules/

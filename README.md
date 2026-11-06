@@ -4,6 +4,9 @@ Node.js and Express API for Machado's website, client onboarding, Conecta referr
 
 The service connects the frontend applications in [`IvyRoom/sistemas`](https://github.com/IvyRoom/sistemas) to Microsoft Graph, Excel workbooks, email delivery, and Azure AI Face.
 
+The support-management card setup runs separately with `npm run support:sandbox`.
+See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for local test-key setup and verification.
+
 ## Main application areas
 
 | Area | Responsibility |
