@@ -35,6 +35,15 @@ repository separately.
   prohibited Git operations or external side effects.
 
 ### Git and publication
+- Support-management exception: iterate locally with the real read-only users
+  workbook and Pagar.me test API. Keep local feature-branch checkpoint commits;
+  do not push, open or update publication PRs, mark drafts ready, or deploy until
+  Lucas explicitly requests publication. Existing support-management PRs stay
+  parked as drafts during iteration; draft status does not prevent preview
+  deployment after a push. Run focused support checks during ordinary edits;
+  run relevant cross-application regression checks for shared changes and the
+  complete required suites before publication. This exception changes no
+  publication or integration safety rule for the other applications.
 - The agent owns feature-branch implementation, verification, commits, normal
   push, and a ready-for-review PR; the repository owner alone merges. Never
   commit on `main`, merge, or enable auto-merge.

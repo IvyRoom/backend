@@ -5,6 +5,30 @@ cards. Scheduling and purchases are not implemented. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
 
+## Daily local cycle
+
+After the setup below, run `npm run support:dev` from `backend` and use its printed
+local URL. The app runs locally while reading the real users workbook through
+Graph and registering cards with the Pagar.me **test** API; this is connected local
+development, not an offline or simulated application mode.
+
+Save frontend HTML, CSS, or JavaScript and refresh the browser. Sources are served
+directly from the sibling `sistemas/apps/support-management/` directory, without a
+build. Saving watched support-backend code gracefully stops and restarts that
+backend, releasing its storage lock first. Sessions live in memory, so sign in
+again after a backend restart. Stop the development runner with Ctrl+C when done.
+
+Use `npm run support:test` for focused automated checks during ordinary edits.
+Those checks still use synthetic dependencies and deny external traffic; they do
+not replace the connected manual acceptance test. Shared changes need relevant
+cross-application regression checks. Run the complete required suites, generated
+artifact checks, and hosted-origin verification before publication.
+
+Keep checkpoint commits local. Do not push, open or update publication PRs, mark
+drafts ready, or deploy until Lucas explicitly requests publication. Existing
+support-management PRs remain parked as drafts during iteration; a push can still
+trigger a preview deployment even while a PR is a draft.
+
 ## Start locally
 
 1. Keep `backend` and `sistemas` as sibling checkouts containing the companion
@@ -29,10 +53,11 @@ pages, but the functional sandbox is local and uses its own same-origin API.
    been verified without test keys; if the dashboard refuses this local origin,
    stop and arrange an approved hosted sandbox origin before card testing.
 
-4. From `backend`, run `npm run support:sandbox` and open
+4. From `backend`, run `npm run support:dev` and open
    <http://127.0.0.1:4174/support-management/login/>. The startup URL uses port
    4174 unless `SUPPORT_SANDBOX_PORT` is configured. Use `127.0.0.1`, not localhost.
    Do not expose this listener through a tunnel or use the production entry point.
+   Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
 5. Log in using an active workbook account. An account whose `TIPO DE ACESSO` is
    `Administrador` can register or replace a card in the scheduler.
 6. Use the Pagar.me simulator card `4000000000000010`, CVV `123`, and a future

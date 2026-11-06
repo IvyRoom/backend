@@ -10,6 +10,19 @@ async function startSupportSandbox({ environment = process.env } = {}) {
     const dotenv = require('dotenv');
     dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
     dotenv.config({ path: path.join(__dirname, '.env.support-sandbox'), quiet: true });
+    const missing = ['CLIENT_ID', 'TENANT_ID', 'CLIENT_SECRET', 'SUPPORT_PAGARME_PUBLIC_KEY', 'SUPPORT_PAGARME_SECRET_KEY']
+        .filter((name) => !environment[name]?.trim());
+    if (missing.length) {
+        const error = new Error(`Missing local settings: ${missing.join(', ')}. Add them to the ignored local environment files.`);
+        error.code = 'SUPPORT_SETUP';
+        throw error;
+    }
+    if (!/^pk_test_[A-Za-z0-9_-]+$/u.test(environment.SUPPORT_PAGARME_PUBLIC_KEY)
+        || !/^sk_test_[A-Za-z0-9_-]+$/u.test(environment.SUPPORT_PAGARME_SECRET_KEY)) {
+        const error = new Error('SUPPORT_PAGARME_PUBLIC_KEY and SUPPORT_PAGARME_SECRET_KEY must be Pagar.me test keys.');
+        error.code = 'SUPPORT_SETUP';
+        throw error;
+    }
     const port = Number(environment.SUPPORT_SANDBOX_PORT || 4174);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid sandbox port');
     // Validate test keys before initializing any external client.
@@ -69,14 +82,33 @@ async function startSupportSandbox({ environment = process.env } = {}) {
 }
 
 if (require.main === module) {
-    startSupportSandbox().then(({ stop, origin }) => {
+    let sandbox;
+    let shutdownRequested = false;
+    let shutdownPromise;
+    const disconnect = () => { if (process.connected) process.disconnect(); };
+    const shutdown = () => {
+        shutdownRequested = true;
+        if (!sandbox) return;
+        shutdownPromise ??= sandbox.stop().then(disconnect).catch(() => {
+            console.error('Sandbox shutdown failed. Review the local lock before restarting.');
+            process.exitCode = 1;
+            disconnect();
+        });
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    process.once('disconnect', shutdown);
+    process.on('message', (message) => { if (message?.type === 'support:stop') shutdown(); });
+    startSupportSandbox().then((instance) => {
+        sandbox = instance;
+        const { origin } = instance;
         console.log(`Support sandbox: ${origin}/support-management/login/`);
-        const shutdown = () => { void stop(); };
-        process.once('SIGINT', shutdown);
-        process.once('SIGTERM', shutdown);
-    }).catch(() => {
-        console.error('Sandbox could not start. Check local Graph configuration, Pagar.me test keys, and port availability.');
+        if (shutdownRequested) shutdown();
+        else if (process.connected) process.send({ type: 'support:ready', origin }, () => {});
+    }).catch((error) => {
+        console.error(error.code === 'SUPPORT_SETUP' ? error.message : 'Sandbox could not start. Check local Graph configuration, Pagar.me test keys, port availability, and the local lock.');
         process.exitCode = 1;
+        disconnect();
     });
 }
 

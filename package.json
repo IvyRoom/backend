@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "support:sandbox": "node support-sandbox-server.js",
+    "support:dev": "node scripts/support-dev.js",
+    "support:test": "node scripts/support-test.js",
     "test": "node --require ./test/deny-production-network.js --test"
   },
   "dependencies": {
