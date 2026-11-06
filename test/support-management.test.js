@@ -285,16 +285,44 @@ test('legacy card references require fresh verification and cannot be promoted b
     assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 1);
 });
 
-test('a reused legacy wallet card is not silently accepted as freshly verified', async (t) => {
-    const f = await fixture(t);
-    const existing = { customerId: 'cus_synthetic', cardId: card.id, workbookSynced: true };
-    f.records.set(companyCode(admin.company), existing);
-    const token = await f.login();
-    await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 422, 'card_verification_unconfirmed');
-    assert.deepEqual(f.records.get(companyCode(admin.company)), existing);
-    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
-    assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0);
-    assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
+test('fresh accepted verification registers a legacy card even when Pagar.me returns its existing wallet ID', async (t) => {
+    for (const flags of [{}, { workbookSynced: true }, { pending: 'workbook' }]) {
+        await t.test(JSON.stringify(flags), async (t) => {
+            const f = await fixture(t);
+            f.records.set(companyCode(admin.company), { customerId: 'cus_synthetic', cardId: card.id, ...flags });
+            const token = await f.login();
+            assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+            assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0, 'GET cannot grant verification to the old wallet record');
+            const response = await f.request('card', { method: 'PUT', token, body: cardRequest });
+            assert.equal(response.status, 200);
+            assert.deepEqual(await response.json(), { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
+            assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
+            assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 1);
+            assert.deepEqual(f.calls.find(([operation]) => operation === 'createCard'), ['createCard', 'cus_synthetic', cardRequest]);
+            assert.equal(f.calls.filter(([operation]) => operation === 'findCompanyCustomer' || operation === 'createCompanyCustomer').length, 0);
+            assert.equal((await (await f.request('card', { token })).json()).card.lastFour, card.lastFour);
+        });
+    }
+});
+
+test('legacy re-registration without accepted verification retains its references and blocks replay', async (t) => {
+    for (const failure of ['missing evidence', 'ambiguous request']) {
+        await t.test(failure, async (t) => {
+            const f = await fixture(t);
+            const existing = { customerId: 'cus_synthetic', cardId: card.id };
+            f.records.set(companyCode(admin.company), existing);
+            f.pagarme.createCard = async () => {
+                if (failure === 'ambiguous request') throw new Error('private provider failure');
+                return { ...card };
+            };
+            const token = await f.login();
+            await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 503, 'card_save_failed');
+            assert.deepEqual(f.records.get(companyCode(admin.company)), { ...existing, pending: 'card' });
+            assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0);
+            await expectError(await f.request('card', { token }), 409, 'card_review_required');
+            await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_review_required');
+        });
+    }
 });
 
 test('registration requires explicit accepted verification plus an active unexpired card', async (t) => {
@@ -345,9 +373,9 @@ test('expiry checks use the injected UTC clock and accept the entire expiry mont
     assert.deepEqual(await (await f.request('card', { token: refreshedToken })).json(), { card: null, verificationRequired: true });
 });
 
-test('provider verification rejection never writes the workbook and preserves a previously verified card', async (t) => {
-    for (const previous of [{ customerId: 'cus_synthetic' }, { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true }]) {
-        await t.test(previous.cardId ? 'replacement' : 'first card', async (t) => {
+test('provider verification rejection never writes the workbook and preserves previous card and verification state', async (t) => {
+    for (const previous of [{ customerId: 'cus_synthetic' }, { customerId: 'cus_synthetic', cardId: card.id }, { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true }]) {
+        await t.test(previous.verification ? 'replacement' : previous.cardId ? 'legacy re-registration' : 'first card', async (t) => {
             const f = await fixture(t);
             f.records.set(companyCode(admin.company), previous);
             f.pagarme.createCard = async () => { throw Object.assign(new Error('private provider details'), { code: 'pagarme.card_verification_failed', definiteRejection: true }); };
@@ -355,7 +383,7 @@ test('provider verification rejection never writes the workbook and preserves a 
             await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 422, 'card_verification_failed');
             assert.deepEqual(f.records.get(companyCode(admin.company)), previous);
             assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0);
-            assert.equal(Boolean((await (await f.request('card', { token })).json()).card), Boolean(previous.cardId));
+            assert.equal(Boolean((await (await f.request('card', { token })).json()).card), Boolean(previous.verification));
         });
     }
 });

@@ -37,9 +37,9 @@ repository separately.
 ### Git and publication
 - Support-management exception: iterate locally with the users workbook and
   Pagar.me test API. Authentication reads A:G; approved card registration writes
-  only masked card metadata/status to H:K and M and reusable Pagar.me references
-  to N:P; never CVV. Keep local feature-branch checkpoint commits; do not push,
-  open or update publication PRs, mark drafts ready, or deploy until Lucas
+  only reusable Pagar.me customer/card references and the environment to H:J;
+  never raw card data or CVV. Keep local feature-branch checkpoint commits; do
+  not push, open or update publication PRs, mark drafts ready, or deploy until Lucas
   explicitly requests publication. Existing support-management PRs stay
   parked as drafts during iteration; draft status does not prevent preview
   deployment after a push. Run focused support checks during ordinary edits;

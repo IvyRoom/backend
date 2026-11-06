@@ -171,13 +171,8 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                     if (error.code === 'pagarme.card_verification_failed') return fail(res, 422, 'card_verification_failed');
                     throw error;
                 }
-                // Wallet existence or an active status alone is not accepted verification evidence.
+                // A successful explicit verification request may return the existing wallet card ID.
                 if (card.verificationRequested !== true || !usableCard(card)) throw new Error('Card verification not confirmed');
-                if (!hasVerification(record) && card.id === record.cardId) {
-                    // The API can reuse an existing wallet card; undocumented replay is not fresh verification.
-                    await cardStore.write(code, record);
-                    return fail(res, 422, 'card_verification_unconfirmed');
-                }
                 const confirmed = { customerId: record.customerId, cardId: card.id, verification: CARD_VERIFICATION, pending: 'workbook' };
                 // Persist the confirmed provider card before Excel so a retry cannot register it twice.
                 await cardStore.write(code, confirmed);

@@ -9,8 +9,8 @@ pages, but the functional sandbox is local and uses its own same-origin API.
 
 After the setup below, run `npm run support:dev` from `backend` and use its printed
 local URL. The app runs locally while reading the real users workbook through
-Graph, registering cards with the Pagar.me **test** API, and synchronizing masked
-company-card metadata to that workbook; this is connected local
+Graph, registering cards with the Pagar.me **test** API, and synchronizing reusable
+company-card references to that workbook; this is connected local
 development, not an offline or simulated application mode.
 
 Save frontend HTML, CSS, or JavaScript and refresh the browser. Sources are served
@@ -73,7 +73,7 @@ trigger a preview deployment even while a PR is a draft.
 7. Refresh, sign out and back in, and restart the sandbox to verify persistence.
    A colleague in the same `EMPRESA` sees the masked card and cannot alter it;
    another company sees its own card. Confirm the customer/card in the Pagar.me
-   **test** dashboard and the masked metadata in BD - USUÁRIOS. Registration does
+   **test** dashboard and the reusable references in BD - USUÁRIOS. Registration does
    not create an order or charge and does not send an email.
 8. Stop the server with Ctrl+C when finished.
 
@@ -87,9 +87,8 @@ address reach the backend. PAN/CVV are never sent to Graph or saved by the app.
 
 Verified workbook: drive item `01OSXVECRXPEMKXY4F5RH34SKSN35K757F`, table
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}` (`BD`), sheet `USUÁRIOS`.
-Authentication accepts either the exact legacy 13-column A:M table or the exact
-16-column A:P contract below. Partial reference columns or any header, index, or
-range drift fail closed. Both versions retrieve only A:G, never card or reference
+Authentication requires the exact 10-column A:J contract below. Any header, index,
+or range drift fails closed. It retrieves only A:G, never card or reference
 values. Passwords follow the existing workbook contract and never
 appear in responses or local metadata. Inactive, missing, or duplicate email
 matches fail.
@@ -110,25 +109,17 @@ explicit verification request contract and confirm production behavior before
 accepting real cards.
 
 Only after this gate passes does the adapter read the current schema and A:G
-again, then update every matching company row: H (`NÚMERO`) receives
-`**** **** **** ` plus the last four digits, I (`TITULAR`) receives the holder name
-returned by Pagar.me, J (`MÊS`) and K (`ANO`) receive the expiry month and full
-year. The safe reference contract appends N (`PAGARME CUSTOMER ID`),
-O (`PAGARME CARD ID`), and P (`AMBIENTE PAGARME`) after the unchanged A:M columns.
-Registration and synchronization require all 16 verified columns; the adapter
-does not add them itself. Verify the live table and append the three exact
-reference headers before attempting workbook sync. It writes the trusted local
-customer/card IDs and the literal `sandbox` to N:P, then writes `Cadastrado` to M
-(`STATUS CARTÃO`). The
-patches target H:K, N:P, and M only; L (`CVV`), identity columns, and formulas
-remain untouched. The app does not read, clear, or copy any pre-existing card
-values. A missing company or changed
-schema blocks synchronization instead of adding rows or columns.
+again, then update H:J for every matching company row: H (`PAGARME CUSTOMER ID`),
+I (`PAGARME CARD ID`), and J (`AMBIENTE PAGARME`). The values are the trusted local
+provider IDs and the literal `sandbox`. No card number, holder, expiry, CVV, or
+registration-status column remains in this workbook contract. The masked card
+display is fetched from Pagar.me. A missing company or changed schema blocks
+synchronization instead of adding rows or columns.
 
-On 2026-11-06, the authorized schema migration appended those three empty columns
-and verified `USUÁRIOS!A3:P57` with 54 data rows. Existing A:M positions and the
-54 calculated first-name formulas were preserved; no card or user rows were
-backfilled by the migration.
+On 2026-11-06, the authorized migration deleted the six legacy H:M columns and
+verified `USUÁRIOS!A3:J57` with 54 data rows. The existing A:G positions, reusable
+reference values, and 54 calculated first-name formulas were preserved. The
+reference columns previously at N:P moved to H:J.
 
 Workbook references mirror the reusable provider wallet IDs for reporting and
 backup. They are never supplied by the browser, exposed by the card API, read for
@@ -165,7 +156,7 @@ clears the pending flag, allowing corrected test details. A timeout, 5xx,
 malformed response, or local persistence failure retains it and blocks another
 registration. A verification rejection (`412` from Pagar.me) returns the
 sanitized `card_verification_failed` error, restores the previous card reference,
-and never writes `Cadastrado` to the workbook. Missing or unusable verification
+and never writes new card references to the workbook. Missing or unusable verification
 responses remain blocked for review rather than claiming successful registration.
 
 A card accepted by the verification gate is stored locally with its verification
@@ -187,10 +178,11 @@ attempts this sync
 once and offers the retry action if it fails. Unverified legacy references return
 `card: null, verificationRequired: true`, even if previously workbook-synced; they
 cannot be backfilled through the sync endpoint and require fresh card entry.
-If the provider returns the same unverified legacy card ID for that new request,
-the app refuses promotion because verification replay for an existing wallet card
-is undocumented. It returns `card_verification_unconfirmed` and preserves the old
-reference. Do not add verification markers manually to bypass this result.
+Pagar.me may return the same wallet card ID when the card is entered again. ID
+reuse is not a failure signal: acceptance still requires a successful explicit
+`verify_card` request and an active, unexpired result. The local marker records
+that request contract, not independent issuer evidence. Do not add verification
+markers manually or promote an old card based on GET alone.
 
 Every registered-card read and workbook sync also checks the current provider
 status and expiry. A deleted, expired, or status-less card is not displayed as
