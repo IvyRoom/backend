@@ -177,4 +177,16 @@ test('sandbox preflight names missing settings without exposing supplied values 
         assert.equal(error.message.includes('secret-example'), false);
         return true;
     });
+    const existingName = { CLIENT_ID: 'synthetic', TENANT_ID: 'synthetic', CLIENT_SECRET: 'private-example-value', PAGARME_API_KEY_SANDBOX: 'sk_test_example' };
+    await assert.rejects(startSupportSandbox({ environment: existingName }), (error) => {
+        assert.equal(error.code, 'SUPPORT_SETUP');
+        assert.equal(error.message, 'Missing local settings: SUPPORT_PAGARME_PUBLIC_KEY. Add them to the ignored local environment files.');
+        return true;
+    });
+    await assert.rejects(startSupportSandbox({ environment: { ...existingName, SUPPORT_PAGARME_PUBLIC_KEY: 'pk_test_example', PAGARME_API_KEY_SANDBOX: 'sk_live_private' } }), (error) => {
+        assert.equal(error.code, 'SUPPORT_SETUP');
+        assert.match(error.message, /must be Pagar.me test keys/);
+        assert.equal(error.message.includes('sk_live_private'), false);
+        return true;
+    });
 });

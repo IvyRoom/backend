@@ -44,6 +44,10 @@ trigger a preview deployment even while a PR is a draft.
    SUPPORT_PAGARME_SECRET_KEY=sk_test_REPLACE_LOCALLY
    ```
 
+   The existing `PAGARME_API_KEY_SANDBOX` in `backend/.env` is also accepted for
+   the secret test key; leave `SUPPORT_PAGARME_SECRET_KEY` blank to reuse it.
+   A configured `SUPPORT_PAGARME_SECRET_KEY` takes precedence.
+
    In the same **test** account's dashboard, register the browser origin used for
    tokenization (`http://127.0.0.1:4174`) through its permitted-domain settings.
    Follow the dashboard's required domain format; do not disable an existing

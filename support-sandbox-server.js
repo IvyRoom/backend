@@ -10,23 +10,25 @@ async function startSupportSandbox({ environment = process.env } = {}) {
     const dotenv = require('dotenv');
     dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
     dotenv.config({ path: path.join(__dirname, '.env.support-sandbox'), quiet: true });
-    const missing = ['CLIENT_ID', 'TENANT_ID', 'CLIENT_SECRET', 'SUPPORT_PAGARME_PUBLIC_KEY', 'SUPPORT_PAGARME_SECRET_KEY']
+    const secretKey = environment.SUPPORT_PAGARME_SECRET_KEY?.trim() || environment.PAGARME_API_KEY_SANDBOX?.trim();
+    const missing = ['CLIENT_ID', 'TENANT_ID', 'CLIENT_SECRET', 'SUPPORT_PAGARME_PUBLIC_KEY']
         .filter((name) => !environment[name]?.trim());
+    if (!secretKey) missing.push('SUPPORT_PAGARME_SECRET_KEY (or PAGARME_API_KEY_SANDBOX)');
     if (missing.length) {
         const error = new Error(`Missing local settings: ${missing.join(', ')}. Add them to the ignored local environment files.`);
         error.code = 'SUPPORT_SETUP';
         throw error;
     }
     if (!/^pk_test_[A-Za-z0-9_-]+$/u.test(environment.SUPPORT_PAGARME_PUBLIC_KEY)
-        || !/^sk_test_[A-Za-z0-9_-]+$/u.test(environment.SUPPORT_PAGARME_SECRET_KEY)) {
-        const error = new Error('SUPPORT_PAGARME_PUBLIC_KEY and SUPPORT_PAGARME_SECRET_KEY must be Pagar.me test keys.');
+        || !/^sk_test_[A-Za-z0-9_-]+$/u.test(secretKey)) {
+        const error = new Error('SUPPORT_PAGARME_PUBLIC_KEY and the configured Pagar.me secret must be Pagar.me test keys.');
         error.code = 'SUPPORT_SETUP';
         throw error;
     }
     const port = Number(environment.SUPPORT_SANDBOX_PORT || 4174);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid sandbox port');
     // Validate test keys before initializing any external client.
-    const pagarme = createPagarmeAdapter({ secretKey: environment.SUPPORT_PAGARME_SECRET_KEY, publicKey: environment.SUPPORT_PAGARME_PUBLIC_KEY });
+    const pagarme = createPagarmeAdapter({ secretKey, publicKey: environment.SUPPORT_PAGARME_PUBLIC_KEY });
     const { ConfidentialClientApplication } = require('@azure/msal-node');
     const { Client } = require('@microsoft/microsoft-graph-client');
     const confidentialClient = new ConfidentialClientApplication({ auth: {
