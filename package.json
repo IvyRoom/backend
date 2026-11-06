@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
+    "support:sandbox": "node support-sandbox-server.js",
     "test": "node --require ./test/deny-production-network.js --test"
   },
   "dependencies": {

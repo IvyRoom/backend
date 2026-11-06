@@ -212,6 +212,12 @@ affected consumer.
 
 ## Verification
 
+Support management is a sandbox-only exception: `support-sandbox-server.js`
+composes `support-app.js` on loopback with Pagar.me test keys. Its API is not
+registered in production `app.js` or `server.js`. Use synthetic dependencies for
+automated checks; actual sandbox testing is user-operated. Follow
+`docs/runbooks/support-management-sandbox.md` for setup and recovery.
+
 Do not start the production server for documentation, syntax, or automated
 acceptance checks. HTTP tests must use `createApp` with synthetic dependencies
 and ephemeral loopback listeners, then close every listener and timer. Run:
