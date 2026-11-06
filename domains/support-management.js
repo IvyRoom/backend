@@ -58,8 +58,10 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
 
     async function synchronizeWorkbook(code, record, company, card) {
         if (!hasVerification(record) || !usableCard(card)) throw new Error('Card verification required');
-        await users.writeCompanyCard(company, card);
-        await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, verification: CARD_VERIFICATION, workbookSynced: true });
+        await users.writeCompanyCard(company, card, {
+            customerId: record.customerId, cardId: record.cardId, environment: 'sandbox',
+        });
+        await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, verification: CARD_VERIFICATION, workbookSynced: true, workbookReferencesSynced: true });
         return { card: publicCard(card) };
     }
 
@@ -126,7 +128,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 if (!usableCard(card)) return res.json({ card: null, verificationRequired: true });
                 return res.json({
                     card: publicCard(card),
-                    ...(record.workbookSynced !== true ? { workbookSyncPending: true } : {}),
+                    ...(record.workbookSynced !== true || record.workbookReferencesSynced !== true ? { workbookSyncPending: true } : {}),
                 });
             } catch {
                 return fail(res, 503, 'card_unavailable');

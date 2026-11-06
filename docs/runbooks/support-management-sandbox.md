@@ -87,8 +87,10 @@ address reach the backend. PAN/CVV are never sent to Graph or saved by the app.
 
 Verified workbook: drive item `01OSXVECRXPEMKXY4F5RH34SKSN35K757F`, table
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}` (`BD`), sheet `USUÁRIOS`.
-Runtime validates all 13 column headers, then retrieves only A:G, never the legacy
-card values in H:M. Passwords follow the existing workbook contract and never
+Authentication accepts either the exact legacy 13-column A:M table or the exact
+16-column A:P contract below. Partial reference columns or any header, index, or
+range drift fail closed. Both versions retrieve only A:G, never card or reference
+values. Passwords follow the existing workbook contract and never
 appear in responses or local metadata. Inactive, missing, or duplicate email
 matches fail.
 
@@ -111,10 +113,30 @@ Only after this gate passes does the adapter read the current schema and A:G
 again, then update every matching company row: H (`NÚMERO`) receives
 `**** **** **** ` plus the last four digits, I (`TITULAR`) receives the holder name
 returned by Pagar.me, J (`MÊS`) and K (`ANO`) receive the expiry month and full
-year, and M (`STATUS CARTÃO`) receives `Cadastrado`. The patches target H:K and M
-only; L (`CVV`), identity columns, and formulas remain untouched. The app does not
-read, clear, or copy any pre-existing card values. A missing company or changed
+year. The safe reference contract appends N (`PAGARME CUSTOMER ID`),
+O (`PAGARME CARD ID`), and P (`AMBIENTE PAGARME`) after the unchanged A:M columns.
+Registration and synchronization require all 16 verified columns; the adapter
+does not add them itself. Verify the live table and append the three exact
+reference headers before attempting workbook sync. It writes the trusted local
+customer/card IDs and the literal `sandbox` to N:P, then writes `Cadastrado` to M
+(`STATUS CARTÃO`). The
+patches target H:K, N:P, and M only; L (`CVV`), identity columns, and formulas
+remain untouched. The app does not read, clear, or copy any pre-existing card
+values. A missing company or changed
 schema blocks synchronization instead of adding rows or columns.
+
+On 2026-11-06, the authorized schema migration appended those three empty columns
+and verified `USUÁRIOS!A3:P57` with 54 data rows. Existing A:M positions and the
+54 calculated first-name formulas were preserved; no card or user rows were
+backfilled by the migration.
+
+Workbook references mirror the reusable provider wallet IDs for reporting and
+backup. They are never supplied by the browser, exposed by the card API, read for
+authentication, or imported as verification evidence. Local reference and pending
+state remains authoritative; a workbook ID alone cannot recover a verified card.
+The temporary browser `token_` is never stored. Future purchases can use the
+provider `card_id` without storing PAN or CVV; the purchase flow and its required
+PSP customer information remain a separate milestone.
 
 Four-hour opaque sessions expire on restart and are rechecked against the workbook
 on each protected request, including current company, password, status and role.
@@ -125,7 +147,7 @@ or reuse a label for a different company during this trial.
 
 Pagar.me stores the test customer and card. Ignored `.support-sandbox-data/` holds
 only hashed company keys, Pagar.me customer/card IDs, pending-operation flags,
-the explicit-verification marker, and a successful-workbook-sync marker.
+the explicit-verification marker, and successful-workbook-sync markers.
 Keep this directory between restarts and back it up locally. Card references are
 specific to the configured Pagar.me account; do not switch accounts with the same
 metadata directory. Replacing a card selects the new card for the company; it does
@@ -148,16 +170,20 @@ responses remain blocked for review rather than claiming successful registration
 
 A card accepted by the verification gate is stored locally with its verification
 marker and `pending: "workbook"` before Graph updates begin. If a workbook update
-fails, the card stays registered and
-the API returns `workbookSyncPending: true`; replacement remains blocked until
+fails, the card stays registered and the API returns `workbookSyncPending: true`;
+replacement remains blocked until
 synchronization succeeds. The administrator can retry through the card screen.
 `POST /support-management/api/card/sync` fetches the existing card from Pagar.me,
-patches the same workbook ranges, and records `workbookSynced: true`; it does not
+patches the same workbook ranges, and records both `workbookSynced: true` and
+`workbookReferencesSynced: true`; it does not
 create a customer, card, order, or charge. Partial workbook updates are safe to
 repeat. Each attempt is explicit and has no automatic external-request retry.
 
-Verified local card references without `workbookSynced: true` also report pending
-sync. On the administrator's first card-screen load, the app attempts this sync
+Verified local card references missing either sync marker also report pending
+sync. This includes cards from the earlier masked-only workbook sync; their
+reusable IDs are backfilled using the trusted local record without creating a
+provider customer or card. On the administrator's first card-screen load, the app
+attempts this sync
 once and offers the retry action if it fails. Unverified legacy references return
 `card: null, verificationRequired: true`, even if previously workbook-synced; they
 cannot be backfilled through the sync endpoint and require fresh card entry.

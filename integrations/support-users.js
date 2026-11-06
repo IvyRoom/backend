@@ -6,19 +6,24 @@ const COLUMNS = [
     'EMPRESA', 'NOME COMPLETO', 'PRIMEIRO NOME', 'E-MAIL', 'SENHA',
     'TIPO DE ACESSO', 'STATUS LOGIN', 'NÚMERO', 'TITULAR', 'MÊS', 'ANO', 'CVV', 'STATUS CARTÃO',
 ];
+const REFERENCE_COLUMNS = [...COLUMNS, 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'AMBIENTE PAGARME'];
 
 function createSupportUsersAdapter({ graphClient }) {
-    async function readUsers() {
+    async function readVerifiedUsers(requireReferences = false) {
         const columns = await graphClient.api(`${TABLE_PATH}/columns?$select=index,name`).get();
-        if (!Array.isArray(columns.value) || columns.value.length !== COLUMNS.length
-            || columns.value.some((column, index) => column.index !== index || column.name !== COLUMNS[index])) {
+        const expectedColumns = columns.value?.length === COLUMNS.length ? COLUMNS
+            : columns.value?.length === REFERENCE_COLUMNS.length ? REFERENCE_COLUMNS : null;
+        if (!Array.isArray(columns.value) || !expectedColumns
+            || columns.value.some((column, index) => column.index !== index || column.name !== expectedColumns[index])) {
             throw new Error('support_users.schema_mismatch');
         }
+        if (requireReferences && expectedColumns !== REFERENCE_COLUMNS) throw new Error('support_users.card_reference_columns_required');
 
         const range = await graphClient.api(`${TABLE_PATH}/range?$select=address,rowCount,columnCount`).get();
-        const address = /^USUÁRIOS!A3:M([3-9]|[1-9]\d+)$/.exec(range.address);
-        const lastRow = Number(address?.[1]);
-        if (!address || range.columnCount !== COLUMNS.length || range.rowCount !== lastRow - 2) {
+        const address = /^USUÁRIOS!A3:(M|P)([3-9]|[1-9]\d+)$/.exec(range.address);
+        const lastRow = Number(address?.[2]);
+        const lastColumn = expectedColumns === REFERENCE_COLUMNS ? 'P' : 'M';
+        if (!address || address[1] !== lastColumn || range.columnCount !== expectedColumns.length || range.rowCount !== lastRow - 2) {
             throw new Error('support_users.schema_mismatch');
         }
         if (lastRow === 3) return [];
@@ -41,9 +46,9 @@ function createSupportUsersAdapter({ graphClient }) {
     }
 
     return {
-        readUsers,
+        readUsers: () => readVerifiedUsers(),
 
-        async writeCompanyCard(company, card) {
+        async writeCompanyCard(company, card, references) {
             const companyName = normalizeCompany(company);
             const holderName = typeof card?.holderName === 'string' ? card.holderName.trim() : '';
             const year = card?.expYear < 100 ? 2000 + card.expYear : card?.expYear;
@@ -55,14 +60,25 @@ function createSupportUsersAdapter({ graphClient }) {
                 || !Number.isInteger(year) || year < 2000 || year > 9999) {
                 throw new Error('support_users.invalid_card_metadata');
             }
-            const users = await readUsers();
+            if (!references || typeof references !== 'object' || Array.isArray(references)
+                || Object.keys(references).some((key) => !['customerId', 'cardId', 'environment'].includes(key))
+                || typeof references.customerId !== 'string' || typeof references.cardId !== 'string'
+                || !/^cus_[A-Za-z0-9]{1,200}$/u.test(references.customerId || '')
+                || !/^card_[A-Za-z0-9]{1,200}$/u.test(references.cardId || '')
+                || references.environment !== 'sandbox') {
+                throw new Error('support_users.invalid_card_references');
+            }
+            const users = await readVerifiedUsers(true);
             const rows = users.flatMap((user, index) => normalizeCompany(user.company) === companyName ? [index + 4] : []);
             if (!rows.length) throw new Error('support_users.company_not_found');
             for (const row of rows) {
                 await graphClient.api(`${WORKSHEET_PATH}/range(address='H${row}:K${row}')`).update({
                     values: [[`**** **** **** ${card.lastFour}`, holderName, card.expMonth, year]],
                 });
-                // Keep the legacy CVV column L outside both update ranges.
+                await graphClient.api(`${WORKSHEET_PATH}/range(address='N${row}:P${row}')`).update({
+                    values: [[references.customerId, references.cardId, references.environment]],
+                });
+                // Keep the legacy CVV column L outside the update ranges.
                 await graphClient.api(`${WORKSHEET_PATH}/range(address='M${row}')`).update({ values: [['Cadastrado']] });
             }
         },

@@ -68,6 +68,8 @@ test('card reference store accepts only valid reference and pending states acros
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', pending: 'workbook' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true, pending: 'card' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, pending: 'card' },
     ]) {
         await store.write(company, record);
@@ -100,6 +102,12 @@ test('card reference store refuses extra, sensitive, malformed or inconsistent f
         { customerId: 'cus_Test1', workbookSynced: true },
         { ...previous, workbookSynced: 'true' },
         { ...previous, workbookSynced: true, pending: 'workbook' },
+        { workbookReferencesSynced: true },
+        { ...previous, workbookReferencesSynced: true },
+        { ...previous, workbookSynced: false, workbookReferencesSynced: true },
+        { ...previous, workbookSynced: true, workbookReferencesSynced: false },
+        { ...previous, workbookSynced: true, workbookReferencesSynced: 'true' },
+        { ...previous, workbookSynced: true, workbookReferencesSynced: true, pending: 'workbook' },
         { verification: 'pagarme_verify_card_v1' },
         { customerId: 'cus_Test1', verification: 'pagarme_verify_card_v1' },
         { ...previous, verification: true },

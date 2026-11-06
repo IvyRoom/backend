@@ -28,7 +28,7 @@ async function fixture(t, overrides = {}) {
     const calls = [];
     const users = {
         async readUsers() { calls.push(['readUsers']); return state.users; },
-        async writeCompanyCard(company, details) { calls.push(['writeCompanyCard', company, structuredClone(details)]); },
+        async writeCompanyCard(company, details, references) { calls.push(['writeCompanyCard', company, structuredClone(details), structuredClone(references)]); },
     };
     const cardStore = {
         async read(code) { calls.push(['read', code]); return structuredClone(records.get(code) || {}); },
@@ -154,7 +154,7 @@ test('company card is shared with colleagues and isolated from another company',
     assert.equal(saved.status, 200);
     const publicCard = { brand: 'Visa', lastFour: '0010', expMonth: 12, expYear: 2030 };
     assert.deepEqual(await saved.json(), { card: publicCard });
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
     const colleagueCard = await f.request('card', { token: colleagueToken });
     assert.deepEqual(await colleagueCard.json(), { card: publicCard });
     const otherCard = await f.request('card', { token: otherToken });
@@ -164,6 +164,9 @@ test('company card is shared with colleagues and isolated from another company',
     assert.notEqual(companyCode(admin.company), companyCode(otherAdmin.company));
     assert.ok([...f.records.values()].every((record) => !JSON.stringify(record).includes('token_')));
     assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 1);
+    assert.deepEqual(f.calls.find(([operation]) => operation === 'writeCompanyCard')[3], {
+        customerId: 'cus_synthetic', cardId: 'card_synthetic', environment: 'sandbox',
+    });
     const providerIndex = f.calls.findIndex(([operation]) => operation === 'createCard');
     const pendingIndex = f.calls.findIndex(([operation, , record]) => operation === 'write' && record.pending === 'workbook');
     const workbookIndex = f.calls.findIndex(([operation]) => operation === 'writeCompanyCard');
@@ -196,11 +199,12 @@ test('administrator synchronization retries only the workbook for its own confir
     const response = await f.request('card/sync', { method: 'POST', token });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { card: { brand: 'Visa', lastFour: '0010', expMonth: 12, expYear: 2030 } });
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
     const writes = f.calls.filter(([operation]) => operation === 'writeCompanyCard');
     assert.equal(writes.length, 1);
     assert.equal(writes[0][1], admin.company);
     assert.equal(writes[0][2].holderName, card.holderName);
+    assert.deepEqual(writes[0][3], { customerId: 'cus_synthetic', cardId: card.id, environment: 'sandbox' });
     assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer' || operation === 'createCard').length, 0);
     const otherToken = await f.login(otherAdmin);
     await expectError(await f.request('card/sync', { method: 'POST', token: otherToken }), 404, 'card_unavailable');
@@ -239,14 +243,30 @@ test('workbook sync failures preserve the confirmed card and can be retried with
     assert.deepEqual(f.records.get(companyCode(admin.company)), record);
     f.cardStore.write = write;
     assert.equal((await f.request('card/sync', { method: 'POST', token })).status, 200);
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer' || operation === 'createCard').length, 0);
+});
+
+test('verified cards with masked-only workbook sync backfill reusable references without provider creation', async (t) => {
+    const f = await fixture(t);
+    f.records.set(companyCode(admin.company), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true });
+    const token = await f.login();
+    const before = await (await f.request('card', { token })).json();
+    assert.equal(before.workbookSyncPending, true);
+    assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0, 'GET never writes to the workbook');
+    assert.equal((await f.request('card/sync', { method: 'POST', token })).status, 200);
+    const write = f.calls.find(([operation]) => operation === 'writeCompanyCard');
+    assert.deepEqual(write[3], { customerId: 'cus_synthetic', cardId: card.id, environment: 'sandbox' });
+    assert.equal(f.records.get(companyCode(admin.company)).workbookReferencesSynced, true);
+    const after = await (await f.request('card', { token })).json();
+    assert.equal(after.workbookSyncPending, undefined);
     assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer' || operation === 'createCard').length, 0);
 });
 
 test('legacy card references require fresh verification and cannot be promoted by workbook synchronization', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
-    for (const flags of [{}, { workbookSynced: true }, { pending: 'workbook' }]) {
+    for (const flags of [{}, { workbookSynced: true }, { workbookSynced: true, workbookReferencesSynced: true }, { pending: 'workbook' }]) {
         f.records.set(companyCode(admin.company), { customerId: 'cus_synthetic', cardId: 'card_legacy', ...flags });
         const before = await f.request('card', { token });
         assert.deepEqual(await before.json(), { card: null, verificationRequired: true });
@@ -326,7 +346,7 @@ test('expiry checks use the injected UTC clock and accept the entire expiry mont
 });
 
 test('provider verification rejection never writes the workbook and preserves a previously verified card', async (t) => {
-    for (const previous of [{ customerId: 'cus_synthetic' }, { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true }]) {
+    for (const previous of [{ customerId: 'cus_synthetic' }, { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true }]) {
         await t.test(previous.cardId ? 'replacement' : 'first card', async (t) => {
             const f = await fixture(t);
             f.records.set(companyCode(admin.company), previous);
@@ -364,6 +384,10 @@ test('raw payment fields and malformed addresses are rejected before storage or 
         { ...cardRequest, number: '4000000000000010' },
         { ...cardRequest, cvv: '123' },
         { ...cardRequest, company: otherAdmin.company },
+        { ...cardRequest, customerId: 'cus_untrusted' },
+        { ...cardRequest, cardId: 'card_untrusted' },
+        { ...cardRequest, environment: 'production' },
+        { ...cardRequest, references: { customerId: 'cus_untrusted', cardId: 'card_untrusted', environment: 'sandbox' } },
         { ...cardRequest, verification: 'pagarme_verify_card_v1' },
         { ...cardRequest, verificationRequested: true },
         { ...cardRequest, token: 'card_untrusted' },
@@ -411,14 +435,14 @@ test('a definite provider rejection clears its intent and permits a fresh manual
             assert.equal((await f.request('card', { token })).status, 200);
             assert.equal((await f.request('card', { method: 'PUT', token, body: { ...cardRequest, token: 'token_fresh' } })).status, 200);
             assert.equal(attempts, 2);
-            assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true });
+            assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
         });
     }
 });
 
 test('a rejected replacement preserves the current card and a failed rollback remains blocked', async (t) => {
     const f = await fixture(t);
-    const existing = { customerId: 'cus_existing', cardId: 'card_existing', verification, workbookSynced: true };
+    const existing = { customerId: 'cus_existing', cardId: 'card_existing', verification, workbookSynced: true, workbookReferencesSynced: true };
     f.records.set(companyCode(admin.company), existing);
     let attempts = 0;
     f.pagarme.createCard = async () => {
@@ -461,7 +485,7 @@ test('a simultaneous company save is refused while its first save completes', as
     await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_busy');
     release({ ...card, verificationRequested: true });
     assert.equal((await first).status, 200);
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
 });
 
 test('provider read failure is sanitized and logout revokes the bearer', async (t) => {

@@ -8,7 +8,8 @@ function validateRecord(record) {
     if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('Invalid card reference record');
     const result = {};
     for (const [key, value] of Object.entries(record)) {
-        const valid = key === 'workbookSynced' ? typeof value === 'boolean' : typeof value === 'string' && (
+        const valid = key === 'workbookReferencesSynced' ? value === true
+            : key === 'workbookSynced' ? typeof value === 'boolean' : typeof value === 'string' && (
             (key === 'customerId' && /^cus_[A-Za-z0-9]+$/.test(value))
             || (key === 'cardId' && /^card_[A-Za-z0-9]+$/.test(value))
             || (key === 'verification' && value === 'pagarme_verify_card_v1')
@@ -21,6 +22,7 @@ function validateRecord(record) {
         || (result.pending === 'card' && !result.customerId)
         || (result.pending === 'workbook' && (!result.customerId || !result.cardId))
         || (result.workbookSynced !== undefined && (!result.customerId || !result.cardId))
+        || (result.workbookReferencesSynced !== undefined && (!result.customerId || !result.cardId || result.workbookSynced !== true))
         || (result.verification !== undefined && (!result.customerId || !result.cardId))
         || (result.pending === 'workbook' && result.workbookSynced === true)
         || (result.pending === 'customer' && (result.customerId || result.cardId))) {
