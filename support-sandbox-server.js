@@ -5,8 +5,9 @@ const { createSupportApp } = require('./support-app');
 const { createSupportUsersAdapter } = require('./integrations/support-users');
 const { createPagarmeAdapter } = require('./integrations/pagarme');
 const { createSupportCardStore, acquireSupportSandboxLock } = require('./integrations/support-card-store');
+const { openSupportSessionStore } = require('./integrations/support-session-store');
 
-async function startSupportSandbox({ environment = process.env } = {}) {
+async function startSupportSandbox({ environment = process.env, dataDirectory = path.join(__dirname, '.support-sandbox-data') } = {}) {
     const dotenv = require('dotenv');
     dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
     dotenv.config({ path: path.join(__dirname, '.env.support-sandbox'), quiet: true });
@@ -45,15 +46,7 @@ async function startSupportSandbox({ environment = process.env } = {}) {
         },
     } });
     const origin = `http://127.0.0.1:${port}`;
-    const app = createSupportApp({
-        origin,
-        frontendDirectory: path.resolve(__dirname, '../sistemas/apps/support-management'),
-        users: createSupportUsersAdapter({ graphClient }),
-        pagarme,
-        cardStore: createSupportCardStore(path.join(__dirname, '.support-sandbox-data')),
-        publicKey,
-    });
-    const directory = path.join(__dirname, '.support-sandbox-data');
+    const directory = path.resolve(dataDirectory);
     const releaseLock = await acquireSupportSandboxLock(directory);
     async function releaseLockSafely() {
         try {
@@ -64,7 +57,18 @@ async function startSupportSandbox({ environment = process.env } = {}) {
         }
     }
     let listener;
+    let app;
     try {
+        const sessionStore = await openSupportSessionStore(directory);
+        app = createSupportApp({
+            origin,
+            frontendDirectory: path.resolve(__dirname, '../sistemas/apps/support-management'),
+            users: createSupportUsersAdapter({ graphClient }),
+            pagarme,
+            cardStore: createSupportCardStore(directory),
+            sessionStore,
+            publicKey,
+        });
         listener = app.listen(port, '127.0.0.1');
         await new Promise((resolve, reject) => { listener.once('listening', resolve); listener.once('error', reject); });
     } catch (error) {

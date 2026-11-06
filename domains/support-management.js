@@ -1,8 +1,9 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { createMemorySupportSessionStore } = require('../integrations/support-session-store');
 
-const SESSION_DURATION = 4 * 60 * 60 * 1000;
+const SESSION_DURATION = 60 * 60 * 1000;
 const CARD_VERIFICATION = 'pagarme_verify_card_v1';
 const normalize = (value) => String(value || '').trim().replace(/\s+/gu, ' ').toLowerCase();
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -28,12 +29,10 @@ function validBillingAddress(address) {
         && /^\d{8}$/.test(address.zip_code) && /^[A-Z]{2}$/.test(address.state) && address.country === 'BR';
 }
 
-function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now }) {
-    const sessions = new Map();
+function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now, sessionStore = createMemorySupportSessionStore() }) {
     const attempts = new Map();
     const busyCompanies = new Set();
-    const sessionSalt = crypto.randomBytes(32).toString('hex');
-    const fingerprint = (user) => digest(`${sessionSalt}:${user.password}`);
+    const fingerprint = (user) => digest(`${sessionStore.salt}:${user.password}`);
     const fail = (res, status, reason) => res.status(status).json({ error: `support_management.${reason}` });
 
     async function readUser(email) {
@@ -41,8 +40,8 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         return matches.length === 1 && matches[0].status === 'Ativo' && normalize(matches[0].company) ? matches[0] : null;
     }
 
-    function sweep() {
-        for (const [key, session] of sessions) if (session.expiresAt <= now()) sessions.delete(key);
+    async function sweep() {
+        await sessionStore.prune(now());
         for (const [key, attempt] of attempts) if (attempt.until <= now()) attempts.delete(key);
     }
 
@@ -70,41 +69,43 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             return res.json({ environment: 'sandbox', publicKey });
         },
         async login(req, res) {
-            sweep();
-            const { email, password } = req.body || {};
-            if (typeof email !== 'string' || email.length > 254 || typeof password !== 'string' || !password || password.length > 256) return fail(res, 401, 'invalid_credentials');
-            // Bound both maps; failed login attempts must not exhaust sandbox memory.
-            const key = req.ip;
-            const attempt = attempts.get(key) || { count: 0, until: now() + 60_000 };
-            if (attempt.count >= 10 || (attempts.size >= 1000 && !attempts.has(key))) return fail(res, 429, 'try_later');
-            attempt.count += 1;
-            attempts.set(key, attempt);
             try {
+                await sweep();
+                const { email, password } = req.body || {};
+                if (typeof email !== 'string' || email.length > 254 || typeof password !== 'string' || !password || password.length > 256) return fail(res, 401, 'invalid_credentials');
+                // Bound both maps; failed login attempts must not exhaust sandbox memory.
+                const key = req.ip;
+                const attempt = attempts.get(key) || { count: 0, until: now() + 60_000 };
+                if (attempt.count >= 10 || (attempts.size >= 1000 && !attempts.has(key))) return fail(res, 429, 'try_later');
+                attempt.count += 1;
+                attempts.set(key, attempt);
                 const user = await readUser(email);
                 const candidate = Buffer.from(digest(password));
                 const expected = Buffer.from(digest(user ? String(user.password) : crypto.randomUUID()));
                 if (!user || !crypto.timingSafeEqual(candidate, expected)) return fail(res, 401, 'invalid_credentials');
-                if (sessions.size >= 500) return fail(res, 429, 'try_later');
+                if (sessionStore.size >= 500) return fail(res, 429, 'try_later');
                 const token = crypto.randomBytes(32).toString('base64url');
-                sessions.set(token, { email: normalize(user.email), company: normalize(user.company), fingerprint: fingerprint(user), expiresAt: now() + SESSION_DURATION });
+                await sessionStore.set(digest(token), { email: normalize(user.email), company: normalize(user.company), fingerprint: fingerprint(user), expiresAt: now() + SESSION_DURATION });
                 return res.json({ token, user: publicUser(user) });
             } catch {
                 return fail(res, 503, 'users_unavailable');
             }
         },
         async authorize(req, res, next) {
-            sweep();
-            const token = (req.get('authorization') || '').match(/^Bearer ([A-Za-z0-9_-]{43})$/u)?.[1];
-            const session = sessions.get(token);
-            if (!session) return fail(res, 401, 'session_expired');
             try {
+                await sweep();
+                const token = (req.get('authorization') || '').match(/^Bearer ([A-Za-z0-9_-]{43})$/u)?.[1];
+                if (!token) return fail(res, 401, 'session_expired');
+                const tokenHash = digest(token);
+                const session = await sessionStore.get(tokenHash);
+                if (!session) return fail(res, 401, 'session_expired');
                 const user = await readUser(session.email);
                 if (!user || normalize(user.company) !== session.company || fingerprint(user) !== session.fingerprint) {
-                    sessions.delete(token);
+                    await sessionStore.delete(tokenHash);
                     return fail(res, 401, 'session_expired');
                 }
                 res.locals.supportUser = user;
-                res.locals.supportToken = token;
+                res.locals.supportTokenHash = tokenHash;
                 return next();
             } catch {
                 return fail(res, 503, 'users_unavailable');
@@ -113,9 +114,13 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         session(req, res) {
             return res.json({ user: publicUser(res.locals.supportUser) });
         },
-        logout(req, res) {
-            sessions.delete(res.locals.supportToken);
-            return res.status(204).end();
+        async logout(req, res) {
+            try {
+                await sessionStore.delete(res.locals.supportTokenHash);
+                return res.status(204).end();
+            } catch {
+                return fail(res, 503, 'session_unavailable');
+            }
         },
         async getCard(req, res) {
             const code = companyCode(res.locals.supportUser.company);

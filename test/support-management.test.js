@@ -11,6 +11,7 @@ const path = require('node:path');
 const { createSupportApp } = require('../support-app');
 const { companyCode } = require('../domains/support-management');
 const { createSupportCardStore } = require('../integrations/support-card-store');
+const { openSupportSessionStore, createMemorySupportSessionStore } = require('../integrations/support-session-store');
 const { createTestApp, startLoopback } = require('./app-test-support');
 
 const admin = { company: 'Empresa A', name: 'Administradora teste', email: 'admin@example.test', password: 'test-password', role: 'Administrador', status: 'Ativo' };
@@ -44,7 +45,12 @@ async function fixture(t, overrides = {}) {
     const server = http.createServer((req, res) => app(req, res));
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
-    t.after(async () => { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); });
+    async function close() {
+        if (!server.listening) return;
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+    t.after(close);
     const origin = `http://127.0.0.1:${server.address().port}`;
     app = createSupportApp({ origin, users, cardStore, pagarme, publicKey: 'pk_test_synthetic', now: () => clock, ...overrides });
     async function request(route, { method = 'GET', token, body, headers = {} } = {}) {
@@ -59,7 +65,7 @@ async function fixture(t, overrides = {}) {
         assert.equal(response.status, 200);
         return (await response.json()).token;
     }
-    return { origin, state, records, calls, users, cardStore, pagarme, request, login, advance(ms) { clock += ms; } };
+    return { origin, state, records, calls, users, cardStore, pagarme, request, login, close, advance(ms) { clock += ms; } };
 }
 
 function expectError(response, status, reason) {
@@ -106,7 +112,7 @@ test('login throttles requests and opens again after its window', async (t) => {
     await f.login();
 });
 
-test('missing and tampered sessions fail before workbook access and expire at four hours', async (t) => {
+test('missing and tampered sessions fail before workbook access and expire at one hour', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
     f.calls.length = 0;
@@ -114,10 +120,100 @@ test('missing and tampered sessions fail before workbook access and expire at fo
         await expectError(await f.request('session', { token: badToken }), 401, 'session_expired');
     }
     assert.equal(f.calls.length, 0);
-    f.advance(4 * 60 * 60 * 1000 - 1);
+    f.advance(60 * 60 * 1000 - 1);
     assert.equal((await f.request('session', { token })).status, 200);
     f.advance(1);
     await expectError(await f.request('session', { token }), 401, 'session_expired');
+});
+
+test('a persisted session survives backend recreation and keeps its original one-hour deadline', async (t) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'support-session-restart-'));
+    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    const issuedAt = 1_800_000_000_000;
+    let clock = issuedAt;
+    const first = await fixture(t, { sessionStore: await openSupportSessionStore(directory), now: () => clock });
+    const token = await first.login();
+    await first.close();
+    const contents = await fs.readFile(path.join(directory, 'sessions.json'), 'utf8');
+    assert.equal(contents.includes(token), false);
+    assert.equal(contents.includes(admin.password), false);
+    assert.equal(JSON.parse(contents).sessions[0].expiresAt, issuedAt + 60 * 60 * 1000);
+    clock += 30 * 60 * 1000;
+    const second = await fixture(t, { sessionStore: await openSupportSessionStore(directory), now: () => clock });
+    assert.deepEqual(await (await second.request('session', { token })).json(), { user: { name: admin.name, company: admin.company, role: admin.role } });
+    clock = issuedAt + 60 * 60 * 1000 - 1;
+    assert.equal((await second.request('session', { token })).status, 200);
+    await second.close();
+    const third = await fixture(t, { sessionStore: await openSupportSessionStore(directory), now: () => clock });
+    assert.equal((await third.request('session', { token })).status, 200);
+    clock += 1;
+    await expectError(await third.request('session', { token }), 401, 'session_expired');
+    await third.close();
+    assert.deepEqual(JSON.parse(await fs.readFile(path.join(directory, 'sessions.json'), 'utf8')).sessions, []);
+});
+
+test('logout remains revoked after backend recreation', async (t) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'support-session-logout-'));
+    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    const first = await fixture(t, { sessionStore: await openSupportSessionStore(directory) });
+    const token = await first.login();
+    assert.equal((await first.request('logout', { method: 'POST', token })).status, 204);
+    await first.close();
+    const second = await fixture(t, { sessionStore: await openSupportSessionStore(directory) });
+    await expectError(await second.request('session', { token }), 401, 'session_expired');
+    assert.equal(second.calls.length, 0);
+    await second.close();
+});
+
+test('recreated backends still enforce fresh workbook status, password, company and administrator access', async (t) => {
+    for (const patch of [{ status: 'Inativo' }, { password: 'changed' }, { company: 'Empresa B' }, { role: 'Usuário' }]) {
+        await t.test(Object.keys(patch)[0], async (t) => {
+            const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'support-session-access-'));
+            t.after(() => fs.rm(directory, { recursive: true, force: true }));
+            const first = await fixture(t, { sessionStore: await openSupportSessionStore(directory) });
+            const token = await first.login();
+            await first.close();
+            const second = await fixture(t, { sessionStore: await openSupportSessionStore(directory) });
+            Object.assign(second.state.users[0], patch);
+            if (patch.role) {
+                const response = await second.request('session', { token });
+                assert.equal(response.status, 200);
+                assert.equal((await response.json()).user.role, 'Usuário');
+                await expectError(await second.request('card', { method: 'PUT', token, body: cardRequest }), 403, 'administrator_required');
+            } else {
+                await expectError(await second.request('session', { token }), 401, 'session_expired');
+                second.state.users[0] = { ...admin };
+                await second.close();
+                const third = await fixture(t, { sessionStore: await openSupportSessionStore(directory) });
+                await expectError(await third.request('session', { token }), 401, 'session_expired');
+                await third.close();
+            }
+            assert.ok(second.calls.every(([operation]) => operation === 'readUsers'));
+            await second.close();
+        });
+    }
+});
+
+test('session persistence failures are sanitized instead of escaping async handlers or claiming logout', async (t) => {
+    for (const operation of ['prune', 'get', 'set', 'delete']) {
+        await t.test(operation, async (t) => {
+            const store = createMemorySupportSessionStore();
+            const f = await fixture(t, { sessionStore: store });
+            const token = await f.login();
+            t.mock.method(store, operation, async () => { throw new Error('PRIVATE session file failure'); });
+            if (operation === 'set') {
+                await expectError(await f.request('login', { method: 'POST', body: { email: admin.email, password: admin.password } }), 503, 'users_unavailable');
+            } else if (operation === 'delete') {
+                await expectError(await f.request('logout', { method: 'POST', token }), 503, 'session_unavailable');
+                assert.equal((await f.request('session', { token })).status, 200);
+            } else {
+                await expectError(await f.request('session', { token }), 503, 'users_unavailable');
+                if (operation === 'prune') {
+                    await expectError(await f.request('login', { method: 'POST', body: { email: admin.email, password: admin.password } }), 503, 'users_unavailable');
+                }
+            }
+        });
+    }
 });
 
 test('current workbook status, password and company changes revoke an existing session', async (t) => {

@@ -8,6 +8,7 @@ const WATCHED_FILES = new Set([
     'support-app.js', 'support-sandbox-server.js', '.env', '.env.support-sandbox',
     'domains/support-management.js', 'integrations/support-users.js',
     'integrations/pagarme.js', 'integrations/support-card-store.js',
+    'integrations/support-session-store.js',
 ]);
 
 function isSupportDevelopmentFile(filename) {

@@ -16,8 +16,9 @@ development, not an offline or simulated application mode.
 Save frontend HTML, CSS, or JavaScript and refresh the browser. Sources are served
 directly from the sibling `sistemas/apps/support-management/` directory, without a
 build. Saving watched support-backend code gracefully stops and restarts that
-backend, releasing its storage lock first. Sessions live in memory, so sign in
-again after a backend restart. Stop the development runner with Ctrl+C when done.
+backend, releasing its storage lock first. Valid sessions survive backend
+restarts without extending their original expiry. Stop the development runner
+with Ctrl+C when done.
 
 Use `npm run support:test` for focused automated checks during ordinary edits.
 Those checks still use synthetic dependencies and deny external traffic; they do
@@ -129,9 +130,14 @@ The temporary browser `token_` is never stored. Future purchases can use the
 provider `card_id` without storing PAN or CVV; the purchase flow and its required
 PSP customer information remain a separate milestone.
 
-Four-hour opaque sessions expire on restart and are rechecked against the workbook
-on each protected request, including current company, password, status and role.
-Only the session token is stored in sessionStorage. The app groups companies by
+One-hour opaque sessions survive local backend restarts and keep their original
+absolute expiry. Every protected request rechecks the current workbook company,
+password, status and role. Logout and invalidation are persisted before they are
+acknowledged. The ignored local session store contains only token hashes,
+identity, password fingerprints, original expiry and a stable random fingerprint
+salt; it never stores raw bearer tokens or passwords. Corrupt session storage
+blocks startup rather than silently resetting it. Only the raw session token is
+stored in the browser's sessionStorage. The app groups companies by
 trimmed, whitespace-collapsed, case-folded `EMPRESA`, because the workbook has no
 stable company ID. Renaming a company changes that identity; do not rename labels
 or reuse a label for a different company during this trial.

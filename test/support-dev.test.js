@@ -75,7 +75,7 @@ async function fixture(t, { failInitially = false } = {}) {
 }
 
 test('support development watches only its backend and ignored local configuration', () => {
-    for (const filename of ['support-app.js', 'support-sandbox-server.js', '.env', '.env.support-sandbox', 'domains/support-management.js', 'integrations/support-users.js', 'integrations/pagarme.js', 'integrations/support-card-store.js', 'integrations\\pagarme.js']) {
+    for (const filename of ['support-app.js', 'support-sandbox-server.js', '.env', '.env.support-sandbox', 'domains/support-management.js', 'integrations/support-users.js', 'integrations/pagarme.js', 'integrations/support-card-store.js', 'integrations/support-session-store.js', 'integrations\\pagarme.js']) {
         assert.equal(isSupportDevelopmentFile(filename), true, filename);
     }
     for (const filename of ['server.js', 'app.js', 'domains/learning-platform.js', 'integrations/microsoft-graph.js', 'node_modules/express/index.js', '.support-sandbox-data/sandbox.lock', 'test/support-dev.test.js', 'apps/support-management/style.css', 'scripts/support-dev.js']) {
@@ -202,4 +202,20 @@ test('sandbox preflight names missing settings without exposing supplied values 
             return true;
         });
     }
+});
+
+test('corrupt persistent sessions stop sandbox startup and release its exclusive lock', async (t) => {
+    t.mock.method(require('dotenv'), 'config', () => ({}));
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'support-session-startup-'));
+    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    const malformed = '{"v":1,"unexpected":"do not overwrite"}';
+    await fs.writeFile(path.join(directory, 'sessions.json'), malformed);
+    const environment = {
+        CLIENT_ID: '00000000-0000-4000-8000-000000000000', TENANT_ID: '00000000-0000-4000-8000-000000000000',
+        CLIENT_SECRET: 'synthetic-secret', SUPPORT_PAGARME_PUBLIC_KEY: 'pk_test_example', SUPPORT_PAGARME_SECRET_KEY: 'sk_test_example',
+        SUPPORT_SANDBOX_PORT: '4176',
+    };
+    await assert.rejects(startSupportSandbox({ environment, dataDirectory: directory }), /Support session storage unavailable/u);
+    await assert.rejects(fs.stat(path.join(directory, 'sandbox.lock')), { code: 'ENOENT' });
+    assert.equal(await fs.readFile(path.join(directory, 'sessions.json'), 'utf8'), malformed);
 });
