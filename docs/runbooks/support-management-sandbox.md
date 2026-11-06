@@ -20,6 +20,15 @@ pages, but the functional sandbox is local and uses its own same-origin API.
    SUPPORT_PAGARME_SECRET_KEY=sk_test_REPLACE_LOCALLY
    ```
 
+   In the same **test** account's dashboard, register the browser origin used for
+   tokenization (`http://127.0.0.1:4174`) through its permitted-domain settings.
+   Follow the dashboard's required domain format; do not disable an existing
+   allowlist. If an IP allowlist is configured, ensure it also permits this
+   machine's outbound API requests. Pagar.me requires domain registration before
+   browser tokenization. Loopback acceptance is account-dependent and has not
+   been verified without test keys; if the dashboard refuses this local origin,
+   stop and arrange an approved hosted sandbox origin before card testing.
+
 4. From `backend`, run `npm run support:sandbox` and open
    <http://127.0.0.1:4174/support-management/login/>. The startup URL uses port
    4174 unless `SUPPORT_SANDBOX_PORT` is configured. Use `127.0.0.1`, not localhost.
@@ -97,6 +106,8 @@ There is intentionally no live-key switch in this sandbox implementation.
 
 Official references: [authentication](https://docs.pagar.me/reference/autentica%C3%A7%C3%A3o-2),
 [tokenization](https://docs.pagar.me/reference/tokeniza%C3%A7%C3%A3o-1),
+[token domain registration](https://docs.pagar.me/reference/criar-token-cart%C3%A3o-1),
+[allowlists](https://docs.pagar.me/docs/ip-allowlist),
 [create card](https://docs.pagar.me/reference/criar-cart%C3%A3o),
 [PSP simulator](https://docs.pagar.me/docs/simulador-psp),
 [Gateway simulator](https://docs.pagar.me/docs/simulador-de-cart%C3%A3o-de-cr%C3%A9dito).
