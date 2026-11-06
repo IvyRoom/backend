@@ -11,15 +11,17 @@ async function startSupportSandbox({ environment = process.env } = {}) {
     dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
     dotenv.config({ path: path.join(__dirname, '.env.support-sandbox'), quiet: true });
     const secretKey = environment.SUPPORT_PAGARME_SECRET_KEY?.trim() || environment.PAGARME_API_KEY_SANDBOX?.trim();
-    const missing = ['CLIENT_ID', 'TENANT_ID', 'CLIENT_SECRET', 'SUPPORT_PAGARME_PUBLIC_KEY']
+    const publicKey = environment.SUPPORT_PAGARME_PUBLIC_KEY?.trim() || environment.PAGARME_PUBLIC_KEY_SANDBOX?.trim();
+    const missing = ['CLIENT_ID', 'TENANT_ID', 'CLIENT_SECRET']
         .filter((name) => !environment[name]?.trim());
+    if (!publicKey) missing.push('SUPPORT_PAGARME_PUBLIC_KEY (or PAGARME_PUBLIC_KEY_SANDBOX)');
     if (!secretKey) missing.push('SUPPORT_PAGARME_SECRET_KEY (or PAGARME_API_KEY_SANDBOX)');
     if (missing.length) {
         const error = new Error(`Missing local settings: ${missing.join(', ')}. Add them to the ignored local environment files.`);
         error.code = 'SUPPORT_SETUP';
         throw error;
     }
-    if (!/^pk_test_[A-Za-z0-9_-]+$/u.test(environment.SUPPORT_PAGARME_PUBLIC_KEY)
+    if (!/^pk_test_[A-Za-z0-9_-]+$/u.test(publicKey)
         || !/^sk_test_[A-Za-z0-9_-]+$/u.test(secretKey)) {
         const error = new Error('SUPPORT_PAGARME_PUBLIC_KEY and the configured Pagar.me secret must be Pagar.me test keys.');
         error.code = 'SUPPORT_SETUP';
@@ -28,7 +30,7 @@ async function startSupportSandbox({ environment = process.env } = {}) {
     const port = Number(environment.SUPPORT_SANDBOX_PORT || 4174);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid sandbox port');
     // Validate test keys before initializing any external client.
-    const pagarme = createPagarmeAdapter({ secretKey, publicKey: environment.SUPPORT_PAGARME_PUBLIC_KEY });
+    const pagarme = createPagarmeAdapter({ secretKey, publicKey });
     const { ConfidentialClientApplication } = require('@azure/msal-node');
     const { Client } = require('@microsoft/microsoft-graph-client');
     const confidentialClient = new ConfidentialClientApplication({ auth: {
@@ -49,7 +51,7 @@ async function startSupportSandbox({ environment = process.env } = {}) {
         users: createSupportUsersAdapter({ graphClient }),
         pagarme,
         cardStore: createSupportCardStore(path.join(__dirname, '.support-sandbox-data')),
-        publicKey: environment.SUPPORT_PAGARME_PUBLIC_KEY,
+        publicKey,
     });
     const directory = path.join(__dirname, '.support-sandbox-data');
     const releaseLock = await acquireSupportSandboxLock(directory);
