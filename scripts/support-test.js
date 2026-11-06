@@ -9,7 +9,11 @@ const tests = fs.readdirSync(path.join(root, 'test'))
     .filter((name) => /^support-.*\.test\.js$/u.test(name) || name === 'pagarme.test.js')
     .sort()
     .map((name) => path.join(root, 'test', name));
-tests.push(path.resolve(root, '../sistemas/.agents/tests/support-management.test.js'));
+const frontendTests = path.resolve(root, '../sistemas/.agents/tests');
+tests.push(...fs.readdirSync(frontendTests)
+    .filter((name) => /^support-.*\.test\.js$/u.test(name))
+    .sort()
+    .map((name) => path.join(frontendTests, name)));
 
 const child = spawn(process.execPath, [
     '--require', path.join(root, 'test/deny-production-network.js'), '--test', ...tests,
