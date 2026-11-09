@@ -90,26 +90,27 @@ test('calendar starts tomorrow in São Paulo, omits weekends and uses only verif
     const original = structuredClone(rows);
     const result = calendarDays(rows, 1000, Date.parse('2026-11-10T01:30:00Z'));
     assert.deepEqual(result.map(({ date }) => date), ['2026-11-10', '2026-11-11', '2026-11-16']);
-    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 97500, 95000]);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 100000, 100000]);
     assert.deepEqual(rows, original);
     assert.equal(calendarDays(rows, 1000, Date.parse('2026-11-14T02:30:00Z'))[0].date, '2026-11-16');
 });
 
-test('hourly prices decrease linearly for ten vacant weekdays and then remain 25 percent below the first', () => {
+test('the first three available dates keep the reference rate, then prices decrease to 75 percent on the tenth', () => {
     const result = calendarDays(WEEKDAYS.map((date) => ({ date, status: '' })), 1000, NOW);
-    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 97500, 95000, 92500, 90000,
-        87500, 85000, 82500, 80000, 77500, 75000, 75000, 75000]);
-    assert.deepEqual(result.map(({ pricePosition }) => pricePosition), [0, 0.1, 0.2, 0.3, 0.4,
-        0.5, 0.6, 0.7, 0.8, 0.9, 1, 1, 1]);
-    assert.equal(result[10].priceCents, result[0].priceCents * 0.75);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 100000, 100000, 96429, 92857,
+        89286, 85714, 82143, 78571, 75000, 75000, 75000, 75000]);
+    assert.deepEqual(result.map(({ pricePosition }) => pricePosition), [0, 0, 0, 1 / 7, 2 / 7,
+        3 / 7, 4 / 7, 5 / 7, 6 / 7, 1, 1, 1, 1]);
+    assert.equal(result[9].priceCents, result[0].priceCents * 0.75);
 });
 
 test('all nonblank statuses and journal-pending dates are unavailable and do not consume discount steps', () => {
-    const statuses = ['', 'RESERVADO', 'INDISPONÍVEL', 'BLOQUEADO', '  ', '', null, '0'];
+    const statuses = ['', 'RESERVADO', 'INDISPONÍVEL', 'BLOQUEADO', '  ', '', null, '0', ''];
     const rows = WEEKDAYS.slice(0, statuses.length).map((date, index) => ({ date, status: statuses[index] }));
     const result = calendarDays(rows, 1000, NOW, new Set([WEEKDAYS[5]]));
-    assert.deepEqual(result.map(({ available }) => available), [true, false, false, false, true, false, true, false]);
-    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, null, null, null, 97500, null, 95000, null]);
+    assert.deepEqual(result.map(({ available }) => available), [true, false, false, false, true, false, true, false, true]);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, null, null, null, 100000, null, 100000, null, 96429]);
+    assert.deepEqual(result.filter(({ available }) => available).map(({ pricePosition }) => pricePosition), [0, 0, 0, 1 / 7]);
     assert.ok(result.filter(({ available }) => !available).every(({ pricePosition }) => pricePosition === null));
 });
 
@@ -159,7 +160,7 @@ test('reservation rechecks availability and the current price before its first w
     }
 });
 
-test('successful reservation persists the exact company/date/rate, then sends one all-day event and confirmation', async () => {
+test('successful reservation persists the exact company/date/rate, then sends a 09:00–10:00 Brasília event and confirmation', async () => {
     const app = fixture();
     const res = await app.reserve();
     assert.equal(res.statusCode, 200);
@@ -173,10 +174,10 @@ test('successful reservation persists the exact company/date/rate, then sends on
     });
     const event = app.calls.find(({ type }) => type === 'event').payload;
     assert.equal(event.transactionId, ID);
-    assert.equal(event.isAllDay, true);
+    assert.equal(event.isAllDay, false);
     assert.equal(event.showAs, 'busy');
-    assert.deepEqual(event.start, { dateTime: '2026-11-10T00:00:00', timeZone: 'E. South America Standard Time' });
-    assert.deepEqual(event.end, { dateTime: '2026-11-11T00:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(event.start, { dateTime: '2026-11-10T09:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(event.end, { dateTime: '2026-11-10T10:00:00', timeZone: 'E. South America Standard Time' });
     assert.deepEqual(event.attendees, [{ emailAddress: { address: USER.email.toLowerCase(), name: USER.name }, type: 'required' }]);
     const mail = app.calls.find(({ type }) => type === 'mail').payload;
     assert.deepEqual(mail.toRecipients, [{ emailAddress: { address: CONTACT } },
@@ -184,6 +185,9 @@ test('successful reservation persists the exact company/date/rate, then sends on
     assert.equal(mail.subject, event.subject);
     assert.deepEqual(mail.body, event.body);
     assert.match(mail.body.content, /Preço por hora:/u);
+    assert.match(mail.body.content, /09:00/u);
+    assert.match(mail.body.content, /10:00/u);
+    assert.match(mail.body.content, /Brasília/u);
     assert.equal(mail.attachments.length, 1);
     assert.equal(mail.attachments[0]['@odata.type'], '#microsoft.graph.fileAttachment');
     assert.equal(mail.attachments[0].name, 'atendimento.ics');
@@ -191,12 +195,39 @@ test('successful reservation persists the exact company/date/rate, then sends on
     assert.match(ics, /METHOD:REQUEST\r\n/u);
     assert.match(ics, /UID:provider-calendar-uid@example\.invalid\r\n/u);
     assert.match(ics, /DTSTAMP:20261109T150000Z\r\n/u);
-    assert.match(ics, /DTSTART;VALUE=DATE:20261110\r\nDTEND;VALUE=DATE:20261111\r\n/u);
+    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T130000Z\r\n/u);
+    assert.doesNotMatch(ics, /VALUE=DATE:/u);
     assert.match(ics, /ORGANIZER:mailto:contato@machadogestao\.com\r\n/u);
     assert.match(ics, /ATTENDEE;RSVP=TRUE:mailto:user@example\.invalid\r\n/u);
     assert.ok(ics.endsWith('END:VEVENT\r\nEND:VCALENDAR\r\n'));
     assert.deepEqual(app.stored.get(ID), savedRecord({ stage: 'complete', eventId: 'graph-event-id',
         iCalUid: 'provider-calendar-uid@example.invalid' }));
+});
+
+test('timed invites preserve the selected Brasília date across month, year, and leap-day boundaries', async (t) => {
+    for (const date of ['2026-11-30', '2026-12-31', '2027-01-01', '2028-02-29']) {
+        await t.test(date, async () => {
+            const app = fixture({ rows: [{ date, status: '' }] });
+            assert.deepEqual((await app.reserve({ date, priceCents: 100000, requestId: ID })).body, { date, reserved: true });
+            const event = app.calls.find(({ type }) => type === 'event').payload;
+            assert.equal(event.isAllDay, false);
+            assert.deepEqual(event.start, { dateTime: `${date}T09:00:00`, timeZone: 'E. South America Standard Time' });
+            assert.deepEqual(event.end, { dateTime: `${date}T10:00:00`, timeZone: 'E. South America Standard Time' });
+            const mail = app.calls.find(({ type }) => type === 'mail').payload;
+            const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8').replace(/\r\n /gu, '');
+            const start = /^DTSTART:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
+            const end = /^DTEND:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
+            assert.equal(start, `${date.replace(/-/gu, '')}T120000Z`);
+            assert.equal(end, `${date.replace(/-/gu, '')}T130000Z`);
+            const instant = (compact) => `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}T${compact.slice(9, 11)}:${compact.slice(11, 13)}:${compact.slice(13, 15)}Z`;
+            assert.equal(Date.parse(instant(start)), Date.parse(`${date}T09:00:00-03:00`));
+            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 3600000);
+            assert.doesNotMatch(ics, /VALUE=DATE:/u);
+            assert.match(mail.body.content, /09:00/u);
+            assert.match(mail.body.content, /10:00/u);
+            assert.match(mail.body.content, /Brasília/u);
+        });
+    }
 });
 
 test('confirmation safely escapes HTML/calendar text, folds UTF-8 lines, and cannot inject ICS fields', async () => {
@@ -316,7 +347,7 @@ test('concurrent reservations for the same date or request ID make only one work
     const first = app.reserve();
     await started;
     assertError(await app.reserve({ date: WEEKDAYS[0], priceCents: 100000, requestId: OTHER_ID }), 409, 'date_unavailable');
-    assertError(await app.reserve({ date: WEEKDAYS[1], priceCents: 97500, requestId: ID }), 409, 'date_unavailable');
+    assertError(await app.reserve({ date: WEEKDAYS[1], priceCents: 100000, requestId: ID }), 409, 'date_unavailable');
     release();
     assert.deepEqual((await first).body, { date: WEEKDAYS[0], reserved: true });
     assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
@@ -333,10 +364,10 @@ test('simultaneous different-date claims refresh the second price after the firs
         if (value.id === ID && value.stage === 'workbook') { entered(); await gate; }
     } });
     const initial = await app.calendar();
-    assert.deepEqual(initial.body.days.slice(0, 2).map(({ priceCents }) => priceCents), [100000, 97500]);
+    assert.deepEqual(initial.body.days.slice(0, 4).map(({ priceCents }) => priceCents), [100000, 100000, 100000, 96429]);
     const first = app.reserve();
     await started;
-    const second = app.reserve({ date: WEEKDAYS[1], priceCents: 97500, requestId: OTHER_ID });
+    const second = app.reserve({ date: WEEKDAYS[3], priceCents: 96429, requestId: OTHER_ID });
     await new Promise(setImmediate);
     assert.equal(app.calls.filter(({ type }) => type === 'read').length, 1);
     assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 0);
@@ -345,7 +376,7 @@ test('simultaneous different-date claims refresh the second price after the firs
     assert.deepEqual((await first).body, { date: WEEKDAYS[0], reserved: true });
     assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 1);
     assert.equal(app.stored.has(OTHER_ID), false);
-    const refreshed = await app.reserve({ date: WEEKDAYS[1], priceCents: 100000, requestId: OTHER_ID });
-    assert.deepEqual(refreshed.body, { date: WEEKDAYS[1], reserved: true });
+    const refreshed = await app.reserve({ date: WEEKDAYS[3], priceCents: 100000, requestId: OTHER_ID });
+    assert.deepEqual(refreshed.body, { date: WEEKDAYS[3], reserved: true });
     assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 2);
 });

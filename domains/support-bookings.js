@@ -4,6 +4,7 @@ const { escapeHtml } = require('../shared/escape-html');
 
 const CONTACT = 'contato@machadogestao.com';
 const TIME_ZONE = 'E. South America Standard Time';
+const TIME_LABEL = '09:00 às 10:00 (horário de Brasília)';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -33,9 +34,9 @@ function calendarDays(rows, referenceRate, nowMs, pendingDates = new Set()) {
         && ![0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()))
         .sort((a, b) => a.date.localeCompare(b.date)).map(({ date, status }) => {
             const available = !String(status || '').trim() && !pendingDates.has(date);
-            const rank = available ? Math.min(vacantRank++, 10) : null;
-            return { date, available, priceCents: available ? Math.round(baseCents * (40 - rank) / 40) : null,
-                pricePosition: available ? rank / 10 : null };
+            const discountStep = available ? Math.min(Math.max(vacantRank++ - 2, 0), 7) : null;
+            return { date, available, priceCents: available ? Math.round(baseCents * (28 - discountStep) / 28) : null,
+                pricePosition: available ? discountStep / 7 : null };
         });
 }
 
@@ -59,22 +60,29 @@ function foldCalendarLine(value) {
     return lines.join('\r\n');
 }
 
+function calendarTime(date, hour) {
+    const zone = new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', timeZoneName: 'longOffset' })
+        .formatToParts(new Date(`${date}T12:00:00Z`)).find(({ type }) => type === 'timeZoneName').value;
+    const offset = zone === 'GMT' ? '+00:00' : zone.slice(3);
+    return new Date(`${date}T${hour}:00:00${offset}`).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '');
+}
+
 function confirmation(booking) {
     const displayDate = booking.date.split('-').reverse().join('/');
     const price = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(booking.priceCents / 100);
     const subject = `Atendimento consultivo - ${displayDate}`;
-    const description = `${booking.name}\n${booking.company}\n${displayDate}\nPreço por hora: ${price}`;
+    const description = `${booking.name}\n${booking.company}\n${displayDate}\n${TIME_LABEL}\nPreço por hora: ${price}`;
     const calendar = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Machado//Atendimentos Consultivos//PT-BR', 'METHOD:REQUEST',
         'BEGIN:VEVENT', `UID:${textCalendar(booking.iCalUid)}`,
         `DTSTAMP:${new Date(booking.createdAt).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '')}`,
-        `DTSTART;VALUE=DATE:${booking.date.replace(/-/gu, '')}`,
-        `DTEND;VALUE=DATE:${nextDate(booking.date).replace(/-/gu, '')}`,
+        `DTSTART:${calendarTime(booking.date, '09')}`,
+        `DTEND:${calendarTime(booking.date, '10')}`,
         `SUMMARY:${textCalendar(subject)}`, `DESCRIPTION:${textCalendar(description)}`,
         `ORGANIZER:mailto:${CONTACT}`, `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
         'STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR',
     ].map(foldCalendarLine).join('\r\n') + '\r\n';
-    return { subject, body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${displayDate}<br>Preço por hora: ${escapeHtml(price)}</p>` },
+    return { subject, body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${displayDate}<br>${TIME_LABEL}<br>Preço por hora: ${escapeHtml(price)}</p>` },
         toRecipients: Array.from(new Set([CONTACT, normalize(booking.email)])).map((address) => ({ emailAddress: { address } })),
         attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'atendimento.ics', contentType: 'text/calendar; method=REQUEST; charset=UTF-8', contentBytes: Buffer.from(calendar, 'utf8').toString('base64') }],
     };
@@ -82,9 +90,9 @@ function confirmation(booking) {
 
 function eventPayload(booking) {
     const message = confirmation({ ...booking, iCalUid: booking.iCalUid || booking.id });
-    return { subject: message.subject, body: message.body, isAllDay: true,
-        start: { dateTime: `${booking.date}T00:00:00`, timeZone: TIME_ZONE },
-        end: { dateTime: `${nextDate(booking.date)}T00:00:00`, timeZone: TIME_ZONE },
+    return { subject: message.subject, body: message.body, isAllDay: false,
+        start: { dateTime: `${booking.date}T09:00:00`, timeZone: TIME_ZONE },
+        end: { dateTime: `${booking.date}T10:00:00`, timeZone: TIME_ZONE },
         attendees: normalize(booking.email) === CONTACT ? [] : [{ emailAddress: { address: booking.email, name: booking.name }, type: 'required' }],
         showAs: 'busy', transactionId: booking.id,
     };

@@ -72,9 +72,9 @@ test('calendar creation preserves the domain payload and projects only bounded p
     const payload = {
         subject: 'Atendimento consultivo',
         transactionId: 'd0b07b46-1311-41fb-984f-b338fd6b8a16',
-        isAllDay: true,
-        start: { dateTime: '2026-11-12T00:00:00', timeZone: 'E. South America Standard Time' },
-        end: { dateTime: '2026-11-13T00:00:00', timeZone: 'E. South America Standard Time' },
+        isAllDay: false,
+        start: { dateTime: '2026-11-12T09:00:00', timeZone: 'E. South America Standard Time' },
+        end: { dateTime: '2026-11-12T10:00:00', timeZone: 'E. South America Standard Time' },
         attendees: [{ emailAddress: { address: 'user@example.invalid' }, type: 'required' }],
     };
 

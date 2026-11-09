@@ -1,8 +1,8 @@
 # Support management sandbox
 
-This version provides workbook-backed login, weekday date reservations and
-administrator-managed company cards. Reservations do not charge a card or set
-an appointment duration. Production `app.js` and
+This version provides workbook-backed login, weekday reservations from 09:00 to
+10:00 Brasília time and administrator-managed company cards. Reservations do not
+charge a card or populate the actual-duration workbook column. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
 
@@ -176,9 +176,12 @@ The last column has the table formula `=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HOR
 
 The calendar reads dates/status only, starting tomorrow in São Paulo, and omits
 weekends. A blank status means vacant; any other status means unavailable.
-The first vacant weekday uses the authenticated user's VALOR REFERÊNCIA. Each
-following vacant weekday reduces that price by 2.5% of the reference price, to
-75% at the eleventh vacant weekday; later days stay at 75%. Prices round to cents.
+Months appear in compact blocks about 300px square, with Monday–Friday columns
+and successive weeks on separate rows. Blocks wrap to the available width.
+The first three vacant weekdays use 100% of the authenticated user's VALOR
+REFERÊNCIA. Prices then decrease linearly from the third through the tenth vacant
+weekday, where they reach 75%; later days stay at 75%. There are seven equal
+discount steps, each 25/7 percentage points of the reference price. Prices round to cents.
 Unavailable days do not advance the discount. Price and availability are checked
 again on reservation; stale quotes require reselection. A global claim queue
 prevents different dates from accepting incompatible concurrent quotes.
@@ -187,12 +190,13 @@ Reservar Data writes only the existing selected row: B=RESERVADO, D=formatted
 CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
 OBSERVAÇÃO, DURAÇÃO (MIN) and VALOR COBRADO, including the existing formula.
 The date is rechecked immediately before the single Graph PATCH; no row is added.
-This first version reserves a whole day without setting hours/duration or charging
-the card. Workbook edits made concurrently outside this local app are not atomic
+Each reservation covers 09:00–10:00 Brasília time. Actual-duration and charge
+columns remain under the workbook's existing workflow; no card is charged.
+Workbook edits made concurrently outside this local app are not atomic
 with its PATCH; avoid another booking writer during this local trial.
 
-After the row is reserved, the app creates an all-day event in the contato
-mailbox's calendar, in São Paulo time, and invites the authenticated user. Graph
+After the row is reserved, the app creates a 09:00–10:00 event in the contato
+mailbox's calendar, in Brasília time, and invites the authenticated user. Graph
 sends the attendee invitation automatically. A confirmation goes to
 contato@machadogestao.com and the authenticated user, with a calendar attachment
 using the same event UID. The organizer gets its calendar entry and confirmation;
