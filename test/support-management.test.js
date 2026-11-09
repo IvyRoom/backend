@@ -73,6 +73,45 @@ function expectError(response, status, reason) {
     return response.json().then((body) => assert.deepEqual(body, { error: `support_management.${reason}` }));
 }
 
+test('calendar routes require fresh workbook authorization and reserve without payment calls', async (t) => {
+    const bookings = new Map();
+    const dates = [{ date: '2027-02-01', status: '' }];
+    const notifications = [];
+    const f = await fixture(t, {
+        appointments: {
+            readDates: async () => structuredClone(dates),
+            reserveDate: async () => { dates[0].status = 'RESERVADO'; },
+        },
+        bookingStore: {
+            read: async (id) => bookings.get(id),
+            write: async (record) => bookings.set(record.id, structuredClone(record)),
+            remove: async (id) => bookings.delete(id),
+            pendingDates: async () => new Set([...bookings.values()].filter((record) => record.stage !== 'complete').map((record) => record.date)),
+        },
+        bookingNotifications: {
+            createEvent: async (event) => { notifications.push(event); return { eventId: 'syntheticEvent', iCalUid: 'syntheticUid' }; },
+            sendConfirmation: async (mail) => { notifications.push(mail); },
+        },
+    });
+    f.state.users[0].companyId = '12345678000190';
+    f.state.users[0].referenceRate = 1000;
+    await expectError(await f.request('calendar'), 401, 'session_expired');
+    await expectError(await f.request('reservations', { method: 'POST', body: {} }), 401, 'session_expired');
+    const token = await f.login();
+    assert.equal((await (await f.request('calendar', { token })).json()).days[0].priceCents, 100000);
+    f.state.users[0].referenceRate = 1200;
+    assert.equal((await (await f.request('calendar', { token })).json()).days[0].priceCents, 120000);
+    const response = await f.request('reservations', { method: 'POST', token,
+        body: { date: dates[0].date, priceCents: 120000, requestId: '12345678-1234-4234-8234-123456789abc' } });
+    assert.deepEqual(await response.json(), { date: dates[0].date, reserved: true });
+    assert.equal(response.status, 200);
+    assert.equal(notifications.length, 2);
+    assert.equal((await (await f.request('calendar', { token })).json()).days[0].available, false);
+    assert.ok(f.calls.every(([type]) => type === 'readUsers'));
+    f.state.users[0].status = 'Inativo';
+    await expectError(await f.request('calendar', { token }), 401, 'session_expired');
+});
+
 test('sandbox config and login expose only public fields and issue an opaque token', async (t) => {
     const f = await fixture(t);
     const config = await f.request('config');
@@ -87,6 +126,160 @@ test('sandbox config and login expose only public fields and issue an opaque tok
     assert.deepEqual(Object.keys(body).sort(), ['token', 'user']);
     const session = await f.request('session', { token: body.token });
     assert.deepEqual(await session.json(), { user: body.user });
+});
+
+test('CNPJ keeps sessions and company card identity stable across company name changes', async (t) => {
+    const f = await fixture(t);
+    const companyId = '12345678000195';
+    f.state.users[0].companyId = companyId;
+    f.state.users[1].companyId = companyId;
+    const token = await f.login();
+    const code = companyCode(companyId);
+    const record = { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true };
+    f.records.set(code, record);
+    f.state.users[0].company = 'Empresa A renomeada';
+    f.state.users[1].company = 'Outra apresentação da mesma razão social';
+
+    assert.deepEqual(await (await f.request('session', { token })).json(), {
+        user: { name: admin.name, company: f.state.users[0].company, role: admin.role },
+    });
+    const colleagueToken = await f.login(colleague);
+    for (const currentToken of [token, colleagueToken]) {
+        assert.equal((await f.request('card', { token: currentToken })).status, 200);
+    }
+    assert.ok(f.calls.filter(([operation]) => operation === 'read').every(([, key]) => key === code));
+    assert.deepEqual(f.records.get(code), record);
+    assert.notEqual(code, companyCode(admin.company));
+    f.state.users[0].companyId = '98765432000110';
+    await expectError(await f.request('session', { token }), 401, 'session_expired');
+});
+
+test('workbook card references recover the customer without creating verification evidence', async (t) => {
+    const f = await fixture(t);
+    const companyId = '12345678000195';
+    const references = { customerId: 'cus_synthetic', cardId: card.id, environment: 'sandbox' };
+    f.state.users[0].companyId = companyId;
+    f.users.readCompanyCardReferences = async (id) => {
+        f.calls.push(['readCompanyCardReferences', id]);
+        return references;
+    };
+    f.cardStore.findByReferences = async (received) => {
+        f.calls.push(['findByReferences', received]);
+        return null;
+    };
+    const token = await f.login();
+    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+    assert.deepEqual(f.records.get(companyCode(companyId)), { customerId: references.customerId, cardId: references.cardId });
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+    await expectError(await f.request('card/sync', { method: 'POST', token, body: {} }), 409, 'card_verification_required');
+
+    assert.equal((await f.request('card', { method: 'PUT', token, body: cardRequest })).status, 200);
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer' || operation === 'findCompanyCustomer').length, 0);
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
+    assert.deepEqual(f.calls.find(([operation]) => operation === 'readCompanyCardReferences'), ['readCompanyCardReferences', companyId]);
+    assert.equal(f.calls.find(([operation]) => operation === 'writeCompanyCard')[1], companyId);
+    assert.deepEqual(f.records.get(companyCode(companyId)), { customerId: references.customerId, cardId: references.cardId, verification, workbookSynced: true, workbookReferencesSynced: true });
+});
+
+test('CNPJ recovery preserves local verification only when both provider references match exactly', async (t) => {
+    for (const changed of [{}, { customerId: 'cus_Other' }, { cardId: 'card_Other' }]) {
+        await t.test(Object.keys(changed)[0] || 'exact match', async (t) => {
+            const root = await fs.mkdtemp(path.join(os.tmpdir(), 'support-card-cnpj-recovery-'));
+            t.after(() => fs.rm(root, { recursive: true, force: true }));
+            const store = createSupportCardStore(root);
+            const previous = { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true };
+            const legacyCode = companyCode(admin.company);
+            await store.write(legacyCode, previous);
+            const f = await fixture(t, { cardStore: store });
+            const companyId = '12345678000195';
+            f.state.users[0].companyId = companyId;
+            const references = { customerId: previous.customerId, cardId: previous.cardId, environment: 'sandbox', ...changed };
+            f.users.readCompanyCardReferences = async () => references;
+            const token = await f.login();
+            const response = await f.request('card', { token });
+            assert.equal(response.status, 200);
+            const migrated = await store.read(companyCode(companyId));
+            assert.deepEqual(await store.read(legacyCode), previous);
+            if (!Object.keys(changed).length) {
+                assert.deepEqual(migrated, { customerId: previous.customerId, cardId: previous.cardId, verification });
+                assert.equal((await response.json()).workbookSyncPending, true);
+                assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+            } else {
+                assert.deepEqual(migrated, { customerId: references.customerId, cardId: references.cardId });
+                assert.deepEqual(await response.json(), { card: null, verificationRequired: true });
+                assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+            }
+            assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard' || operation.startsWith('create')).length, 0);
+        });
+    }
+});
+
+test('CNPJ recovery retains pending card and workbook states instead of accepting uncertain operations', async (t) => {
+    for (const pending of ['card', 'workbook']) {
+        await t.test(pending, async (t) => {
+            const root = await fs.mkdtemp(path.join(os.tmpdir(), 'support-card-cnpj-pending-'));
+            t.after(() => fs.rm(root, { recursive: true, force: true }));
+            const store = createSupportCardStore(root);
+            const previous = { customerId: 'cus_synthetic', cardId: card.id, verification, pending };
+            await store.write(companyCode(admin.company), previous);
+            const f = await fixture(t, { cardStore: store });
+            const companyId = '12345678000195';
+            f.state.users[0].companyId = companyId;
+            f.users.readCompanyCardReferences = async () => ({ customerId: previous.customerId, cardId: previous.cardId, environment: 'sandbox' });
+            const token = await f.login();
+            const response = await f.request('card', { token });
+            if (pending === 'card') {
+                await expectError(response, 409, 'card_review_required');
+                assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+            } else {
+                assert.equal(response.status, 200);
+                assert.equal((await response.json()).workbookSyncPending, true);
+            }
+            assert.deepEqual(await store.read(companyCode(companyId)), previous);
+            assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard' || operation.startsWith('create')).length, 0);
+        });
+    }
+});
+
+test('CNPJ recovery never guesses a card from company labels when workbook references are missing', async (t) => {
+    const f = await fixture(t);
+    const companyId = '12345678000195';
+    f.state.users[0].companyId = companyId;
+    const previous = { customerId: 'cus_synthetic', cardId: card.id, verification };
+    f.records.set(companyCode(admin.company), previous);
+    f.users.readCompanyCardReferences = async () => null;
+    f.cardStore.findByReferences = async () => { throw new Error('Lookup must not run without references'); };
+    const token = await f.login();
+    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null });
+    assert.equal(f.records.has(companyCode(companyId)), false);
+    assert.deepEqual(f.records.get(companyCode(admin.company)), previous);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard' || operation.startsWith('create') || operation === 'writeCompanyCard').length, 0);
+});
+
+test('ambiguous local or unavailable workbook references fail closed without provider calls', async (t) => {
+    for (const variant of ['duplicate-local', 'conflicting-workbook']) {
+        await t.test(variant, async (t) => {
+            const root = await fs.mkdtemp(path.join(os.tmpdir(), 'support-card-cnpj-ambiguous-'));
+            t.after(() => fs.rm(root, { recursive: true, force: true }));
+            const store = createSupportCardStore(root);
+            const previous = { customerId: 'cus_synthetic', cardId: card.id, verification };
+            await store.write(companyCode(admin.company), previous);
+            if (variant === 'duplicate-local') await store.write(companyCode(otherAdmin.company), previous);
+            const f = await fixture(t, { cardStore: store });
+            const companyId = '12345678000195';
+            f.state.users[0].companyId = companyId;
+            f.users.readCompanyCardReferences = async () => {
+                if (variant === 'conflicting-workbook') throw new Error('PRIVATE ambiguous workbook references');
+                return { customerId: previous.customerId, cardId: previous.cardId, environment: 'sandbox' };
+            };
+            const token = await f.login();
+            await expectError(await f.request('card', { token }), 503, 'card_unavailable');
+            await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 503, 'card_save_failed');
+            assert.deepEqual(await store.read(companyCode(companyId)), {});
+            assert.deepEqual(await store.read(companyCode(admin.company)), previous);
+            assert.ok(f.calls.every(([operation]) => operation === 'readUsers'));
+        });
+    }
 });
 
 test('invalid credentials, inactive users and ambiguous emails fail without provider calls', async (t) => {

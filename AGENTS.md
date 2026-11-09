@@ -35,10 +35,14 @@ repository separately.
   prohibited Git operations or external side effects.
 
 ### Git and publication
-- Support-management exception: iterate locally with the users workbook and
-  Pagar.me test API. Authentication reads A:G; approved card registration writes
-  only reusable Pagar.me customer/card references and the environment to H:J;
-  never raw card data or CVV. Keep local feature-branch checkpoint commits; do
+- Support-management exception: iterate locally with the users/appointments
+  workbooks and Pagar.me test API. Authentication reads users A:H; approved card
+  registration writes only reusable Pagar.me references/environment to I:K,
+  never raw card data or CVV. Companies are identified by CNPJ. User-operated
+  reservations update the selected appointment row and send the requested
+  confirmation/invitation to the authenticated user and contato. Automated checks
+  use synthetic bookings/messages and never exercise those real writes. Keep
+  local feature-branch checkpoint commits; do
   not push, open or update publication PRs, mark drafts ready, or deploy until Lucas
   explicitly requests publication. Existing support-management PRs stay
   parked as drafts during iteration; draft status does not prevent preview

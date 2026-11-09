@@ -3,6 +3,7 @@
 const path = require('node:path');
 const express = require('express');
 const { createSupportManagementHandlers } = require('./domains/support-management');
+const { createSupportBookingHandlers } = require('./domains/support-bookings');
 
 function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
     const url = new URL(origin);
@@ -21,6 +22,7 @@ function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
     });
     app.use(express.json({ limit: '8kb' }));
     const handlers = createSupportManagementHandlers(dependencies);
+    const bookingHandlers = createSupportBookingHandlers(dependencies);
     const base = '/support-management/api';
     app.get(`${base}/config`, handlers.config);
     app.post(`${base}/login`, handlers.login);
@@ -29,6 +31,8 @@ function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
     app.get(`${base}/card`, handlers.authorize, handlers.getCard);
     app.put(`${base}/card`, handlers.authorize, handlers.saveCard);
     app.post(`${base}/card/sync`, handlers.authorize, handlers.syncCard);
+    app.get(`${base}/calendar`, handlers.authorize, bookingHandlers.calendar);
+    app.post(`${base}/reservations`, handlers.authorize, bookingHandlers.reserve);
     app.get('/', (req, res) => res.redirect('/support-management/login/'));
     if (frontendDirectory) app.use('/support-management', express.static(path.resolve(frontendDirectory), { index: 'index.html' }));
     app.use((error, req, res, next) => {

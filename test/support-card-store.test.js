@@ -126,3 +126,60 @@ test('card reference store refuses extra, sensitive, malformed or inconsistent f
         await assert.rejects(store.read(company), { message: 'Card reference storage unavailable' });
     }
 });
+
+test('reference recovery matches both identifiers and preserves verification and pending state across reloads', async (t) => {
+    const root = await directory(t);
+    const store = createSupportCardStore(root);
+    const references = { customerId: 'cus_Test1', cardId: 'card_Test1' };
+    const record = { ...references, verification: 'pagarme_verify_card_v1', pending: 'card' };
+    await store.write(company, record);
+    const reloaded = createSupportCardStore(root);
+    assert.deepEqual(await reloaded.findByReferences(references), record);
+    assert.equal(await reloaded.findByReferences({ ...references, customerId: 'cus_Other' }), null);
+    assert.equal(await reloaded.findByReferences({ ...references, cardId: 'card_Other' }), null);
+    assert.equal(await reloaded.findByReferences({ ...references, customerId: 'cus_test1' }), null);
+    assert.deepEqual(await reloaded.read(company), record);
+});
+
+test('reference recovery returns unverified records without inventing verification evidence', async (t) => {
+    const root = await directory(t);
+    const store = createSupportCardStore(root);
+    const record = { customerId: 'cus_Test1', cardId: 'card_Test1' };
+    await store.write(company, record);
+    assert.deepEqual(await store.findByReferences(record), record);
+    assert.equal(Object.hasOwn(await store.findByReferences(record), 'verification'), false);
+});
+
+test('reference recovery tolerates absent storage and ignores unrelated filenames', async (t) => {
+    const root = await directory(t);
+    const references = { customerId: 'cus_Test1', cardId: 'card_Test1' };
+    assert.equal(await createSupportCardStore(path.join(root, 'not-created')).findByReferences(references), null);
+    await fs.writeFile(path.join(root, 'sessions.json'), '{private malformed JSON');
+    await fs.writeFile(path.join(root, `${company}.json.partial.tmp`), '{private malformed JSON');
+    await fs.writeFile(path.join(root, 'support_not-a-valid-company.json'), '{private malformed JSON');
+    assert.equal(await createSupportCardStore(root).findByReferences(references), null);
+});
+
+test('reference recovery rejects multiple exact matches instead of selecting a record', async (t) => {
+    const root = await directory(t);
+    const store = createSupportCardStore(root);
+    const references = { customerId: 'cus_Test1', cardId: 'card_Test1' };
+    const secondCompany = `support_${'b'.repeat(44)}`;
+    await store.write(company, { ...references, verification: 'pagarme_verify_card_v1' });
+    await store.write(secondCompany, references);
+    await assert.rejects(store.findByReferences(references), { message: 'Ambiguous local card references' });
+    assert.deepEqual((await fs.readdir(root)).sort(), [`${company}.json`, `${secondCompany}.json`].sort());
+});
+
+test('reference recovery fails closed on malformed stored records or lookup identifiers', async (t) => {
+    const root = await directory(t);
+    const store = createSupportCardStore(root);
+    const references = { customerId: 'cus_Test1', cardId: 'card_Test1' };
+    for (const invalid of [{}, { customerId: 'cus_Test1' }, { cardId: 'card_Test1' }, { ...references, cardId: 'card_bad/id' }]) {
+        await assert.rejects(store.findByReferences(invalid));
+    }
+    for (const content of ['{malformed JSON', JSON.stringify({ ...references, verification: 'active' }), JSON.stringify({ ...references, cvv: '123' })]) {
+        await fs.writeFile(path.join(root, `${company}.json`), content);
+        await assert.rejects(store.findByReferences(references));
+    }
+});

@@ -32,7 +32,9 @@ function validBillingAddress(address) {
 function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now, sessionStore = createMemorySupportSessionStore() }) {
     const attempts = new Map();
     const busyCompanies = new Set();
+    const cardReads = new Map();
     const fingerprint = (user) => digest(`${sessionStore.salt}:${user.password}`);
+    const companyIdentity = (user) => normalize(user.companyId || user.company);
     const fail = (res, status, reason) => res.status(status).json({ error: `support_management.${reason}` });
 
     async function readUser(email) {
@@ -54,6 +56,31 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
     }
 
     const hasVerification = (record) => record.verification === CARD_VERIFICATION;
+
+    async function readCompanyCard(user) {
+        const code = companyCode(companyIdentity(user));
+        if (cardReads.has(code)) return cardReads.get(code);
+        const reading = readCompanyCardRecord(user, code);
+        cardReads.set(code, reading);
+        try { return await reading; }
+        finally { cardReads.delete(code); }
+    }
+
+    async function readCompanyCardRecord(user, code) {
+        let record = await cardStore.read(code);
+        if (!Object.keys(record).length && user.companyId && users.readCompanyCardReferences) {
+            const references = await users.readCompanyCardReferences(user.companyId);
+            if (references) {
+                const previous = cardStore.findByReferences ? await cardStore.findByReferences(references) : null;
+                record = previous ? { ...previous } : { customerId: references.customerId, cardId: references.cardId };
+                // Preserve local verification evidence across the CNPJ migration; workbook IDs alone cannot create it.
+                delete record.workbookSynced;
+                delete record.workbookReferencesSynced;
+                await cardStore.write(code, record);
+            }
+        }
+        return { code, record };
+    }
 
     async function synchronizeWorkbook(code, record, company, card) {
         if (!hasVerification(record) || !usableCard(card)) throw new Error('Card verification required');
@@ -85,7 +112,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 if (!user || !crypto.timingSafeEqual(candidate, expected)) return fail(res, 401, 'invalid_credentials');
                 if (sessionStore.size >= 500) return fail(res, 429, 'try_later');
                 const token = crypto.randomBytes(32).toString('base64url');
-                await sessionStore.set(digest(token), { email: normalize(user.email), company: normalize(user.company), fingerprint: fingerprint(user), expiresAt: now() + SESSION_DURATION });
+                await sessionStore.set(digest(token), { email: normalize(user.email), company: companyIdentity(user), fingerprint: fingerprint(user), expiresAt: now() + SESSION_DURATION });
                 return res.json({ token, user: publicUser(user) });
             } catch {
                 return fail(res, 503, 'users_unavailable');
@@ -100,7 +127,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 const session = await sessionStore.get(tokenHash);
                 if (!session) return fail(res, 401, 'session_expired');
                 const user = await readUser(session.email);
-                if (!user || normalize(user.company) !== session.company || fingerprint(user) !== session.fingerprint) {
+                if (!user || companyIdentity(user) !== session.company || fingerprint(user) !== session.fingerprint) {
                     await sessionStore.delete(tokenHash);
                     return fail(res, 401, 'session_expired');
                 }
@@ -123,9 +150,8 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             }
         },
         async getCard(req, res) {
-            const code = companyCode(res.locals.supportUser.company);
             try {
-                const record = await cardStore.read(code);
+                const { record } = await readCompanyCard(res.locals.supportUser);
                 if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
                 if (!record.cardId) return res.json({ card: null });
                 if (!hasVerification(record)) return res.json({ card: null, verificationRequired: true });
@@ -144,11 +170,11 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
             const { token, billingAddress } = req.body || {};
             if (Object.keys(req.body || {}).some((key) => !['token', 'billingAddress'].includes(key)) || typeof token !== 'string' || !/^token_[A-Za-z0-9]{1,200}$/u.test(token) || !validBillingAddress(billingAddress)) return fail(res, 400, 'invalid_card');
-            const code = companyCode(user.company);
+            const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
             busyCompanies.add(code);
             try {
-                let record = await cardStore.read(code);
+                let { record } = await readCompanyCard(user);
                 if (record.pending === 'workbook' && hasVerification(record)
                     && usableCard(await pagarme.getCard(record.customerId, record.cardId))) return fail(res, 409, 'workbook_sync_required');
                 if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
@@ -182,7 +208,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 // Persist the confirmed provider card before Excel so a retry cannot register it twice.
                 await cardStore.write(code, confirmed);
                 try {
-                    return res.json(await synchronizeWorkbook(code, confirmed, user.company, card));
+                    return res.json(await synchronizeWorkbook(code, confirmed, user.companyId || user.company, card));
                 } catch {
                     return res.json({ card: publicCard(card), workbookSyncPending: true });
                 }
@@ -196,18 +222,18 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             const user = res.locals.supportUser;
             if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
             if (Object.keys(req.body || {}).length) return fail(res, 400, 'invalid_request');
-            const code = companyCode(user.company);
+            const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
             busyCompanies.add(code);
             try {
-                const record = await cardStore.read(code);
+                const { record } = await readCompanyCard(user);
                 if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
                 if (!record.cardId) return fail(res, 404, 'card_unavailable');
                 if (!hasVerification(record)) return fail(res, 409, 'card_verification_required');
                 const card = await pagarme.getCard(record.customerId, record.cardId);
                 if (!usableCard(card)) return fail(res, 409, 'card_verification_required');
                 await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, verification: CARD_VERIFICATION, pending: 'workbook' });
-                return res.json(await synchronizeWorkbook(code, record, user.company, card));
+                return res.json(await synchronizeWorkbook(code, record, user.companyId || user.company, card));
             } catch {
                 return fail(res, 503, 'workbook_sync_failed');
             } finally {

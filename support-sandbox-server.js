@@ -6,6 +6,9 @@ const { createSupportUsersAdapter } = require('./integrations/support-users');
 const { createPagarmeAdapter } = require('./integrations/pagarme');
 const { createSupportCardStore, acquireSupportSandboxLock } = require('./integrations/support-card-store');
 const { openSupportSessionStore } = require('./integrations/support-session-store');
+const { createSupportAppointmentsAdapter } = require('./integrations/support-appointments');
+const { createSupportBookingStore } = require('./integrations/support-booking-store');
+const { createSupportBookingNotifications } = require('./integrations/support-booking-notifications');
 
 async function startSupportSandbox({ environment = process.env, dataDirectory = path.join(__dirname, '.support-sandbox-data') } = {}) {
     const dotenv = require('dotenv');
@@ -67,6 +70,9 @@ async function startSupportSandbox({ environment = process.env, dataDirectory = 
             pagarme,
             cardStore: createSupportCardStore(directory),
             sessionStore,
+            appointments: createSupportAppointmentsAdapter({ graphClient }),
+            bookingStore: createSupportBookingStore(directory),
+            bookingNotifications: createSupportBookingNotifications({ graphClient }),
             publicKey,
         });
         listener = app.listen(port, '127.0.0.1');

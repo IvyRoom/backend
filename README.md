@@ -7,8 +7,11 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 Develop support management locally with `npm run support:dev`. It serves the
 companion frontend sources directly and restarts the support backend after code
 changes; refresh the browser for frontend edits. It reads user access from the
-real workbook, synchronizes reusable company-card references, and uses the Pagar.me
-test API. Run `npm run support:test` for focused checks.
+real workbook, shows weekday availability and company-specific hourly prices,
+reserves dates in BD - ATENDIMENTOS, and sends confirmation email/calendar
+invitations. Company-card registration uses the Pagar.me test API and synchronizes
+reusable references by CNPJ. Reservations do not charge a card.
+Run `npm run support:test` for isolated checks; real bookings are user-operated.
 Keep checkpoint commits local until Lucas explicitly requests publication.
 See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for test-key
 and permitted-origin setup. `npm run support:sandbox` remains the unwatched runner.

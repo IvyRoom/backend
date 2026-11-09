@@ -59,6 +59,18 @@ function createSupportCardStore(directory) {
     }
 
     return {
+        async findByReferences({ customerId, cardId }) {
+            const reference = validateRecord({ customerId, cardId });
+            const names = await fs.readdir(directory).catch((error) => { if (error.code === 'ENOENT') return []; throw error; });
+            const matches = [];
+            for (const name of names) {
+                if (!/^support_[a-f0-9]{44}\.json$/u.test(name)) continue;
+                const record = validateRecord(JSON.parse(await fs.readFile(path.join(directory, name), 'utf8')));
+                if (record.customerId === reference.customerId && record.cardId === reference.cardId) matches.push(record);
+            }
+            if (matches.length > 1) throw new Error('Ambiguous local card references');
+            return matches[0] || null;
+        },
         async read(companyCode) {
             try {
                 return validateRecord(JSON.parse(await fs.readFile(filename(companyCode), 'utf8')));

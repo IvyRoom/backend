@@ -9,6 +9,8 @@ const WATCHED_FILES = new Set([
     'domains/support-management.js', 'integrations/support-users.js',
     'integrations/pagarme.js', 'integrations/support-card-store.js',
     'integrations/support-session-store.js',
+    'domains/support-bookings.js', 'integrations/support-appointments.js',
+    'integrations/support-booking-store.js', 'integrations/support-booking-notifications.js',
 ]);
 
 function isSupportDevelopmentFile(filename) {

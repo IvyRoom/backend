@@ -1,7 +1,8 @@
 # Support management sandbox
 
-This first step provides workbook-backed login and administrator-managed company
-cards. Scheduling and purchases are not implemented. Production `app.js` and
+This version provides workbook-backed login, weekday date reservations and
+administrator-managed company cards. Reservations do not charge a card or set
+an appointment duration. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
 
@@ -10,7 +11,8 @@ pages, but the functional sandbox is local and uses its own same-origin API.
 After the setup below, run `npm run support:dev` from `backend` and use its printed
 local URL. The app runs locally while reading the real users workbook through
 Graph, registering cards with the Pagar.me **test** API, and synchronizing reusable
-company-card references to that workbook; this is connected local
+company-card references to that workbook. Reservar Data updates the appointments
+workbook and sends real email/calendar notifications; this is connected local
 development, not an offline or simulated application mode.
 
 Save frontend HTML, CSS, or JavaScript and refresh the browser. Sources are served
@@ -38,7 +40,9 @@ trigger a preview deployment even while a PR is a draft.
    (`npm ci` if they are missing).
 2. Keep the existing Graph `CLIENT_ID`, `TENANT_ID`, and `CLIENT_SECRET` in the
    ignored `backend/.env`. Graph reads the verified BD - USUÁRIOS workbook and
-   updates only the company-card metadata ranges described below.
+   updates only the card-reference and reservation ranges described below.
+   The Graph application needs Mail.Send and Calendars.ReadWrite for the contato
+   mailbox as well as its existing workbook access.
 3. Create `backend/.env.support-sandbox` locally with these two settings. Enter
    actual **test** keys from the same Pagar.me test account, never live keys:
 
@@ -72,7 +76,7 @@ trigger a preview deployment even while a PR is a draft.
    expiry date, with synthetic cardholder/address details. Do not enter the real
    company card into this sandbox. It cannot prove a real issuer authorization.
 7. Refresh, sign out and back in, and restart the sandbox to verify persistence.
-   A colleague in the same `EMPRESA` sees the masked card and cannot alter it;
+   A colleague with the same CNPJ sees the masked card and cannot alter it;
    another company sees its own card. Confirm the customer/card in the Pagar.me
    **test** dashboard and the reusable references in BD - USUÁRIOS. Registration does
    not create an order or charge and does not send an email.
@@ -88,8 +92,11 @@ address reach the backend. PAN/CVV are never sent to Graph or saved by the app.
 
 Verified workbook: drive item `01OSXVECRXPEMKXY4F5RH34SKSN35K757F`, table
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}` (`BD`), sheet `USUÁRIOS`.
-Authentication requires the exact 10-column A:J contract below. Any header, index,
-or range drift fails closed. It retrieves only A:G, never card or reference
+Authentication requires the exact 11-column A:K contract: CNPJ, RAZÃO SOCIAL,
+VALOR REFERÊNCIA, NOME COMPLETO, E-MAIL, SENHA, TIPO DE ACESSO, STATUS,
+PAGARME CUSTOMER ID, PAGARME CARD ID, PAGARME AMBIENTE. Header comparison trims
+whitespace. Any other header, index or range drift fails closed.
+Authentication retrieves only A:H, never card or reference
 values. Passwords follow the existing workbook contract and never
 appear in responses or local metadata. Inactive, missing, or duplicate email
 matches fail.
@@ -109,23 +116,25 @@ they are not independent proof of a merchant-level verification flag. Follow the
 explicit verification request contract and confirm production behavior before
 accepting real cards.
 
-Only after this gate passes does the adapter read the current schema and A:G
-again, then update H:J for every matching company row: H (`PAGARME CUSTOMER ID`),
-I (`PAGARME CARD ID`), and J (`AMBIENTE PAGARME`). The values are the trusted local
+Only after this gate passes does the adapter read the current schema and A:H
+again, then update I:K for every matching CNPJ row: I (`PAGARME CUSTOMER ID`),
+J (`PAGARME CARD ID`), and K (`PAGARME AMBIENTE`). The values are the trusted local
 provider IDs and the literal `sandbox`. No card number, holder, expiry, CVV, or
 registration-status column remains in this workbook contract. The masked card
 display is fetched from Pagar.me. A missing company or changed schema blocks
 synchronization instead of adding rows or columns.
 
-On 2026-11-06, the authorized migration deleted the six legacy H:M columns and
-verified `USUÁRIOS!A3:J57` with 54 data rows. The existing A:G positions, reusable
-reference values, and 54 calculated first-name formulas were preserved. The
-reference columns previously at N:P moved to H:J.
+On 2026-11-09, read-only verification confirmed USUÁRIOS!A3:K49 with 46 data
+rows and the revised CNPJ/reference-rate schema. No workbook migration is needed
+for this version. The six legacy raw/masked-card columns were removed previously.
 
 Workbook references mirror the reusable provider wallet IDs for reporting and
 backup. They are never supplied by the browser, exposed by the card API, read for
-authentication, or imported as verification evidence. Local reference and pending
-state remains authoritative; a workbook ID alone cannot recover a verified card.
+authentication, or imported as verification evidence. For a missing CNPJ-keyed
+local record, agreeing sandbox workbook references can recover the wallet IDs.
+Only an exact customer/card match in an existing local record preserves its
+verification evidence and pending state. Workbook IDs alone remain unverified;
+conflicting or ambiguous references fail closed.
 The temporary browser `token_` is never stored. Future purchases can use the
 provider `card_id` without storing PAN or CVV; the purchase flow and its required
 PSP customer information remain a separate milestone.
@@ -137,14 +146,16 @@ acknowledged. The ignored local session store contains only token hashes,
 identity, password fingerprints, original expiry and a stable random fingerprint
 salt; it never stores raw bearer tokens or passwords. Corrupt session storage
 blocks startup rather than silently resetting it. Only the raw session token is
-stored in the browser's sessionStorage. The app groups companies by
-trimmed, whitespace-collapsed, case-folded `EMPRESA`, because the workbook has no
-stable company ID. Renaming a company changes that identity; do not rename labels
-or reuse a label for a different company during this trial.
+stored in the browser's sessionStorage. Companies are grouped by the 14 CNPJ
+digits. Renaming RAZÃO SOCIAL preserves identity; changing the CNPJ invalidates
+the session. Sessions minted against the previous company-label identity require
+a fresh login after this schema update.
 
 Pagar.me stores the test customer and card. Ignored `.support-sandbox-data/` holds
-only hashed company keys, Pagar.me customer/card IDs, pending-operation flags,
-the explicit-verification marker, and successful-workbook-sync markers.
+hashed company keys, Pagar.me customer/card IDs, pending-operation flags,
+the explicit-verification marker, and successful-workbook-sync markers. It also
+holds reservation journals with date, CNPJ, user email/name, company, quoted
+price, request UUID, stage and Graph event references; no card data or passwords.
 Keep this directory between restarts and back it up locally. Card references are
 specific to the configured Pagar.me account; do not switch accounts with the same
 metadata directory. Replacing a card selects the new card for the company; it does
@@ -154,6 +165,68 @@ Only one sandbox process may use a metadata directory; startup uses an exclusive
 `sandbox.lock`. After an abnormal termination, verify the recorded PID is no longer
 running before removing only that stale lock file. Never remove it while the server
 is running. Do not run parallel copies of the sandbox against the same test account.
+
+## Date reservations
+
+Verified on 2026-11-09: BD - ATENDIMENTOS drive item
+`01OSXVECSFKTNUUJS3TZDKCLDRXFZCMVYB`, sheet ATENDIMENTOS, table BD
+`{7C4EBF15-124A-4107-9867-F83E9C664B31}`, range A3:H55. Its exact columns are DATA,
+STATUS, OBSERVAÇÃO, CNPJ, NOME COMPLETO, VALOR POR HORA, DURAÇÃO (MIN), VALOR COBRADO.
+The last column has the table formula `=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HORA]]`.
+
+The calendar reads dates/status only, starting tomorrow in São Paulo, and omits
+weekends. A blank status means vacant; any other status means unavailable.
+The first vacant weekday uses the authenticated user's VALOR REFERÊNCIA. Each
+following vacant weekday reduces that price by 2.5% of the reference price, to
+75% at the eleventh vacant weekday; later days stay at 75%. Prices round to cents.
+Unavailable days do not advance the discount. Price and availability are checked
+again on reservation; stale quotes require reselection. A global claim queue
+prevents different dates from accepting incompatible concurrent quotes.
+
+Reservar Data writes only the existing selected row: B=RESERVADO, D=formatted
+CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
+OBSERVAÇÃO, DURAÇÃO (MIN) and VALOR COBRADO, including the existing formula.
+The date is rechecked immediately before the single Graph PATCH; no row is added.
+This first version reserves a whole day without setting hours/duration or charging
+the card. Workbook edits made concurrently outside this local app are not atomic
+with its PATCH; avoid another booking writer during this local trial.
+
+After the row is reserved, the app creates an all-day event in the contato
+mailbox's calendar, in São Paulo time, and invites the authenticated user. Graph
+sends the attendee invitation automatically. A confirmation goes to
+contato@machadogestao.com and the authenticated user, with a calendar attachment
+using the same event UID. The organizer gets its calendar entry and confirmation;
+the user gets the native invitation and confirmation. Templates are intentionally
+minimal. Mail API acceptance is not proof of final inbox delivery.
+
+Each request UUID has an atomic ignored `reservation_<UUID>.json` journal:
+workbook → event → confirmation → complete. Replaying a completed request does not
+reserve again or resend anything. A pending journal blocks its date even after
+restart. External writes have SDK automatic retries disabled. An uncertain row
+write requires review; an event/mail failure reports the date reserved with
+notifications pending. Refreshing never retries or silently claims delivery.
+
+For manual recovery, stop the runner and preserve the journal. Reconcile only the
+same UUID, using the exact stored identity/date/price:
+
+1. At workbook stage, inspect the appointment row. If the write succeeded, verify
+   its date, CNPJ, name and rate before advancing to event. If no write happened,
+   remove only this journal after proving the row is vacant. Never clear an
+   uncertain journal merely to make the button work.
+2. At event stage, inspect that date in contato's calendar. If the matching event
+   exists, recover its Graph event ID and iCalUId into the journal and advance to
+   confirmation. If its absence is established, make one explicit event attempt
+   with the existing `eventPayload(record)` helper and the same transactionId;
+   persist the returned references before proceeding. Never create a second event
+   just because the previous response was lost.
+3. At confirmation stage, inspect Sent Items for the matching date/user/UID. If
+   already sent, mark complete. Otherwise, after establishing it was not sent,
+   make one explicit `sendConfirmation(confirmation(record))` attempt and mark
+   complete only after acceptance. Both payload helpers are exported from
+   `domains/support-bookings.js`; use the same notification adapter and test
+   configuration. An ambiguous outcome stays pending for review.
+
+No automatic recovery worker or cancellation/rescheduling UI is included.
 
 ## Uncertain payment responses
 
@@ -216,7 +289,7 @@ synthetic Graph/payment dependencies. Frontend checks are listed in `sistemas/AG
 Actual Pagar.me registration and workbook updates remain user-operated acceptance
 checks; automated tests do not claim live provider or workbook validation.
 
-Before production, agree on hosting, a stable company identifier, durable shared
+Before production, agree on hosting, durable shared
 storage/coordination, live-key configuration, and the real-card acceptance test.
 There is intentionally no live-key switch in this sandbox implementation.
 

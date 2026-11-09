@@ -5,14 +5,14 @@ const assert = require('node:assert/strict');
 const { createSupportUsersAdapter } = require('../integrations/support-users');
 
 const columns = [
-    'EMPRESA', 'NOME COMPLETO', 'PRIMEIRO NOME', 'E-MAIL', 'SENHA',
-    'TIPO DE ACESSO', 'STATUS LOGIN', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'AMBIENTE PAGARME',
+    'CNPJ', 'RAZÃO SOCIAL', 'VALOR REFERÊNCIA', 'NOME COMPLETO', 'E-MAIL', 'SENHA',
+    'TIPO DE ACESSO', 'STATUS', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'PAGARME AMBIENTE ',
 ].map((name, index) => ({ name, index }));
-const legacyNames = ['NÚMERO', 'TITULAR', 'MÊS', 'ANO', 'CVV', 'STATUS CARTÃO'];
-const legacyColumns = [...columns.slice(0, 7), ...legacyNames.map((name, offset) => ({ name, index: offset + 7 }))];
-const previousReferenceColumns = [...legacyColumns, ...columns.slice(7).map((column, offset) => ({ ...column, index: offset + 13 }))];
+const companyId = '12345678000195';
+const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Ativo'];
+const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
 
-function fixture({ metadata = columns, range, values, failUpdateAt } = {}) {
+function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt } = {}) {
     const calls = [];
     const writes = [];
     const graphClient = {
@@ -22,9 +22,12 @@ function fixture({ metadata = columns, range, values, failUpdateAt } = {}) {
                 async get() {
                     if (path.endsWith('/columns?$select=index,name')) return { value: metadata };
                     if (path.endsWith('/range?$select=address,rowCount,columnCount')) return range || {
-                        address: 'USUÁRIOS!A3:J4', columnCount: metadata.length, rowCount: 2,
+                        address: `USUÁRIOS!A3:K${values.length + 3}`, columnCount: 11, rowCount: values.length + 1,
                     };
-                    return { values: values || [['Empresa teste', 'Pessoa teste', 'Pessoa', 'admin@example.test', 'test-password', 'Administrador', 'Ativo']] };
+                    if (/address='A4:A\d+'/u.test(path)) return { values: companyValues ?? values.map((row) => [row[0]]) };
+                    const reference = /address='I(\d+):K\d+'/u.exec(path);
+                    if (reference) return { values: referenceRows[reference[1]] ?? [['', '', '']] };
+                    return { values };
                 },
                 async update(body) {
                     writes.push({ path, body: structuredClone(body) });
@@ -38,29 +41,33 @@ function fixture({ metadata = columns, range, values, failUpdateAt } = {}) {
 
 test('support users adapter construction does not access Graph', () => {
     const graphClient = new Proxy({}, { get() { throw new Error('Graph accessed'); } });
-    assert.equal(typeof createSupportUsersAdapter({ graphClient }).readUsers, 'function');
+    const adapter = createSupportUsersAdapter({ graphClient });
+    assert.equal(typeof adapter.readUsers, 'function');
+    assert.equal(typeof adapter.readCompanyCardReferences, 'function');
 });
 
-test('support users reads only identity and access cells from the reference-only table', async () => {
+test('support users reads identity, stable company and reference price without provider references', async () => {
     const { users, calls } = fixture();
     assert.deepEqual(await users.readUsers(), [{
-        company: 'Empresa teste', name: 'Pessoa teste', email: 'admin@example.test',
-        password: 'test-password', role: 'Administrador', status: 'Ativo',
+        companyId, company: 'Empresa teste', referenceRate: 1000, name: 'Pessoa teste',
+        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo',
     }]);
     assert.equal(calls.length, 3);
     assert.match(calls[0], /\/tables\/\{7C4EBF15-124A-4107-9867-F83E9C664B31\}\/columns\?\$select=index,name$/u);
     assert.match(calls[1], /\/range\?\$select=address,rowCount,columnCount$/u);
-    assert.match(calls[2], /\/range\(address='A4:G4'\)\?\$select=values$/u);
+    assert.match(calls[2], /\/range\(address='A4:H4'\)\?\$select=values$/u);
     assert.ok(calls.every((path) => !path.includes('/rows') && !path.includes('/usedRange')));
 });
 
-test('support users rejects retired raw-card schemas and all partial or changed headers before reading values', async () => {
+test('support users rejects retired, partial, reordered and changed schemas before reading values', async () => {
+    const retired = ['EMPRESA', 'NOME COMPLETO', 'PRIMEIRO NOME', 'E-MAIL', 'SENHA', 'TIPO DE ACESSO', 'STATUS LOGIN', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'AMBIENTE PAGARME']
+        .map((name, index) => ({ name, index }));
     for (const metadata of [
-        legacyColumns, previousReferenceColumns, columns.slice(0, 7), columns.slice(0, 8), columns.slice(0, 9),
-        columns.map((column, index) => index === 4 ? { ...column, name: 'CHANGED' } : column),
-        columns.map((column, index) => index === 8 ? { ...column, name: 'CHANGED' } : column),
+        retired, columns.slice(0, 8), columns.slice(0, 10),
+        columns.map((column, index) => index === 2 ? { ...column, name: 'CHANGED' } : column),
         columns.map((column, index) => index === 9 ? { ...column, index: 10 } : column),
-        [...columns].reverse(), [...columns, { name: 'EXTRA', index: 10 }],
+        columns.map((column, index) => index === 9 ? { ...column, name: null } : column),
+        [...columns].reverse(), [...columns, { name: 'EXTRA', index: 11 }],
     ]) {
         const { users, calls } = fixture({ metadata });
         await assert.rejects(users.readUsers(), /schema_mismatch/u);
@@ -70,12 +77,11 @@ test('support users rejects retired raw-card schemas and all partial or changed 
 
 test('support users refuses shifted tables and inconsistent range metadata', async () => {
     for (const range of [
-        { address: 'USUÁRIOS!A3:P4', columnCount: 10, rowCount: 2 },
-        { address: 'USUÁRIOS!A3:M4', columnCount: 10, rowCount: 2 },
-        { address: 'USUÁRIOS!A2:J4', columnCount: 10, rowCount: 3 },
-        { address: 'USUÁRIOS!A3:J4', columnCount: 10, rowCount: 8 },
-        { address: 'USUÁRIOS!A3:J4', columnCount: 9, rowCount: 2 },
-        { address: 'USUÁRIOS!B3:K4', columnCount: 10, rowCount: 2 },
+        { address: 'USUÁRIOS!A3:J4', columnCount: 11, rowCount: 2 },
+        { address: 'USUÁRIOS!A2:K4', columnCount: 11, rowCount: 3 },
+        { address: 'USUÁRIOS!A3:K4', columnCount: 11, rowCount: 8 },
+        { address: 'USUÁRIOS!A3:K4', columnCount: 10, rowCount: 2 },
+        { address: 'USUÁRIOS!B3:L4', columnCount: 11, rowCount: 2 },
     ]) {
         const { users, calls } = fixture({ range });
         await assert.rejects(users.readUsers(), /schema_mismatch/u);
@@ -83,70 +89,55 @@ test('support users refuses shifted tables and inconsistent range metadata', asy
     }
 });
 
-test('support users handles table growth without fetching provider references', async () => {
-    const row = ['Empresa teste', 'Pessoa teste', 'Pessoa', 'user@example.test', 'test-password', 'Usuário', 'Ativo'];
-    const { users, calls } = fixture({
-        range: { address: 'USUÁRIOS!A3:J5', columnCount: 10, rowCount: 3 }, values: [row, row],
-    });
-    assert.equal((await users.readUsers()).length, 2);
-    assert.match(calls[2], /A4:G5/u);
+test('support users handles growth and empty tables without fetching provider references', async () => {
+    const grown = fixture({ values: [defaultRow, defaultRow] });
+    assert.equal((await grown.users.readUsers()).length, 2);
+    assert.match(grown.calls[2], /A4:H5/u);
+    const empty = fixture({ values: [] });
+    assert.deepEqual(await empty.users.readUsers(), []);
+    assert.equal(empty.calls.length, 2);
 });
 
-test('support users refuses row width or count drift', async () => {
-    for (const values of [[['only one cell']], [], [new Array(10).fill('')]]) {
-        const { users } = fixture({ values });
-        await assert.rejects(users.readUsers(), /schema_mismatch/u);
+test('support users refuses row shape drift and invalid company identity or currency', async () => {
+    for (const values of [[['one cell']], [new Array(11).fill('')]]) {
+        await assert.rejects(fixture({ values }).users.readUsers(), /schema_mismatch/u);
+    }
+    for (const [index, value] of [[0, 'Company name'], [0, '123'], [0, 'letters12345678000195'], [2, 'R$ 1.000,00'], [2, 0], [2, Infinity]]) {
+        const row = [...defaultRow];
+        row[index] = value;
+        await assert.rejects(fixture({ values: [row] }).users.readUsers(), /invalid_company_data/u);
     }
 });
 
-test('support users returns no rows when the table has only its header', async () => {
-    const { users, calls } = fixture({ range: { address: 'USUÁRIOS!A3:J3', columnCount: 10, rowCount: 1 } });
-    assert.deepEqual(await users.readUsers(), []);
-    assert.equal(calls.length, 2);
-});
-
-const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
-
-test('company card sync writes only reusable references for every matching company colleague', async () => {
-    const { users, calls, writes } = fixture({
-        range: { address: 'USUÁRIOS!A3:J6', columnCount: 10, rowCount: 4 },
-        values: [
-            [' Empresa  teste ', 'Pessoa teste', 'Pessoa', 'admin@example.test', 'private-password', 'Administrador', 'Ativo'],
-            ['Outra empresa', 'Outra pessoa', 'Outra', 'other@example.test', 'private-password', 'Administrador', 'Ativo'],
-            ['EMPRESA TESTE', 'Colega teste', 'Colega', 'colleague@example.test', 'private-password', 'Usuário', 'Inativo'],
-        ],
-    });
-    const card = { number: '4000000000000010', cvv: '123', holderName: '=ignored', lastFour: '0010', expMonth: 12, expYear: 2030 };
-    await users.writeCompanyCard('empresa teste', card, cardReferences);
+test('company card sync writes I:K only for matching CNPJ, regardless of company labels', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    const colleague = [...defaultRow];
+    colleague[0] = companyId;
+    colleague[1] = 'Renamed company';
+    const { users, calls, writes } = fixture({ values: [defaultRow, other, colleague] });
+    await users.writeCompanyCard(companyId, { number: '4000000000000010', cvv: '123', holderName: '=ignored' }, cardReferences);
     assert.equal(calls.length, 5);
-    assert.match(calls[2], /range\(address='A4:G6'\)\?\$select=values$/u);
+    assert.match(calls[2], /range\(address='A4:A6'\)\?\$select=values$/u);
     assert.deepEqual(writes.map(({ path, body }) => ({ address: path.match(/address='([^']+)'/u)[1], body })), [
-        { address: 'H4:J4', body: { values: [['cus_Test1', 'card_Test1', 'sandbox']] } },
-        { address: 'H6:J6', body: { values: [['cus_Test1', 'card_Test1', 'sandbox']] } },
+        { address: 'I4:K4', body: { values: [['cus_Test1', 'card_Test1', 'sandbox']] } },
+        { address: 'I6:K6', body: { values: [['cus_Test1', 'card_Test1', 'sandbox']] } },
     ]);
-    const transmitted = JSON.stringify(writes);
-    for (const excluded of ['4000000000000010', '123', '=ignored', '0010', '2030', 'private-password']) {
-        assert.equal(transmitted.includes(excluded), false, excluded);
+    for (const excluded of ['4000000000000010', '123', '=ignored', 'private-password']) {
+        assert.equal(JSON.stringify(writes).includes(excluded), false, excluded);
     }
-    assert.ok(writes.every(({ path }) => !path.includes('/rows')));
 });
 
-test('company card sync revalidates schema and company existence before any write', async () => {
-    const changed = fixture({ metadata: columns.map((column, index) => index === 7 ? { ...column, name: 'SHIFTED' } : column) });
-    await assert.rejects(changed.users.writeCompanyCard('Empresa teste', null, cardReferences), /schema_mismatch/u);
+test('company card sync validates schema and existence before any write', async () => {
+    const changed = fixture({ metadata: columns.map((column, index) => index === 8 ? { ...column, name: 'SHIFTED' } : column) });
+    await assert.rejects(changed.users.writeCompanyCard(companyId, null, cardReferences), /schema_mismatch/u);
     assert.equal(changed.writes.length, 0);
-    for (const metadata of [legacyColumns, previousReferenceColumns]) {
-        const retired = fixture({ metadata });
-        await assert.rejects(retired.users.writeCompanyCard('Empresa teste', null, cardReferences), /schema_mismatch/u);
-        assert.equal(retired.calls.length, 1);
-        assert.equal(retired.writes.length, 0);
-    }
     const absent = fixture();
-    await assert.rejects(absent.users.writeCompanyCard('Missing company', null, cardReferences), /company_not_found/u);
+    await assert.rejects(absent.users.writeCompanyCard('98765432000110', null, cardReferences), /company_not_found/u);
     assert.equal(absent.writes.length, 0);
 });
 
-test('company card sync refuses absent, unsafe or non-sandbox references before Graph access', async () => {
+test('company card sync refuses invalid company and unsafe or non-sandbox references before Graph access', async () => {
     for (const references of [
         undefined, null, [], {}, { ...cardReferences, customerId: 1 }, { ...cardReferences, cardId: 1 },
         { ...cardReferences, customerId: 'cus_bad/id' }, { ...cardReferences, cardId: 'token_Test1' },
@@ -155,30 +146,47 @@ test('company card sync refuses absent, unsafe or non-sandbox references before 
         { ...cardReferences, cvv: '123' }, { ...cardReferences, verification: 'pagarme_verify_card_v1' },
     ]) {
         const { users, calls } = fixture();
-        await assert.rejects(users.writeCompanyCard('Empresa teste', null, references), /invalid_card_references/u);
+        await assert.rejects(users.writeCompanyCard(companyId, null, references), /invalid_card_references/u);
         assert.equal(calls.length, 0);
     }
-    const { users, calls } = fixture();
-    await assert.rejects(users.writeCompanyCard('', null, cardReferences), /invalid_company/u);
-    assert.equal(calls.length, 0);
+    for (const invalid of ['', 'Empresa teste', '123']) {
+        const { users, calls } = fixture();
+        await assert.rejects(users.writeCompanyCard(invalid, null, cardReferences), /invalid_company/u);
+        assert.equal(calls.length, 0);
+    }
 });
 
-test('company card sync needs no display metadata and can repeat reference updates idempotently', async () => {
-    const { users, writes } = fixture();
-    await users.writeCompanyCard('Empresa teste', undefined, cardReferences);
-    await users.writeCompanyCard('Empresa teste', { holderName: 'Not stored' }, cardReferences);
-    assert.equal(writes.length, 2);
-    assert.deepEqual(writes[0], writes[1]);
+test('company reference lookup reads only matching references and accepts agreeing populated rows', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    const { users, calls } = fixture({
+        values: [defaultRow, other, defaultRow, defaultRow],
+        referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 6: [['', '', '']], 7: [[' cus_Test1 ', 'card_Test1', ' sandbox ']] },
+    });
+    assert.deepEqual(await users.readCompanyCardReferences(companyId), cardReferences);
+    assert.match(calls[2], /A4:A7/u);
+    assert.deepEqual(calls.slice(3).map((path) => /address='([^']+)'/u.exec(path)[1]), ['I4:K4', 'I6:K6', 'I7:K7']);
+    assert.ok(calls.every((path) => !/A4:H/u.test(path)));
+    assert.equal(await fixture().users.readCompanyCardReferences(companyId), null);
 });
 
-test('company card sync stops at the first failed company patch without retrying or appending', async () => {
-    const row = ['Empresa teste', 'Pessoa teste', 'Pessoa', 'admin@example.test', 'test-password', 'Administrador', 'Ativo'];
+test('company reference lookup rejects partial, conflicting and non-sandbox data', async () => {
+    for (const referenceRows of [
+        { 4: [['cus_Test1', '', 'sandbox']] },
+        { 4: [['cus_Test1', 'card_Test1', 'production']] },
+        { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 5: [['cus_Test1', 'card_Test2', 'sandbox']] },
+    ]) {
+        const { users, writes } = fixture({ values: [defaultRow, defaultRow], referenceRows });
+        await assert.rejects(users.readCompanyCardReferences(companyId), /(?:invalid|conflicting)_card_references/u);
+        assert.equal(writes.length, 0);
+    }
+});
+
+test('company card sync stops on a failed patch without retrying or appending', async () => {
     for (const failUpdateAt of [1, 2]) {
-        const { users, writes } = fixture({
-            range: { address: 'USUÁRIOS!A3:J5', columnCount: 10, rowCount: 3 }, values: [row, row], failUpdateAt,
-        });
-        await assert.rejects(users.writeCompanyCard('Empresa teste', null, cardReferences), /synthetic patch failure/u);
+        const { users, writes } = fixture({ values: [defaultRow, defaultRow], failUpdateAt });
+        await assert.rejects(users.writeCompanyCard(companyId, null, cardReferences), /synthetic patch failure/u);
         assert.equal(writes.length, failUpdateAt);
-        assert.ok(writes.every(({ path }) => /range\(address='H[45]:J[45]'\)$/u.test(path)));
+        assert.ok(writes.every(({ path }) => /range\(address='I[45]:K[45]'\)$/u.test(path)));
     }
 });
