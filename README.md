@@ -7,10 +7,14 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 Develop support management locally with `npm run support:dev`. It serves the
 companion frontend sources directly and restarts the support backend after code
 changes; refresh the browser for frontend edits. It reads user access from the
-real workbook, shows weekday availability and company-specific hourly prices,
-reserves dates in BD - ATENDIMENTOS, and sends confirmation email/calendar
-invitations. Company-card registration uses the Pagar.me test API and synchronizes
-reusable references by CNPJ. Reservations do not charge a card.
+real workbook and manages availability from tomorrow through the next 30 days,
+excluding weekends and national/Curitiba holidays while preserving manual blocks.
+After a verified company card is registered, users can acknowledge the booking
+terms and reserve a 09:00 Microsoft Teams appointment, with a 90-minute calendar
+hold and confirmation email. Company-card registration uses the Pagar.me test API
+and synchronizes reusable references by CNPJ. Sessions last one hour; login
+preloads the public scheduler context. Reservations and nonattendance do not
+automatically charge a card, and actual duration remains a workbook entry.
 Run `npm run support:test` for isolated checks; real bookings are user-operated.
 Keep checkpoint commits local until Lucas explicitly requests publication.
 See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for test-key

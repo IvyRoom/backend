@@ -59,6 +59,32 @@ test('support users reads identity, stable company and reference price without p
     assert.ok(calls.every((path) => !path.includes('/rows') && !path.includes('/usedRange')));
 });
 
+test('metadata requests start together and user values wait for both validated results', async () => {
+    const calls = [];
+    let resolveColumns;
+    let resolveRange;
+    const pendingColumns = new Promise((resolve) => { resolveColumns = resolve; });
+    const pendingRange = new Promise((resolve) => { resolveRange = resolve; });
+    const users = createSupportUsersAdapter({ graphClient: { api(path) {
+        calls.push(path);
+        return { get() {
+            if (path.endsWith('/columns?$select=index,name')) return pendingColumns;
+            if (path.endsWith('/range?$select=address,rowCount,columnCount')) return pendingRange;
+            return Promise.resolve({ values: [defaultRow] });
+        } };
+    } } });
+    const pendingUsers = users.readUsers();
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every((path) => !path.includes("range(address='")));
+    resolveRange({ address: 'USUÁRIOS!A3:K4', columnCount: 11, rowCount: 2 });
+    await new Promise(setImmediate);
+    assert.equal(calls.length, 2);
+    resolveColumns({ value: columns });
+    assert.equal((await pendingUsers).length, 1);
+    assert.equal(calls.length, 3);
+    assert.match(calls[2], /range\(address='A4:H4'\)\?\$select=values$/u);
+});
+
 test('support users rejects retired, partial, reordered and changed schemas before reading values', async () => {
     const retired = ['EMPRESA', 'NOME COMPLETO', 'PRIMEIRO NOME', 'E-MAIL', 'SENHA', 'TIPO DE ACESSO', 'STATUS LOGIN', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'AMBIENTE PAGARME']
         .map((name, index) => ({ name, index }));
@@ -71,7 +97,8 @@ test('support users rejects retired, partial, reordered and changed schemas befo
     ]) {
         const { users, calls } = fixture({ metadata });
         await assert.rejects(users.readUsers(), /schema_mismatch/u);
-        assert.equal(calls.length, 1);
+        assert.equal(calls.length, 2);
+        assert.ok(calls.every((path) => !path.includes("range(address='")));
     }
 });
 
@@ -86,6 +113,7 @@ test('support users refuses shifted tables and inconsistent range metadata', asy
         const { users, calls } = fixture({ range });
         await assert.rejects(users.readUsers(), /schema_mismatch/u);
         assert.equal(calls.length, 2);
+        assert.ok(calls.every((path) => !path.includes("range(address='")));
     }
 });
 

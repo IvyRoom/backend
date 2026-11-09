@@ -73,7 +73,18 @@ function expectError(response, status, reason) {
     return response.json().then((body) => assert.deepEqual(body, { error: `support_management.${reason}` }));
 }
 
-test('calendar routes require fresh workbook authorization and reserve without payment calls', async (t) => {
+function seedCompanyPayment(f) {
+    const companyId = '12345678000190';
+    for (const user of f.state.users.filter((user) => user.company === admin.company)) {
+        user.companyId = companyId;
+        user.referenceRate = 1000;
+    }
+    f.records.set(companyCode(companyId), { customerId: 'cus_synthetic', cardId: card.id, verification,
+        workbookSynced: true, workbookReferencesSynced: true });
+    return companyId;
+}
+
+test('calendar routes authorize freshly and verify the card before reserving without charging', async (t) => {
     const bookings = new Map();
     const dates = [{ date: '2027-02-01', status: '' }];
     const notifications = [];
@@ -89,27 +100,135 @@ test('calendar routes require fresh workbook authorization and reserve without p
             pendingDates: async () => new Set([...bookings.values()].filter((record) => record.stage !== 'complete').map((record) => record.date)),
         },
         bookingNotifications: {
-            createEvent: async (event) => { notifications.push(event); return { eventId: 'syntheticEvent', iCalUid: 'syntheticUid' }; },
+            createEvent: async (event) => { notifications.push(event); return { eventId: 'syntheticEvent', iCalUid: 'syntheticUid', meetingUrl: 'https://teams.microsoft.com/meet/synthetic' }; },
             sendConfirmation: async (mail) => { notifications.push(mail); },
         },
     });
-    f.state.users[0].companyId = '12345678000190';
-    f.state.users[0].referenceRate = 1000;
+    seedCompanyPayment(f);
     await expectError(await f.request('calendar'), 401, 'session_expired');
     await expectError(await f.request('reservations', { method: 'POST', body: {} }), 401, 'session_expired');
     const token = await f.login();
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].priceCents, 100000);
     f.state.users[0].referenceRate = 1200;
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].priceCents, 120000);
+    const reservation = { date: dates[0].date, priceCents: 120000, requestId: '12345678-1234-4234-8234-123456789abc' };
+    await expectError(await f.request('reservations', { method: 'POST', token, body: reservation }), 400, 'invalid_request');
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+    const getCard = f.pagarme.getCard;
+    f.pagarme.getCard = async (...args) => ({ ...await getCard(...args), status: 'inactive' });
+    await expectError(await f.request('reservations', { method: 'POST', token, body: { ...reservation, acknowledged: true } }), 403, 'payment_method_required');
+    assert.equal(bookings.size, 0);
+    assert.equal(notifications.length, 0);
+    assert.equal(dates[0].status, '');
+    f.pagarme.getCard = getCard;
     const response = await f.request('reservations', { method: 'POST', token,
-        body: { date: dates[0].date, priceCents: 120000, requestId: '12345678-1234-4234-8234-123456789abc' } });
+        body: { ...reservation, acknowledged: true } });
     assert.deepEqual(await response.json(), { date: dates[0].date, reserved: true });
     assert.equal(response.status, 200);
     assert.equal(notifications.length, 2);
+    assert.equal(bookings.get(reservation.requestId).acknowledgedAt, 1_800_000_000_000);
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].available, false);
-    assert.ok(f.calls.every(([type]) => type === 'readUsers'));
+    assert.ok(f.calls.every(([type]) => ['readUsers', 'read', 'getCard'].includes(type)));
     f.state.users[0].status = 'Inativo';
     await expectError(await f.request('calendar', { token }), 401, 'session_expired');
+});
+
+test('preloaded login supplies safe initial context once and session refresh keeps authorization and expiry current', async (t) => {
+    let calendarReads = 0;
+    const f = await fixture(t, { preload: true,
+        appointments: { readDates: async () => { calendarReads++; return [{ date: '2027-02-01', status: '' }]; } },
+        bookingStore: { pendingDates: async () => new Set() },
+    });
+    seedCompanyPayment(f);
+    const response = await f.request('login', { method: 'POST', body: { email: admin.email, password: admin.password } });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(Object.keys(body).sort(), ['calendar', 'card', 'config', 'expiresAt', 'token', 'user']);
+    assert.deepEqual(body.config, { environment: 'sandbox', publicKey: 'pk_test_synthetic' });
+    assert.deepEqual(body.card, { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
+    assert.equal(body.calendar.paymentMethodRegistered, true);
+    assert.equal(body.calendar.administratorName, admin.name);
+    assert.equal(body.calendar.userEmail, admin.email);
+    assert.equal(body.calendar.days[0].priceCents, 100000);
+    assert.equal(body.expiresAt, 1_800_000_000_000 + 60 * 60 * 1000);
+    assert.equal(calendarReads, 1);
+    assert.equal(f.calls.filter(([operation]) => operation === 'readUsers').length, 1);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+    const serialized = JSON.stringify(body);
+    for (const privateValue of [admin.password, otherAdmin.email, 'cus_synthetic', 'card_synthetic', verification, 'PRIVATE', 'referenceRate']) {
+        assert.equal(serialized.includes(privateValue), false, privateValue);
+    }
+    f.advance(30_000);
+    f.state.users[0].role = 'Usuário';
+    const current = await (await f.request('session', { token: body.token })).json();
+    assert.equal(current.user.role, 'Usuário');
+    assert.equal(current.user.email, admin.email);
+    assert.equal(current.expiresAt, body.expiresAt);
+    assert.equal(current.calendar.administratorName, 'não informado');
+    assert.equal(f.calls.filter(([operation]) => operation === 'readUsers').length, 2);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+    f.state.users[0].status = 'Inativo';
+    await expectError(await f.request('session', { token: body.token }), 401, 'session_expired');
+    assert.equal(calendarReads, 2);
+});
+
+test('preloaded context gates missing cards without reading the calendar or exposing other companies', async (t) => {
+    let calendarReads = 0;
+    const f = await fixture(t, { preload: true, appointments: { readDates: async () => { calendarReads++; return []; } },
+        bookingStore: { pendingDates: async () => new Set() } });
+    const companyId = seedCompanyPayment(f);
+    f.records.delete(companyCode(companyId));
+    const response = await f.request('login', { method: 'POST', body: { email: colleague.email, password: colleague.password } });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.card, { card: null });
+    assert.equal(body.calendar.paymentMethodRegistered, false);
+    assert.equal(body.calendar.administratorName, admin.name);
+    assert.deepEqual(body.calendar.days, []);
+    assert.equal(calendarReads, 0);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+    assert.equal(JSON.stringify(body).includes(otherAdmin.email), false);
+});
+
+test('calendar payment readiness is cached for sixty seconds while explicit card reads are fresh', async (t) => {
+    const f = await fixture(t, { appointments: { readDates: async () => [{ date: '2027-02-01', status: '' }] },
+        bookingStore: { pendingDates: async () => new Set() } });
+    seedCompanyPayment(f);
+    const token = await f.login();
+    const readCalendar = async () => (await f.request('calendar', { token })).json();
+    assert.equal((await readCalendar()).paymentMethodRegistered, true);
+    const getCard = f.pagarme.getCard;
+    f.pagarme.getCard = async (...args) => ({ ...await getCard(...args), status: 'inactive' });
+    assert.equal((await readCalendar()).paymentMethodRegistered, true);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 2);
+    assert.equal((await readCalendar()).paymentMethodRegistered, false);
+    f.pagarme.getCard = getCard;
+    f.advance(59_999);
+    assert.equal((await readCalendar()).paymentMethodRegistered, false);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 2);
+    f.advance(1);
+    assert.equal((await readCalendar()).paymentMethodRegistered, true);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 3);
+});
+
+test('saving and synchronizing a card invalidate readiness even when the provider references stay the same', async (t) => {
+    const f = await fixture(t, { appointments: { readDates: async () => [{ date: '2027-02-01', status: '' }] },
+        bookingStore: { pendingDates: async () => new Set() } });
+    seedCompanyPayment(f);
+    const token = await f.login();
+    const providerReads = () => f.calls.filter(([operation]) => operation === 'getCard').length;
+    assert.equal((await f.request('calendar', { token })).status, 200);
+    assert.equal(providerReads(), 1);
+    assert.equal((await f.request('card', { method: 'PUT', token, body: cardRequest })).status, 200);
+    assert.equal((await f.request('calendar', { token })).status, 200);
+    assert.equal(providerReads(), 2);
+    assert.equal((await f.request('card/sync', { method: 'POST', token })).status, 200);
+    assert.equal(providerReads(), 3);
+    assert.equal((await f.request('calendar', { token })).status, 200);
+    assert.equal(providerReads(), 4);
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
 });
 
 test('sandbox config and login expose only public fields and issue an opaque token', async (t) => {
@@ -122,10 +241,11 @@ test('sandbox config and login expose only public fields and issue an opaque tok
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.match(body.token, /^[A-Za-z0-9_-]{43}$/);
-    assert.deepEqual(body.user, { name: admin.name, company: admin.company, role: admin.role });
-    assert.deepEqual(Object.keys(body).sort(), ['token', 'user']);
+    assert.deepEqual(body.user, { name: admin.name, company: admin.company, role: admin.role, email: admin.email });
+    assert.equal(body.expiresAt, 1_800_000_000_000 + 60 * 60 * 1000);
+    assert.deepEqual(Object.keys(body).sort(), ['expiresAt', 'token', 'user']);
     const session = await f.request('session', { token: body.token });
-    assert.deepEqual(await session.json(), { user: body.user });
+    assert.deepEqual(await session.json(), { user: body.user, expiresAt: body.expiresAt });
 });
 
 test('CNPJ keeps sessions and company card identity stable across company name changes', async (t) => {
@@ -141,7 +261,8 @@ test('CNPJ keeps sessions and company card identity stable across company name c
     f.state.users[1].company = 'Outra apresentação da mesma razão social';
 
     assert.deepEqual(await (await f.request('session', { token })).json(), {
-        user: { name: admin.name, company: f.state.users[0].company, role: admin.role },
+        user: { name: admin.name, company: f.state.users[0].company, role: admin.role, email: admin.email },
+        expiresAt: 1_800_000_000_000 + 60 * 60 * 1000,
     });
     const colleagueToken = await f.login(colleague);
     for (const currentToken of [token, colleagueToken]) {
@@ -333,7 +454,10 @@ test('a persisted session survives backend recreation and keeps its original one
     assert.equal(JSON.parse(contents).sessions[0].expiresAt, issuedAt + 60 * 60 * 1000);
     clock += 30 * 60 * 1000;
     const second = await fixture(t, { sessionStore: await openSupportSessionStore(directory), now: () => clock });
-    assert.deepEqual(await (await second.request('session', { token })).json(), { user: { name: admin.name, company: admin.company, role: admin.role } });
+    assert.deepEqual(await (await second.request('session', { token })).json(), {
+        user: { name: admin.name, company: admin.company, role: admin.role, email: admin.email },
+        expiresAt: issuedAt + 60 * 60 * 1000,
+    });
     clock = issuedAt + 60 * 60 * 1000 - 1;
     assert.equal((await second.request('session', { token })).status, 200);
     await second.close();

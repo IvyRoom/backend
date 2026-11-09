@@ -5,7 +5,7 @@ const express = require('express');
 const { createSupportManagementHandlers } = require('./domains/support-management');
 const { createSupportBookingHandlers } = require('./domains/support-bookings');
 
-function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
+function createSupportApp({ frontendDirectory, origin, preload = false, ...dependencies }) {
     const url = new URL(origin);
     if (url.hostname !== '127.0.0.1' || url.protocol !== 'http:') throw new Error('Sandbox requires a loopback origin');
     const app = express();
@@ -21,8 +21,11 @@ function createSupportApp({ frontendDirectory, origin, ...dependencies }) {
         return next();
     });
     app.use(express.json({ limit: '8kb' }));
-    const handlers = createSupportManagementHandlers(dependencies);
-    const bookingHandlers = createSupportBookingHandlers(dependencies);
+    let bookingHandlers;
+    const handlers = createSupportManagementHandlers({ ...dependencies,
+        ...(preload ? { bootstrap: async (user, directory) => ({ config: { environment: 'sandbox', publicKey: dependencies.publicKey },
+            ...await bookingHandlers.getCalendarContext(user, directory) }) } : {}) });
+    bookingHandlers = createSupportBookingHandlers({ ...dependencies, companyCards: handlers.companyPayment });
     const base = '/support-management/api';
     app.get(`${base}/config`, handlers.config);
     app.post(`${base}/login`, handlers.login);

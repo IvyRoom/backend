@@ -74,7 +74,9 @@ test('calendar creation preserves the domain payload and projects only bounded p
         transactionId: 'd0b07b46-1311-41fb-984f-b338fd6b8a16',
         isAllDay: false,
         start: { dateTime: '2026-11-12T09:00:00', timeZone: 'E. South America Standard Time' },
-        end: { dateTime: '2026-11-12T10:00:00', timeZone: 'E. South America Standard Time' },
+        end: { dateTime: '2026-11-12T10:30:00', timeZone: 'E. South America Standard Time' },
+        isOnlineMeeting: true,
+        onlineMeetingProvider: 'teamsForBusiness',
         attendees: [{ emailAddress: { address: 'user@example.invalid' }, type: 'required' }],
     };
 
@@ -88,6 +90,52 @@ test('calendar creation preserves the domain payload and projects only bounded p
     assert.equal(request.body, payload);
     assert.equal(request.body.transactionId, payload.transactionId);
     assertSingleAttempt(request);
+});
+
+test('calendar creation projects only an optional bounded HTTPS Teams join URL', async (t) => {
+    for (const meetingUrl of [
+        'https://teams.microsoft.com/l/meetup-join/synthetic?context=test&tenant=test',
+        'https://teams.live.com/meet/synthetic',
+        'https://teams.cloud.microsoft/meet/synthetic',
+    ]) {
+        await t.test(new URL(meetingUrl).hostname, async () => {
+            const graphClient = fakeClient({ id: 'event-id', iCalUId: 'calendar-uid', onlineMeeting: {
+                joinUrl: meetingUrl, conferenceId: 'private provider field',
+            }, body: { content: 'private content' } });
+            const adapter = createSupportBookingNotifications({ graphClient });
+            assert.deepEqual(await adapter.createEvent({ transactionId: 'booking-id' }), {
+                eventId: 'event-id', iCalUid: 'calendar-uid', meetingUrl,
+            });
+            assertSingleAttempt(graphClient.requests[0]);
+        });
+    }
+    for (const onlineMeeting of [undefined, null, {}, { joinUrl: undefined }, { joinUrl: null }]) {
+        const graphClient = fakeClient({ id: 'event-id', iCalUId: 'calendar-uid', onlineMeeting });
+        const adapter = createSupportBookingNotifications({ graphClient });
+        assert.deepEqual(await adapter.createEvent({ transactionId: 'booking-id' }), {
+            eventId: 'event-id', iCalUid: 'calendar-uid',
+        });
+    }
+});
+
+test('unsafe Teams response URLs are rejected after one attempt without exposing their contents', async (t) => {
+    const invalid = [false, 42, {}, [], '', 'not-a-url', 'http://teams.microsoft.com/meeting',
+        'javascript:alert(1)', 'https://evil.example.invalid/meeting',
+        'https://teams.microsoft.com.evil.example.invalid/meeting',
+        'https://user:secret@teams.microsoft.com/meeting',
+        'https://teams.microsoft.com/with space', 'https://teams.microsoft.com/with\nnewline',
+        'https://teams.microsoft.com/with\rcarriage', 'https://teams.microsoft.com/with\ttab',
+        'https://teams.microsoft.com/with\u0000nul', 'https://teams.microsoft.com/with\u200bformat',
+        `https://teams.microsoft.com/${'x'.repeat(4097)}`];
+    for (const [index, meetingUrl] of invalid.entries()) {
+        await t.test(`unsafe response ${index + 1}`, async () => {
+            const graphClient = fakeClient({ id: 'event-id', iCalUId: 'calendar-uid', onlineMeeting: { joinUrl: meetingUrl } });
+            const adapter = createSupportBookingNotifications({ graphClient });
+            await assert.rejects(adapter.createEvent({ transactionId: 'booking-id' }), assertFixedFailure('invalid_response'));
+            assert.equal(graphClient.requests.length, 1);
+            assertSingleAttempt(graphClient.requests[0]);
+        });
+    }
 });
 
 test('confirmation mail preserves the message and exact sendMail envelope without exposing its response', async () => {

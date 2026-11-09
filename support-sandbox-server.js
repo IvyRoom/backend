@@ -63,15 +63,20 @@ async function startSupportSandbox({ environment = process.env, dataDirectory = 
     let app;
     try {
         const sessionStore = await openSupportSessionStore(directory);
+        const bookingStore = createSupportBookingStore(directory);
         app = createSupportApp({
             origin,
+            preload: true,
             frontendDirectory: path.resolve(__dirname, '../sistemas/apps/support-management'),
             users: createSupportUsersAdapter({ graphClient }),
             pagarme,
             cardStore: createSupportCardStore(directory),
             sessionStore,
-            appointments: createSupportAppointmentsAdapter({ graphClient }),
-            bookingStore: createSupportBookingStore(directory),
+            appointments: createSupportAppointmentsAdapter({ graphClient, availabilityJournal: {
+                read: () => bookingStore.readAvailabilityIntent(), write: (value) => bookingStore.writeAvailabilityIntent(value),
+                clear: () => bookingStore.clearAvailabilityIntent(),
+            } }),
+            bookingStore,
             bookingNotifications: createSupportBookingNotifications({ graphClient }),
             publicKey,
         });

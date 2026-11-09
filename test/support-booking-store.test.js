@@ -30,6 +30,8 @@ test('booking store construction and missing reads do not create storage', async
     const root = path.join(await directory(t), 'not-created');
     const store = createSupportBookingStore(root);
     assert.equal(await store.read(ID), null);
+    assert.equal(await store.readAvailabilityIntent(), null);
+    await store.clearAvailabilityIntent();
     assert.deepEqual(await store.pendingDates(), new Set());
     await assert.rejects(fs.stat(root), { code: 'ENOENT' });
 });
@@ -69,6 +71,11 @@ test('journal rejects unsafe or malformed records before replacing an existing b
         record({ name: 'x'.repeat(256) }), record({ name: 'Name\rInjected' }), record({ company: '' }),
         record({ company: 'Company\nInjected' }), record({ company: 'x'.repeat(4097) }),
         record({ priceCents: -1 }), record({ priceCents: 1.5 }), record({ createdAt: 0 }),
+        record({ acknowledgedAt: 0 }), record({ acknowledgedAt: -1 }), record({ acknowledgedAt: 1.5 }),
+        record({ acknowledgedAt: Number.MAX_SAFE_INTEGER + 1 }), record({ acknowledgedAt: '1800000000000' }),
+        record({ meetingUrl: 'http://teams.microsoft.com/meeting' }), record({ meetingUrl: 'https://teams.microsoft.com.attacker.invalid/meeting' }),
+        record({ meetingUrl: 'https://attacker.invalid/meeting' }), record({ meetingUrl: 'https://user:password@teams.microsoft.com/meeting' }),
+        record({ meetingUrl: null }), record({ meetingUrl: 42 }), record({ meetingUrl: `https://teams.microsoft.com/${'x'.repeat(4096)}` }),
         record({ createdAt: NaN }), record({ stage: 'unknown' }), record({ stage: 'confirmation' }),
         record({ stage: 'complete', eventId: 'event-only' }), record({ eventId: 'event\r\nInjected' }),
         record({ iCalUid: 'uid\nInjected' }), record({ eventId: 'x'.repeat(2049) }), record({ iCalUid: 'x'.repeat(1025) })];
@@ -79,6 +86,72 @@ test('journal rejects unsafe or malformed records before replacing an existing b
     }
     await store.write(record({ date: '2028-02-29' }));
     assert.equal((await store.read(ID)).date, '2028-02-29');
+});
+
+test('acknowledgment time and Teams meeting links survive journal reload without becoming required for older bookings', async (t) => {
+    const root = await directory(t);
+    const store = createSupportBookingStore(root);
+    await store.write(record());
+    assert.deepEqual(await createSupportBookingStore(root).read(ID), record());
+    for (const hostname of ['teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft']) {
+        const value = record({ acknowledgedAt: 1_800_000_000_000, meetingUrl: `https://${hostname}/meet/synthetic` });
+        await store.write(value);
+        assert.deepEqual(await createSupportBookingStore(root).read(ID), value);
+    }
+});
+
+test('availability intent persists an ordered batch separately from reservations and clears idempotently', async (t) => {
+    const root = await directory(t);
+    const store = createSupportBookingStore(root);
+    const intent = { dates: ['2026-11-10', '2026-11-11', '2026-11-12'] };
+    await store.write(record());
+    await store.writeAvailabilityIntent(intent);
+    assert.deepEqual(await createSupportBookingStore(root).readAvailabilityIntent(), intent);
+    assert.deepEqual(await store.pendingDates(), new Set(['2026-11-10']));
+    assert.deepEqual(await store.read(ID), record());
+    const thirtyDays = { dates: Array.from({ length: 30 }, (_, index) => new Date(Date.UTC(2028, 1, index + 1)).toISOString().slice(0, 10)) };
+    await store.writeAvailabilityIntent(thirtyDays);
+    assert.deepEqual(await store.readAvailabilityIntent(), thirtyDays);
+    await store.clearAvailabilityIntent();
+    await store.clearAvailabilityIntent();
+    assert.equal(await store.readAvailabilityIntent(), null);
+    assert.deepEqual(await fs.readdir(root), [`reservation_${ID}.json`]);
+});
+
+test('invalid availability intents cannot replace the last durable batch', async (t) => {
+    const root = await directory(t);
+    const store = createSupportBookingStore(root);
+    const previous = { dates: ['2028-02-29', '2028-03-01'] };
+    await store.writeAvailabilityIntent(previous);
+    for (const value of [null, [], 'text', 42, {}, { dates: [] }, { dates: '2026-11-10' },
+        { dates: [null] }, { dates: [20261110] }, { dates: ['2026-02-29'] }, { dates: ['2026-02-31'] },
+        { dates: ['2026-13-01'] }, { dates: ['2026-11-10T00:00:00Z'] }, { dates: ['../escape'] },
+        { dates: ['2026-11-10', '2026-11-10'] }, { dates: ['2026-11-11', '2026-11-10'] },
+        { dates: ['2026-11-10'], extra: true },
+        { dates: Array.from({ length: 31 }, (_, index) => new Date(Date.UTC(2026, 10, index + 1)).toISOString().slice(0, 10)) }]) {
+        await assert.rejects(store.writeAvailabilityIntent(value), /Invalid availability intent/u);
+        assert.deepEqual(await store.readAvailabilityIntent(), previous);
+        assert.deepEqual(await fs.readdir(root), ['availability-sync.json']);
+    }
+});
+
+test('corrupt availability intent fails closed and a failed replacement preserves the previous batch', async (t) => {
+    const root = await directory(t);
+    const store = createSupportBookingStore(root);
+    const target = path.join(root, 'availability-sync.json');
+    for (const value of ['not-json', '{}', JSON.stringify({ dates: ['2026-02-31'] }),
+        JSON.stringify({ dates: ['2026-11-11', '2026-11-10'] })]) {
+        await fs.writeFile(target, value);
+        await assert.rejects(store.readAvailabilityIntent(), /Availability storage unavailable/u);
+        assert.equal(await fs.readFile(target, 'utf8'), value);
+    }
+    const previous = { dates: ['2026-11-10'] };
+    await store.writeAvailabilityIntent(previous);
+    const rename = t.mock.method(fs, 'rename', async () => { throw new Error('synthetic intent replacement failure'); });
+    await assert.rejects(store.writeAvailabilityIntent({ dates: ['2026-11-11'] }), /synthetic intent replacement failure/u);
+    rename.mock.restore();
+    assert.deepEqual(await store.readAvailabilityIntent(), previous);
+    assert.deepEqual(await fs.readdir(root), ['availability-sync.json']);
 });
 
 test('read and remove cannot escape the journal directory through an invalid ID', async (t) => {

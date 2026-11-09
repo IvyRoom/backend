@@ -10,6 +10,7 @@ const WATCHED_FILES = new Set([
     'integrations/pagarme.js', 'integrations/support-card-store.js',
     'integrations/support-session-store.js',
     'domains/support-bookings.js', 'integrations/support-appointments.js',
+    'domains/support-availability.js',
     'integrations/support-booking-store.js', 'integrations/support-booking-notifications.js',
 ]);
 

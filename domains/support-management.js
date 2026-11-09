@@ -13,7 +13,7 @@ function companyCode(company) {
 }
 
 function publicUser(user) {
-    return { name: user.name, company: user.company, role: user.role };
+    return { name: user.name, company: user.company, role: user.role, email: user.email };
 }
 
 function publicCard(card) {
@@ -29,16 +29,17 @@ function validBillingAddress(address) {
         && /^\d{8}$/.test(address.zip_code) && /^[A-Z]{2}$/.test(address.state) && address.country === 'BR';
 }
 
-function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now, sessionStore = createMemorySupportSessionStore() }) {
+function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now, sessionStore = createMemorySupportSessionStore(), bootstrap }) {
     const attempts = new Map();
     const busyCompanies = new Set();
     const cardReads = new Map();
+    const paymentCache = new Map();
     const fingerprint = (user) => digest(`${sessionStore.salt}:${user.password}`);
     const companyIdentity = (user) => normalize(user.companyId || user.company);
     const fail = (res, status, reason) => res.status(status).json({ error: `support_management.${reason}` });
 
-    async function readUser(email) {
-        const matches = (await users.readUsers()).filter((user) => normalize(user.email) === normalize(email));
+    function readUser(email, directory) {
+        const matches = directory.filter((user) => normalize(user.email) === normalize(email));
         return matches.length === 1 && matches[0].status === 'Ativo' && normalize(matches[0].company) ? matches[0] : null;
     }
 
@@ -91,7 +92,30 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         return { card: publicCard(card) };
     }
 
+    async function companyPayment(user, { cached = false } = {}) {
+        const { code, record } = await readCompanyCard(user);
+        if (record.pending && record.pending !== 'workbook') throw Object.assign(new Error('Card review required'), { code: 'card_review_required' });
+        if (!record.cardId) return { card: null };
+        if (!hasVerification(record)) return { card: null, verificationRequired: true };
+        const previous = paymentCache.get(code);
+        const key = `${record.customerId}:${record.cardId}`;
+        if (cached && previous?.key === key && previous.until > now()) return { ...previous.result };
+        const card = await pagarme.getCard(record.customerId, record.cardId);
+        const result = usableCard(card) ? { card: publicCard(card),
+            ...(record.workbookSynced !== true || record.workbookReferencesSynced !== true ? { workbookSyncPending: true } : {}) }
+            : { card: null, verificationRequired: true };
+        paymentCache.set(code, { key, result, until: now() + 60_000 });
+        return result;
+    }
+
+    async function initialContext(user, directory) {
+        if (!bootstrap) return {};
+        try { return await bootstrap(user, directory); }
+        catch { return { config: { environment: 'sandbox', publicKey } }; }
+    }
+
     return {
+        companyPayment,
         config(req, res) {
             return res.json({ environment: 'sandbox', publicKey });
         },
@@ -106,14 +130,16 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 if (attempt.count >= 10 || (attempts.size >= 1000 && !attempts.has(key))) return fail(res, 429, 'try_later');
                 attempt.count += 1;
                 attempts.set(key, attempt);
-                const user = await readUser(email);
+                const directory = await users.readUsers();
+                const user = readUser(email, directory);
                 const candidate = Buffer.from(digest(password));
                 const expected = Buffer.from(digest(user ? String(user.password) : crypto.randomUUID()));
                 if (!user || !crypto.timingSafeEqual(candidate, expected)) return fail(res, 401, 'invalid_credentials');
                 if (sessionStore.size >= 500) return fail(res, 429, 'try_later');
                 const token = crypto.randomBytes(32).toString('base64url');
-                await sessionStore.set(digest(token), { email: normalize(user.email), company: companyIdentity(user), fingerprint: fingerprint(user), expiresAt: now() + SESSION_DURATION });
-                return res.json({ token, user: publicUser(user) });
+                const expiresAt = now() + SESSION_DURATION;
+                await sessionStore.set(digest(token), { email: normalize(user.email), company: companyIdentity(user), fingerprint: fingerprint(user), expiresAt });
+                return res.json({ token, user: publicUser(user), expiresAt, ...await initialContext(user, directory) });
             } catch {
                 return fail(res, 503, 'users_unavailable');
             }
@@ -126,20 +152,24 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 const tokenHash = digest(token);
                 const session = await sessionStore.get(tokenHash);
                 if (!session) return fail(res, 401, 'session_expired');
-                const user = await readUser(session.email);
+                const directory = await users.readUsers();
+                const user = readUser(session.email, directory);
                 if (!user || companyIdentity(user) !== session.company || fingerprint(user) !== session.fingerprint) {
                     await sessionStore.delete(tokenHash);
                     return fail(res, 401, 'session_expired');
                 }
                 res.locals.supportUser = user;
                 res.locals.supportTokenHash = tokenHash;
+                res.locals.supportUsers = directory;
+                res.locals.supportExpiresAt = session.expiresAt;
                 return next();
             } catch {
                 return fail(res, 503, 'users_unavailable');
             }
         },
-        session(req, res) {
-            return res.json({ user: publicUser(res.locals.supportUser) });
+        async session(req, res) {
+            return res.json({ user: publicUser(res.locals.supportUser), expiresAt: res.locals.supportExpiresAt,
+                ...await initialContext(res.locals.supportUser, res.locals.supportUsers) });
         },
         async logout(req, res) {
             try {
@@ -151,17 +181,9 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         },
         async getCard(req, res) {
             try {
-                const { record } = await readCompanyCard(res.locals.supportUser);
-                if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');
-                if (!record.cardId) return res.json({ card: null });
-                if (!hasVerification(record)) return res.json({ card: null, verificationRequired: true });
-                const card = await pagarme.getCard(record.customerId, record.cardId);
-                if (!usableCard(card)) return res.json({ card: null, verificationRequired: true });
-                return res.json({
-                    card: publicCard(card),
-                    ...(record.workbookSynced !== true || record.workbookReferencesSynced !== true ? { workbookSyncPending: true } : {}),
-                });
-            } catch {
+                return res.json(await companyPayment(res.locals.supportUser));
+            } catch (error) {
+                if (error.code === 'card_review_required') return fail(res, 409, 'card_review_required');
                 return fail(res, 503, 'card_unavailable');
             }
         },
@@ -173,6 +195,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
             busyCompanies.add(code);
+            paymentCache.delete(code);
             try {
                 let { record } = await readCompanyCard(user);
                 if (record.pending === 'workbook' && hasVerification(record)
@@ -225,6 +248,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
             busyCompanies.add(code);
+            paymentCache.delete(code);
             try {
                 const { record } = await readCompanyCard(user);
                 if (record.pending && record.pending !== 'workbook') return fail(res, 409, 'card_review_required');

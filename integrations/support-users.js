@@ -9,14 +9,16 @@ const COLUMNS = [
 
 function createSupportUsersAdapter({ graphClient }) {
     async function readVerifiedTable() {
-        const columns = await graphClient.api(`${TABLE_PATH}/columns?$select=index,name`).get();
+        const [columns, range] = await Promise.all([
+            graphClient.api(`${TABLE_PATH}/columns?$select=index,name`).get(),
+            graphClient.api(`${TABLE_PATH}/range?$select=address,rowCount,columnCount`).get(),
+        ]);
         if (!Array.isArray(columns.value) || columns.value.length !== COLUMNS.length
             || columns.value.some((column, index) => column?.index !== index
                 || typeof column.name !== 'string' || column.name.trim() !== COLUMNS[index])) {
             throw new Error('support_users.schema_mismatch');
         }
 
-        const range = await graphClient.api(`${TABLE_PATH}/range?$select=address,rowCount,columnCount`).get();
         const address = /^USUÁRIOS!A3:K([3-9]|[1-9]\d+)$/.exec(range.address);
         const lastRow = Number(address?.[1]);
         if (!address || range.columnCount !== COLUMNS.length || range.rowCount !== lastRow - 2) {

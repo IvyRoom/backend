@@ -1,8 +1,9 @@
 # Support management sandbox
 
-This version provides workbook-backed login, weekday reservations from 09:00 to
-10:00 Brasília time and administrator-managed company cards. Reservations do not
-charge a card or populate the actual-duration workbook column. Production `app.js` and
+This version provides workbook-backed login, 09:00 Brasília-time Microsoft Teams
+reservations and administrator-managed company cards. Invitations hold up to
+90 minutes; actual duration remains a manual workbook entry. Reservations and
+nonattendance do not automatically charge a card. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
 
@@ -11,8 +12,9 @@ pages, but the functional sandbox is local and uses its own same-origin API.
 After the setup below, run `npm run support:dev` from `backend` and use its printed
 local URL. The app runs locally while reading the real users workbook through
 Graph, registering cards with the Pagar.me **test** API, and synchronizing reusable
-company-card references to that workbook. Reservar Data updates the appointments
-workbook and sends real email/calendar notifications; this is connected local
+company-card references to that workbook. Calendar loading maintains availability
+in BD - ATENDIMENTOS; Reservar Agenda reserves a row and sends real email/calendar
+notifications. This is connected local
 development, not an offline or simulated application mode.
 
 Save frontend HTML, CSS, or JavaScript and refresh the browser. Sources are served
@@ -40,7 +42,7 @@ trigger a preview deployment even while a PR is a draft.
    (`npm ci` if they are missing).
 2. Keep the existing Graph `CLIENT_ID`, `TENANT_ID`, and `CLIENT_SECRET` in the
    ignored `backend/.env`. Graph reads the verified BD - USUÁRIOS workbook and
-   updates only the card-reference and reservation ranges described below.
+   updates only the card-reference, availability and reservation ranges described below.
    The Graph application needs Mail.Send and Calendars.ReadWrite for the contato
    mailbox as well as its existing workbook access.
 3. Create `backend/.env.support-sandbox` locally with these two settings. Enter
@@ -71,7 +73,9 @@ trigger a preview deployment even while a PR is a draft.
    Do not expose this listener through a tunnel or use the production entry point.
    Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
 5. Log in using an active workbook account. An account whose `TIPO DE ACESSO` is
-   `Administrador` can register or replace a card in the scheduler.
+   `Administrador` can register or replace a card in Cadastro de Cartão. Until a
+   verified active card exists, Agendamento shows the company's administrator
+   name instead of its calendar.
 6. Use the Pagar.me simulator card `4000000000000010`, CVV `123`, and a future
    expiry date, with synthetic cardholder/address details. Do not enter the real
    company card into this sandbox. It cannot prove a real issuer authorization.
@@ -80,7 +84,11 @@ trigger a preview deployment even while a PR is a draft.
    another company sees its own card. Confirm the customer/card in the Pagar.me
    **test** dashboard and the reusable references in BD - USUÁRIOS. Registration does
    not create an order or charge and does not send an email.
-8. Stop the server with Ctrl+C when finished.
+8. For booking acceptance, select the intended date in Agendamento, review the
+   rate and nonattendance term, tick Estou ciente and click Reservar Agenda.
+   Verify the reserved row, the 09:00–10:30 Teams invitation and confirmation at
+   both recipient accounts. This is a real reservation and notification test.
+9. Stop the server with Ctrl+C when finished.
 
 Pagar.me uses the same API origin for test/live; this entry point accepts only
 `pk_test_` and `sk_test_` keys and rejects responses marked live. The secret key
@@ -96,8 +104,8 @@ Authentication requires the exact 11-column A:K contract: CNPJ, RAZÃO SOCIAL,
 VALOR REFERÊNCIA, NOME COMPLETO, E-MAIL, SENHA, TIPO DE ACESSO, STATUS,
 PAGARME CUSTOMER ID, PAGARME CARD ID, PAGARME AMBIENTE. Header comparison trims
 whitespace. Any other header, index or range drift fails closed.
-Authentication retrieves only A:H, never card or reference
-values. Passwords follow the existing workbook contract and never
+Credential validation retrieves only A:H and does not use card references.
+Passwords follow the existing workbook contract and never
 appear in responses or local metadata. Inactive, missing, or duplicate email
 matches fail.
 
@@ -140,13 +148,17 @@ provider `card_id` without storing PAN or CVV; the purchase flow and its require
 PSP customer information remain a separate milestone.
 
 One-hour opaque sessions survive local backend restarts and keep their original
-absolute expiry. Every protected request rechecks the current workbook company,
+absolute expiry, returned as `expiresAt` for the header countdown. Every protected
+request rechecks the current workbook company,
 password, status and role. Logout and invalidation are persisted before they are
 acknowledged. The ignored local session store contains only token hashes,
 identity, password fingerprints, original expiry and a stable random fingerprint
 salt; it never stores raw bearer tokens or passwords. Corrupt session storage
-blocks startup rather than silently resetting it. Only the raw session token is
-stored in the browser's sessionStorage. Companies are grouped by the 14 CNPJ
+blocks startup rather than silently resetting it. Browser sessionStorage holds the
+token and a public scheduler-context cache bound to that token and expiry. Login
+preloads configuration, masked card and calendar, avoiding serial requests during
+navigation; reused context refreshes in the background. Logout, HTTP 401 and
+expiry clear or invalidate the cached context. Companies are grouped by the 14 CNPJ
 digits. Renaming RAZÃO SOCIAL preserves identity; changing the CNPJ invalidates
 the session. Sessions minted against the previous company-label identity require
 a fresh login after this schema update.
@@ -155,7 +167,9 @@ Pagar.me stores the test customer and card. Ignored `.support-sandbox-data/` hol
 hashed company keys, Pagar.me customer/card IDs, pending-operation flags,
 the explicit-verification marker, and successful-workbook-sync markers. It also
 holds reservation journals with date, CNPJ, user email/name, company, quoted
-price, request UUID, stage and Graph event references; no card data or passwords.
+price, request UUID, acknowledgment time, stage and Graph event references, with an
+optional Teams URL; no card data or passwords. `availability-sync.json` stores
+only the dates of a pending table append.
 Keep this directory between restarts and back it up locally. Card references are
 specific to the configured Pagar.me account; do not switch accounts with the same
 metadata directory. Replacing a card selects the new card for the company; it does
@@ -168,16 +182,52 @@ is running. Do not run parallel copies of the sandbox against the same test acco
 
 ## Date reservations
 
-Verified on 2026-11-09: BD - ATENDIMENTOS drive item
+Verified schema on 2026-11-09: BD - ATENDIMENTOS drive item
 `01OSXVECSFKTNUUJS3TZDKCLDRXFZCMVYB`, sheet ATENDIMENTOS, table BD
-`{7C4EBF15-124A-4107-9867-F83E9C664B31}`, range A3:H55. Its exact columns are DATA,
+`{7C4EBF15-124A-4107-9867-F83E9C664B31}`, initially A3:H55. The table now grows as
+dates are added. Its exact columns are DATA,
 STATUS, OBSERVAÇÃO, CNPJ, NOME COMPLETO, VALOR POR HORA, DURAÇÃO (MIN), VALOR COBRADO.
 The last column has the table formula `=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HORA]]`.
 
-The calendar reads dates/status only, starting tomorrow in São Paulo, and omits
-weekends. A blank status means vacant; any other status means unavailable.
-Months appear in compact blocks about 300px square, with Monday–Friday columns
-and successive weeks on separate rows. Blocks wrap to the available width.
+The white/light-gray scheduler follows the course-content header arrangement,
+showing full name and the one-hour countdown. Months appear as 500px squares,
+with Sunday–Saturday columns and successive week rows; they shrink on narrow
+screens. Gray tiles show unavailable dates without an INDISPONÍVEL caption.
+Only tomorrow through today+30, in São Paulo time, can be booked. Weekends,
+national holidays and Curitiba holidays are unavailable. A blank workbook status
+means vacant; any other status blocks booking. Full displayed months include gray
+dates outside the booking horizon.
+
+Holiday rules cover the federal holidays plus Curitiba's September 8, Good Friday
+and Corpus Christi; government recesses and optional closures are not added.
+Sources: [national holidays](https://www2.camara.leg.br/legin/fed/lei/1940-1949/lei-662-6-abril-1949-347136-normaatualizada-pl.html),
+[October 12](https://www2.camara.leg.br/legin/fed/lei/1980-1987/lei-6802-30-junho-1980-357065-publicacaooriginal-1-pl.html),
+[November 20](https://normas.leg.br/?urn=urn%3Alex%3Abr%3Afederal%3Alei%3A2023-12-21%3B14759),
+[Curitiba law](https://legisladocexterno.curitiba.pr.gov.br/VisualizarHTML.aspx?id=20655)
+and [official 2026 calendar](https://www.curitiba.pr.gov.br/noticias/prefeitura-de-curitiba-define-calendario-de-feriados-recessos-e-pontos-facultativos-para-2026/80481).
+Easter-based dates use the [USNO computus](https://aa.usno.navy.mil/faq/easter).
+
+When a verified card is present, calendar loading ensures all next 30 calendar
+dates have table rows. Automatic availability changes touch only B/C on otherwise
+vacant rows: B=`INDISPONÍVEL`, C=`APP: INDISPONÍVEL` marks an app-managed block.
+The app clears its own marker when a date becomes eligible. It preserves manual
+statuses/notes, existing booking data and every RESERVADO row. No BD - USUÁRIOS
+columns are added; its A:K contract stays unchanged.
+
+Before `rows/add`, a durable `availability-sync.json` intent records the sorted
+missing dates. The append makes one attempt with retries disabled. A fresh table
+read must confirm every date and the calculated H formula on every row before
+the intent is cleared. Excel must propagate the existing calculated-column
+formula; missing or changed formulas stop the calendar instead of silently
+accepting uncalculated rows.
+
+After an ambiguous append or formula failure, stop the runner and inspect the
+intent and workbook together. If every recorded date exists exactly once and H
+has the verified formula, the next read can reconcile the intent. Otherwise,
+establish which rows were added and restore the calculated formula or resolve the
+missing dates before clearing the intent. Never blindly repeat the append or
+delete its intent to bypass the review.
+
 The first three vacant weekdays use 100% of the authenticated user's VALOR
 REFERÊNCIA. Prices then decrease linearly from the third through the tenth vacant
 weekday, where they reach 75%; later days stay at 75%. There are seven equal
@@ -186,17 +236,32 @@ Unavailable days do not advance the discount. Price and availability are checked
 again on reservation; stale quotes require reselection. A global claim queue
 prevents different dates from accepting incompatible concurrent quotes.
 
-Reservar Data writes only the existing selected row: B=RESERVADO, D=formatted
+A verified, active and unexpired company card is required for calendar access and
+new reservations. Initial context/calendar reads cache provider readiness for up
+to 60 seconds, while still reading local verification/pending state. Explicit
+card reads are fresh; save/sync invalidate that cache. Every new reservation
+performs a fresh Pagar.me GET before accepting the booking. No order or charge is
+created by this check, and the user-directory authorization is never cached.
+
+After selecting a date, the user sees 09:00, its hourly price and the reservation
+terms. Reservar Agenda requires the native acknowledgment checkbox; the request
+must include `acknowledged: true`, and the journal records `acknowledgedAt`.
+The operation has no cancellation UI. The displayed nonattendance term does not
+implement an automatic charge.
+
+Reservar Agenda writes only the existing selected row: B=RESERVADO, D=formatted
 CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
 OBSERVAÇÃO, DURAÇÃO (MIN) and VALOR COBRADO, including the existing formula.
-The date is rechecked immediately before the single Graph PATCH; no row is added.
-Each reservation covers 09:00–10:00 Brasília time. Actual-duration and charge
-columns remain under the workbook's existing workflow; no card is charged.
+The date is rechecked immediately before the single Graph PATCH; reservation
+itself adds no row. Meetings start at 09:00 Brasília time and may last up to
+1h30min as needed. DURAÇÃO (MIN), column G, remains manual; H calculates the charge
+from that actual duration and the agreed rate. No card is charged.
 Workbook edits made concurrently outside this local app are not atomic
 with its PATCH; avoid another booking writer during this local trial.
 
-After the row is reserved, the app creates a 09:00–10:00 event in the contato
-mailbox's calendar, in Brasília time, and invites the authenticated user. Graph
+After the row is reserved, the app requests a Microsoft Teams event holding
+09:00–10:30 in the contato mailbox's calendar, in Brasília time, and invites the
+authenticated user. Its returned Teams link is included when provided. Graph
 sends the attendee invitation automatically. A confirmation goes to
 contato@machadogestao.com and the authenticated user, with a calendar attachment
 using the same event UID. The organizer gets its calendar entry and confirmation;
@@ -218,7 +283,7 @@ same UUID, using the exact stored identity/date/price:
    remove only this journal after proving the row is vacant. Never clear an
    uncertain journal merely to make the button work.
 2. At event stage, inspect that date in contato's calendar. If the matching event
-   exists, recover its Graph event ID and iCalUId into the journal and advance to
+   exists, recover its Graph event ID, iCalUId and available Teams URL into the journal and advance to
    confirmation. If its absence is established, make one explicit event attempt
    with the existing `eventPayload(record)` helper and the same transactionId;
    persist the returned references before proceeding. Never create a second event
@@ -267,7 +332,7 @@ reuse is not a failure signal: acceptance still requires a successful explicit
 that request contract, not independent issuer evidence. Do not add verification
 markers manually or promote an old card based on GET alone.
 
-Every registered-card read and workbook sync also checks the current provider
+Explicit registered-card reads and workbook sync fetch the current provider
 status and expiry. A deleted, expired, or status-less card is not displayed as
 registered and cannot update the workbook. `GET /support-management/api/card`
 never writes to Graph or requests authorization. Current workbook role and

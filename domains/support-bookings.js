@@ -1,39 +1,30 @@
 'use strict';
 
 const { escapeHtml } = require('../shared/escape-html');
+const { appointmentAvailability, bookingCalendarRange, isCalendarDate } = require('./support-availability');
 
 const CONTACT = 'contato@machadogestao.com';
 const TIME_ZONE = 'E. South America Standard Time';
-const TIME_LABEL = '09:00 às 10:00 (horário de Brasília)';
+const TIME_LABEL = 'Início às 09:00 (horário de Brasília), com duração de até 1h30min, conforme necessário.';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
-function validDate(value) {
-    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value)
-        && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
-        && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-}
-
-function nextDate(date) {
-    return new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
-}
-
-function tomorrow(nowMs) {
+function localDate(nowMs) {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en', {
         timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
     }).formatToParts(new Date(nowMs)).map(({ type, value }) => [type, value]));
-    return nextDate(`${parts.year}-${parts.month}-${parts.day}`);
+    return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function calendarDays(rows, referenceRate, nowMs, pendingDates = new Set()) {
     const baseCents = Math.round(referenceRate * 100);
     if (typeof referenceRate !== 'number' || !Number.isFinite(referenceRate) || !Number.isSafeInteger(baseCents) || baseCents <= 0) throw new Error('Reference rate unavailable');
-    const firstDate = tomorrow(nowMs);
+    const today = localDate(nowMs);
+    const range = bookingCalendarRange(today);
     let vacantRank = 0;
-    return rows.filter(({ date }) => validDate(date) && date >= firstDate
-        && ![0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()))
+    return rows.filter(({ date }) => isCalendarDate(date) && date >= range.first && date <= range.last)
         .sort((a, b) => a.date.localeCompare(b.date)).map(({ date, status }) => {
-            const available = !String(status || '').trim() && !pendingDates.has(date);
+            const available = appointmentAvailability(date, today) && !String(status || '').trim() && !pendingDates.has(date);
             const discountStep = available ? Math.min(Math.max(vacantRank++ - 2, 0), 7) : null;
             return { date, available, priceCents: available ? Math.round(baseCents * (28 - discountStep) / 28) : null,
                 pricePosition: available ? discountStep / 7 : null };
@@ -60,29 +51,30 @@ function foldCalendarLine(value) {
     return lines.join('\r\n');
 }
 
-function calendarTime(date, hour) {
+function calendarTime(date, time) {
     const zone = new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', timeZoneName: 'longOffset' })
         .formatToParts(new Date(`${date}T12:00:00Z`)).find(({ type }) => type === 'timeZoneName').value;
     const offset = zone === 'GMT' ? '+00:00' : zone.slice(3);
-    return new Date(`${date}T${hour}:00:00${offset}`).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '');
+    return new Date(`${date}T${time}:00${offset}`).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '');
 }
 
 function confirmation(booking) {
     const displayDate = booking.date.split('-').reverse().join('/');
     const price = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(booking.priceCents / 100);
     const subject = `Atendimento consultivo - ${displayDate}`;
-    const description = `${booking.name}\n${booking.company}\n${displayDate}\n${TIME_LABEL}\nPreço por hora: ${price}`;
+    const description = `${booking.name}\n${booking.company}\n${displayDate}\n${TIME_LABEL}\nPreço por hora: ${price}${booking.meetingUrl ? `\n${booking.meetingUrl}` : ''}`;
     const calendar = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Machado//Atendimentos Consultivos//PT-BR', 'METHOD:REQUEST',
         'BEGIN:VEVENT', `UID:${textCalendar(booking.iCalUid)}`,
         `DTSTAMP:${new Date(booking.createdAt).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '')}`,
-        `DTSTART:${calendarTime(booking.date, '09')}`,
-        `DTEND:${calendarTime(booking.date, '10')}`,
+        `DTSTART:${calendarTime(booking.date, '09:00')}`,
+        `DTEND:${calendarTime(booking.date, '10:30')}`,
         `SUMMARY:${textCalendar(subject)}`, `DESCRIPTION:${textCalendar(description)}`,
         `ORGANIZER:mailto:${CONTACT}`, `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
+        ...(booking.meetingUrl ? [`URL:${booking.meetingUrl}`] : []),
         'STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR',
     ].map(foldCalendarLine).join('\r\n') + '\r\n';
-    return { subject, body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${displayDate}<br>${TIME_LABEL}<br>Preço por hora: ${escapeHtml(price)}</p>` },
+    return { subject, body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${displayDate}<br>${TIME_LABEL}<br>Preço por hora: ${escapeHtml(price)}</p>${booking.meetingUrl ? `<p><a href="${escapeHtml(booking.meetingUrl)}">Ingressar no Microsoft Teams</a></p>` : ''}` },
         toRecipients: Array.from(new Set([CONTACT, normalize(booking.email)])).map((address) => ({ emailAddress: { address } })),
         attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'atendimento.ics', contentType: 'text/calendar; method=REQUEST; charset=UTF-8', contentBytes: Buffer.from(calendar, 'utf8').toString('base64') }],
     };
@@ -92,31 +84,44 @@ function eventPayload(booking) {
     const message = confirmation({ ...booking, iCalUid: booking.iCalUid || booking.id });
     return { subject: message.subject, body: message.body, isAllDay: false,
         start: { dateTime: `${booking.date}T09:00:00`, timeZone: TIME_ZONE },
-        end: { dateTime: `${booking.date}T10:00:00`, timeZone: TIME_ZONE },
+        end: { dateTime: `${booking.date}T10:30:00`, timeZone: TIME_ZONE },
+        isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness',
         attendees: normalize(booking.email) === CONTACT ? [] : [{ emailAddress: { address: booking.email, name: booking.name }, type: 'required' }],
         showAs: 'busy', transactionId: booking.id,
     };
 }
 
-function createSupportBookingHandlers({ appointments, bookingStore, bookingNotifications, now = Date.now }) {
+function createSupportBookingHandlers({ appointments, bookingStore, bookingNotifications, companyCards = async () => ({ card: null }), now = Date.now }) {
     const busyDates = new Set();
     const busyIds = new Set();
     let claims = Promise.resolve();
     const fail = (res, status, code) => res.status(status).json({ error: `support_management.${code}` });
     async function readCalendar(user) {
         const pendingDates = await bookingStore.pendingDates();
-        return calendarDays(await appointments.readDates(), user.referenceRate, now(), pendingDates);
+        const today = localDate(now());
+        const rows = appointments.syncAvailability ? await appointments.syncAvailability({ today }) : await appointments.readDates();
+        return calendarDays(rows, user.referenceRate, now(), pendingDates);
+    }
+    async function getCalendarContext(user, directory = []) {
+        const card = await companyCards(user, { cached: true });
+        const administrators = directory.filter((person) => person.status === 'Ativo' && person.role === 'Administrador'
+            && normalize(person.companyId || person.company) === normalize(user.companyId || user.company));
+        return { card, calendar: { days: card.card ? await readCalendar(user) : [],
+            paymentMethodRegistered: Boolean(card.card),
+            administratorName: [...new Set(administrators.map((person) => person.name))].join(', ') || 'não informado',
+            userEmail: user.email, today: localDate(now()) } };
     }
     return {
+        getCalendarContext,
         async calendar(req, res) {
-            try { return res.json({ days: await readCalendar(res.locals.supportUser) }); }
+            try { return res.json((await getCalendarContext(res.locals.supportUser, res.locals.supportUsers)).calendar); }
             catch { return fail(res, 503, 'calendar_unavailable'); }
         },
         async reserve(req, res) {
             const user = res.locals.supportUser;
-            const { date, priceCents, requestId } = req.body || {};
-            if (Object.keys(req.body || {}).some((key) => !['date', 'priceCents', 'requestId'].includes(key))
-                || !validDate(date) || !Number.isSafeInteger(priceCents) || priceCents <= 0
+            const { date, priceCents, requestId, acknowledged } = req.body || {};
+            if (Object.keys(req.body || {}).some((key) => !['date', 'priceCents', 'requestId', 'acknowledged'].includes(key)) || acknowledged !== true
+                || !isCalendarDate(date) || !Number.isSafeInteger(priceCents) || priceCents <= 0
                 || typeof requestId !== 'string' || !UUID.test(requestId)
                 || typeof user.companyId !== 'string' || !/^\d{14}$/u.test(user.companyId) || !emailAddress(user.email)) return fail(res, 400, 'invalid_request');
             if (busyDates.has(date) || busyIds.has(requestId)) return fail(res, 409, 'date_unavailable');
@@ -137,11 +142,12 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                     if (previous.stage !== 'workbook') return res.json({ date, reserved: true, notificationPending: true });
                     return fail(res, 409, 'reservation_review_required');
                 }
+                if (!(await companyCards(user)).card) return fail(res, 403, 'payment_method_required');
                 const day = (await readCalendar(user)).find((entry) => entry.date === date);
                 if (!day?.available) return fail(res, 409, 'date_unavailable');
                 if (day.priceCents !== priceCents) return fail(res, 409, 'price_changed');
                 record = { id: requestId, date, companyId: user.companyId, email: normalize(user.email), name: user.name,
-                    company: user.company, priceCents, createdAt: now(), stage: 'workbook' };
+                    company: user.company, priceCents, createdAt: now(), acknowledgedAt: now(), stage: 'workbook' };
                 await bookingStore.write(record);
                 // Claim quotes in order: occupying an earlier date changes every later vacant price.
                 releaseClaim();
