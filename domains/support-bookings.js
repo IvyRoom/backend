@@ -91,7 +91,7 @@ function eventPayload(booking) {
     };
 }
 
-function createSupportBookingHandlers({ appointments, bookingStore, bookingNotifications, companyCards = async () => ({ card: null }), now = Date.now }) {
+function createSupportBookingHandlers({ appointments, bookingStore, bookingNotifications, companyCards = async () => ({ card: null }), claimCompany = () => () => {}, now = Date.now }) {
     const busyDates = new Set();
     const busyIds = new Set();
     let claims = Promise.resolve();
@@ -132,6 +132,7 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
             claims = new Promise((resolve) => { releaseClaim = resolve; });
             let reserved = false;
             let record;
+            let releaseCompany;
             try {
                 await previousClaim;
                 const previous = await bookingStore.read(requestId);
@@ -142,6 +143,8 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                     if (previous.stage !== 'workbook') return res.json({ date, reserved: true, notificationPending: true });
                     return fail(res, 409, 'reservation_review_required');
                 }
+                releaseCompany = claimCompany(user);
+                if (!releaseCompany) return fail(res, 409, 'card_busy');
                 if (!(await companyCards(user)).card) return fail(res, 403, 'payment_method_required');
                 const day = (await readCalendar(user)).find((entry) => entry.date === date);
                 if (!day?.available) return fail(res, 409, 'date_unavailable');
@@ -163,6 +166,8 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                     throw error;
                 }
                 reserved = true;
+                releaseCompany();
+                releaseCompany = undefined;
                 record = { ...record, stage: 'event' };
                 await bookingStore.write(record);
                 const event = await bookingNotifications.createEvent(eventPayload(record));
@@ -175,6 +180,7 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                 if (reserved) return res.json({ date, reserved: true, notificationPending: true });
                 return fail(res, record ? 409 : 503, record ? 'reservation_review_required' : 'reservation_failed');
             } finally {
+                releaseCompany?.();
                 releaseClaim?.();
                 busyDates.delete(date);
                 busyIds.delete(requestId);

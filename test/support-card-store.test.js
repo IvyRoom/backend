@@ -61,8 +61,11 @@ test('card reference store accepts only valid reference and pending states acros
         {}, { pending: 'customer' }, { customerId: 'cus_Test1' },
         { customerId: 'cus_Test1', pending: 'card' },
         { customerId: 'cus_Test1', cardId: 'card_Test1' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', cardRevision: 'a'.repeat(64) },
         { customerId: 'cus_Test1', cardId: 'card_Test1', pending: 'card' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', pending: 'workbook' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', pending: 'delete' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', pending: 'delete_workbook' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', workbookSynced: true },
         { customerId: 'cus_Test1', cardId: 'card_Test1', workbookSynced: false },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1' },
@@ -70,6 +73,9 @@ test('card reference store accepts only valid reference and pending states acros
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true, pending: 'card' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true, pending: 'delete' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', cardRevision: 'a'.repeat(64), verification: 'pagarme_verify_card_v1', workbookSynced: true, workbookReferencesSynced: true, pending: 'delete' },
+        { customerId: 'cus_Test1', cardId: 'card_Test1', cardRevision: 'a'.repeat(64), pending: 'delete_workbook' },
         { customerId: 'cus_Test1', cardId: 'card_Test1', verification: 'pagarme_verify_card_v1', workbookSynced: true, pending: 'card' },
     ]) {
         await store.write(company, record);
@@ -87,6 +93,15 @@ test('card reference store refuses extra, sensitive, malformed or inconsistent f
         { ...previous, number: '4000000000000010' },
         { ...previous, cvv: '123' },
         { ...previous, token: 'token_Test1' },
+        { ...previous, cardRevision: '' },
+        { ...previous, cardRevision: 'a'.repeat(63) },
+        { ...previous, cardRevision: 'a'.repeat(65) },
+        { ...previous, cardRevision: 'A'.repeat(64) },
+        { ...previous, cardRevision: `${'a'.repeat(63)}\n` },
+        { ...previous, cardRevision: 123 },
+        { cardRevision: 'a'.repeat(64) },
+        { customerId: 'cus_Test1', cardRevision: 'a'.repeat(64) },
+        { cardId: 'card_Test1', cardRevision: 'a'.repeat(64) },
         { ...previous, billingAddress: {} },
         { customerId: 'cus_Path/../Other' },
         { customerId: 'cus_Test_with_underscores' },
@@ -98,6 +113,12 @@ test('card reference store refuses extra, sensitive, malformed or inconsistent f
         { pending: 'card' },
         { pending: 'workbook' },
         { customerId: 'cus_Test1', pending: 'workbook' },
+        { pending: 'delete' },
+        { pending: 'delete_workbook' },
+        { customerId: 'cus_Test1', pending: 'delete' },
+        { customerId: 'cus_Test1', pending: 'delete_workbook' },
+        { cardId: 'card_Test1', pending: 'delete' },
+        { cardId: 'card_Test1', pending: 'delete_workbook' },
         { workbookSynced: true },
         { customerId: 'cus_Test1', workbookSynced: true },
         { ...previous, workbookSynced: 'true' },
@@ -131,7 +152,7 @@ test('reference recovery matches both identifiers and preserves verification and
     const root = await directory(t);
     const store = createSupportCardStore(root);
     const references = { customerId: 'cus_Test1', cardId: 'card_Test1' };
-    const record = { ...references, verification: 'pagarme_verify_card_v1', pending: 'card' };
+    const record = { ...references, cardRevision: 'a'.repeat(64), verification: 'pagarme_verify_card_v1', pending: 'card' };
     await store.write(company, record);
     const reloaded = createSupportCardStore(root);
     assert.deepEqual(await reloaded.findByReferences(references), record);

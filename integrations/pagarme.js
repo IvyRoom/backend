@@ -14,7 +14,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
 
     const authorization = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
 
-    async function request(path, { method = 'GET', body, cardVerification = false } = {}) {
+    async function request(path, { method = 'GET', body, cardVerification = false, cardLookup = false } = {}) {
         let response;
         try {
             response = await fetchImpl(`${API_ORIGIN}${path}`, {
@@ -34,7 +34,8 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
         }
         if (!response?.ok) {
             const definiteRejection = DEFINITE_REJECTIONS.has(response?.status);
-            const code = cardVerification && response?.status === 412 ? 'card_verification_failed'
+            const code = cardLookup && response?.status === 404 ? 'card_not_found'
+                : cardVerification && response?.status === 412 ? 'card_verification_failed'
                 : definiteRejection ? 'request_rejected' : 'request_failed';
             const error = failure(code);
             if (definiteRejection) error.definiteRejection = true;
@@ -91,9 +92,22 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
         async getCard(customerId, cardId) {
             requireId(customerId, 'cus');
             requireId(cardId, 'card');
-            const card = await request(`/customers/${customerId}/cards/${cardId}`);
+            const card = await request(`/customers/${customerId}/cards/${cardId}`, { cardLookup: true });
             if (card.id !== cardId) throw failure('invalid_response');
             return projectCard(card);
+        },
+
+        async deleteCard(customerId, cardId) {
+            requireId(customerId, 'cus');
+            requireId(cardId, 'card');
+            try {
+                const card = await request(`/customers/${customerId}/cards/${cardId}`, { method: 'DELETE', cardLookup: true });
+                if (card.id !== cardId || card.status !== 'deleted') throw failure('invalid_response');
+                return { deleted: true };
+            } catch (error) {
+                if (error.code === 'pagarme.card_not_found') return { deleted: true };
+                throw error;
+            }
         },
 
         async createCard(customerId, { token, billingAddress }) {

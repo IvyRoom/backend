@@ -218,3 +218,49 @@ test('company card sync stops on a failed patch without retrying or appending', 
         assert.ok(writes.every(({ path }) => /range\(address='I[45]:K[45]'\)$/u.test(path)));
     }
 });
+
+test('company card deletion clears only reusable references for all matching CNPJ colleagues', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    const colleague = [...defaultRow];
+    colleague[0] = companyId;
+    colleague[1] = 'Renamed company';
+    const { users, calls, writes } = fixture({ values: [defaultRow, other, colleague] });
+    assert.equal(await users.clearCompanyCard(companyId), undefined);
+    assert.match(calls[2], /range\(address='A4:A6'\)\?\$select=values$/u);
+    assert.deepEqual(writes.map(({ path, body }) => ({ address: path.match(/address='([^']+)'/u)[1], body })), [
+        { address: 'I4:K4', body: { values: [['', '', '']] } },
+        { address: 'I6:K6', body: { values: [['', '', '']] } },
+    ]);
+    assert.ok(calls.every((path) => !path.includes('/rows') && !path.includes('/usedRange') && !/A4:H/u.test(path)));
+});
+
+test('company card clearing validates schema, row shape and company existence before any write', async () => {
+    for (const options of [
+        { metadata: columns.map((column, index) => index === 8 ? { ...column, name: 'SHIFTED' } : column) },
+        { range: { address: 'USUÁRIOS!A3:J4', columnCount: 10, rowCount: 2 } },
+        { companyValues: [['12.345.678/0001-95', 'extra']] },
+    ]) {
+        const { users, writes } = fixture(options);
+        await assert.rejects(users.clearCompanyCard(companyId), /schema_mismatch/u);
+        assert.equal(writes.length, 0);
+    }
+    const absent = fixture();
+    await assert.rejects(absent.users.clearCompanyCard('98765432000110'), /company_not_found/u);
+    assert.equal(absent.writes.length, 0);
+    for (const invalid of ['', 'Empresa teste', '123']) {
+        const { users, calls } = fixture();
+        await assert.rejects(users.clearCompanyCard(invalid), /invalid_company/u);
+        assert.equal(calls.length, 0);
+    }
+});
+
+test('company card clearing stops on the first failed patch without retrying or appending', async () => {
+    for (const failUpdateAt of [1, 2]) {
+        const { users, writes } = fixture({ values: [defaultRow, defaultRow], failUpdateAt });
+        await assert.rejects(users.clearCompanyCard(companyId), /synthetic patch failure/u);
+        assert.equal(writes.length, failUpdateAt);
+        assert.ok(writes.every(({ path, body }) => /range\(address='I[45]:K[45]'\)$/u.test(path)
+            && JSON.stringify(body) === JSON.stringify({ values: [['', '', '']] })));
+    }
+});

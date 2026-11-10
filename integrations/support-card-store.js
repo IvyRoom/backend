@@ -12,8 +12,9 @@ function validateRecord(record) {
             : key === 'workbookSynced' ? typeof value === 'boolean' : typeof value === 'string' && (
             (key === 'customerId' && /^cus_[A-Za-z0-9]+$/.test(value))
             || (key === 'cardId' && /^card_[A-Za-z0-9]+$/.test(value))
+            || (key === 'cardRevision' && /^[a-f0-9]{64}$/u.test(value))
             || (key === 'verification' && value === 'pagarme_verify_card_v1')
-            || (key === 'pending' && ['customer', 'card', 'workbook'].includes(value))
+            || (key === 'pending' && ['customer', 'card', 'workbook', 'delete', 'delete_workbook'].includes(value))
         );
         if (!valid) throw new Error('Invalid card reference record');
         result[key] = value;
@@ -21,9 +22,11 @@ function validateRecord(record) {
     if ((result.cardId && !result.customerId)
         || (result.pending === 'card' && !result.customerId)
         || (result.pending === 'workbook' && (!result.customerId || !result.cardId))
+        || (['delete', 'delete_workbook'].includes(result.pending) && (!result.customerId || !result.cardId))
         || (result.workbookSynced !== undefined && (!result.customerId || !result.cardId))
         || (result.workbookReferencesSynced !== undefined && (!result.customerId || !result.cardId || result.workbookSynced !== true))
         || (result.verification !== undefined && (!result.customerId || !result.cardId))
+        || (result.cardRevision !== undefined && (!result.customerId || !result.cardId))
         || (result.pending === 'workbook' && result.workbookSynced === true)
         || (result.pending === 'customer' && (result.customerId || result.cardId))) {
         throw new Error('Invalid card reference record');

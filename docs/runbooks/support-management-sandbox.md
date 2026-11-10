@@ -148,7 +148,8 @@ provider `card_id` without storing PAN or CVV; the purchase flow and its require
 PSP customer information remain a separate milestone.
 
 One-hour opaque sessions survive local backend restarts and keep their original
-absolute expiry, returned as `expiresAt` for the header countdown. Every protected
+absolute expiry, returned as `expiresAt` for background expiry enforcement. The
+session timer is not displayed. Every protected
 request rechecks the current workbook company,
 password, status and role. Logout and invalidation are persisted before they are
 acknowledged. The ignored local session store contains only token hashes,
@@ -190,7 +191,9 @@ STATUS, OBSERVAÇÃO, CNPJ, NOME COMPLETO, VALOR POR HORA, DURAÇÃO (MIN), VALO
 The last column has the table formula `=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HORA]]`.
 
 The scheduler has burgundy-to-dark-burgundy sidebar/header gradients and a white
-workspace. Its course-content header shows full name and the one-hour countdown.
+workspace. Its course-content header shows the full name; the one-hour session
+expiry runs in the background. The card tool follows a Ferramentas do Administrador
+navigation divider.
 It always displays the current month and next month in approximately 500px-wide
 blocks with square day tiles, Sunday–Saturday columns and successive week rows;
 they shrink on narrow screens. Gray tiles show unavailable dates without an
@@ -199,7 +202,9 @@ national holidays and Curitiba holidays are unavailable. A blank workbook status
 means vacant; any other status blocks booking. Full displayed months include gray
 dates outside the booking horizon. The short date-selection instruction is
 followed by the calendar and a native expandable Perguntas Frequentes section.
-Its confirmation answer displays the authenticated user's email.
+Its confirmation answer displays the authenticated user's email. The FAQ heading
+is centered, and questions expand without triangle markers. A calendar legend
+identifies the burgundy-to-green available days and gray reserved/unavailable days.
 
 Holiday rules cover the federal holidays plus Curitiba's September 8, Good Friday
 and Corpus Christi; government recesses and optional closures are not added.
@@ -246,11 +251,14 @@ card reads are fresh; save/sync invalidate that cache. Every new reservation
 performs a fresh Pagar.me GET before accepting the booking. No order or charge is
 created by this check, and the user-directory authorization is never cached.
 
-After selecting a date, the user sees 09:00, its hourly price and the reservation
-terms. Reservar Agenda requires the native acknowledgment checkbox; the request
-must include `acknowledged: true`, and the journal records `acknowledgedAt`.
-The operation has no cancellation UI. The displayed nonattendance term does not
-implement an automatic charge.
+Selecting a date dims the other day tiles and opens a native modal with the date,
+09:00 start and hourly price. Reservar Agenda reveals the nonattendance warning
+and Confirmar/Cancelar actions, with Cancelar focused by default. No reservation
+request is sent until Confirmar; it supplies `acknowledged: true`, and the journal
+records `acknowledgedAt`. Cancelar, Escape or dismissal before submission closes
+the popup without reserving. Dismissal is blocked while submission is pending.
+There is no cancellation API after a reservation is confirmed. The displayed
+nonattendance term does not implement an automatic charge.
 
 Reservar Agenda writes only the existing selected row: B=RESERVADO, D=formatted
 CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
@@ -353,6 +361,33 @@ failed replacement created no usable card; if the outcome remains uncertain,
 leave the record blocked. Any recovered card without established verification
 must use the fresh-entry flow. Never copy PAN/CVV or live credentials into these
 files or invent a verification marker during reconciliation.
+
+## Company-card deletion
+
+The administrator's trash action asks for confirmation, with Cancelar focused.
+`DELETE /support-management/api/card` accepts only the opaque
+`expectedCardRevision` of the displayed registration, never provider identifiers.
+It rechecks the workbook role and current revision, derives the selected company
+card locally, and persists `pending: "delete"` before one Pagar.me sandbox wallet DELETE.
+A matching deleted response or documented 404 establishes removal. It then stores
+`pending: "delete_workbook"`, clears I:K for the authenticated CNPJ, and retains
+only the reusable customer ID locally. The original registration form returns
+after that cleanup succeeds; the next registration reuses the company customer.
+Each fresh verified registration gets a new local revision, so a delayed deletion
+retry cannot remove its replacement. Existing registrations use a deterministic
+reference digest until their next registration; no workbook column is added.
+
+Failed or uncertain deletion does not claim success. Provider retries first GET
+the same card: deleted/404 skips another DELETE, while an active card permits one
+explicit deletion attempt. Workbook-only retries never repeat provider deletion.
+The pending state makes the card unavailable for new bookings and registration;
+the administrator can retry the trash action. No automatic external retries run.
+Company card mutations and a booking's payment-check/workbook phase share a
+company guard; neither can proceed through the other's payment state change.
+The existing provider transactions are not modified. Automated checks use
+synthetic cards and workbook clear operations only.
+
+Official request contract: [delete card](https://docs.pagar.me/reference/excluir-cart%C3%A3o).
 
 ## Verification and production follow-up
 

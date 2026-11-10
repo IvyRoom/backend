@@ -8,6 +8,7 @@ const { once } = require('node:events');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { createSupportApp } = require('../support-app');
 const { companyCode } = require('../domains/support-management');
 const { createSupportCardStore } = require('../integrations/support-card-store');
@@ -21,6 +22,19 @@ const verification = 'pagarme_verify_card_v1';
 const card = { id: 'card_synthetic', brand: 'Visa', lastFour: '0010', holderName: 'SYNTHETIC HOLDER', expMonth: 12, expYear: 2030, status: 'active' };
 const billingAddress = { line_1: '1, Rua Teste, Centro', zip_code: '01001000', city: 'São Paulo', state: 'SP', country: 'BR' };
 const cardRequest = { token: 'token_synthetic', billingAddress };
+const cardRevision = (customerId = 'cus_synthetic', cardId = card.id) => crypto.createHash('sha256').update(`${customerId}:${cardId}`).digest('hex');
+const deleteRequest = { expectedCardRevision: cardRevision() };
+
+function assertCardResponse(actual, expected) {
+    const { cardRevision: revision, ...details } = actual;
+    assert.match(revision, /^[a-f0-9]{64}$/u);
+    assert.deepEqual(details, expected);
+}
+
+function assertStoredRevision(actual, expected) {
+    assert.match(actual.cardRevision, /^[a-f0-9]{64}$/u);
+    assert.deepEqual(actual, { ...expected, cardRevision: actual.cardRevision });
+}
 
 async function fixture(t, overrides = {}) {
     let clock = 1_800_000_000_000;
@@ -30,6 +44,7 @@ async function fixture(t, overrides = {}) {
     const users = {
         async readUsers() { calls.push(['readUsers']); return state.users; },
         async writeCompanyCard(company, details, references) { calls.push(['writeCompanyCard', company, structuredClone(details), structuredClone(references)]); },
+        async clearCompanyCard(company) { calls.push(['clearCompanyCard', company]); },
     };
     const cardStore = {
         async read(code) { calls.push(['read', code]); return structuredClone(records.get(code) || {}); },
@@ -40,6 +55,7 @@ async function fixture(t, overrides = {}) {
         async createCompanyCustomer(details) { calls.push(['createCompanyCustomer', details]); return { id: 'cus_synthetic', code: details.code }; },
         async createCard(customerId, details) { calls.push(['createCard', customerId, details]); return { ...card, verificationRequested: true }; },
         async getCard(customerId, cardId) { calls.push(['getCard', customerId, cardId]); return { ...card, holder: 'PRIVATE', secret: 'PRIVATE' }; },
+        async deleteCard(customerId, cardId) { calls.push(['deleteCard', customerId, cardId]); return { deleted: true }; },
     };
     let app;
     const server = http.createServer((req, res) => app(req, res));
@@ -145,7 +161,7 @@ test('preloaded login supplies safe initial context once and session refresh kee
     const body = await response.json();
     assert.deepEqual(Object.keys(body).sort(), ['calendar', 'card', 'config', 'expiresAt', 'token', 'user']);
     assert.deepEqual(body.config, { environment: 'sandbox', publicKey: 'pk_test_synthetic' });
-    assert.deepEqual(body.card, { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
+    assertCardResponse(body.card, { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
     assert.equal(body.calendar.paymentMethodRegistered, true);
     assert.equal(body.calendar.administratorName, admin.name);
     assert.equal(body.calendar.userEmail, admin.email);
@@ -201,7 +217,7 @@ test('calendar payment readiness is cached for sixty seconds while explicit card
     f.pagarme.getCard = async (...args) => ({ ...await getCard(...args), status: 'inactive' });
     assert.equal((await readCalendar()).paymentMethodRegistered, true);
     assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
-    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+    assertCardResponse(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
     assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 2);
     assert.equal((await readCalendar()).paymentMethodRegistered, false);
     f.pagarme.getCard = getCard;
@@ -229,6 +245,289 @@ test('saving and synchronizing a card invalidate readiness even when the provide
     assert.equal((await f.request('calendar', { token })).status, 200);
     assert.equal(providerReads(), 4);
     assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
+});
+
+test('card deletion authorizes the current administrator and rejects body overrides before card access', async (t) => {
+    const f = await fixture(t);
+    seedCompanyPayment(f);
+    const token = await f.login();
+    const colleagueToken = await f.login(colleague);
+    f.calls.length = 0;
+    await expectError(await f.request('card', { method: 'DELETE' }), 401, 'session_expired');
+    assert.equal(f.calls.length, 0);
+    await expectError(await f.request('card', { method: 'DELETE', token: colleagueToken }), 403, 'administrator_required');
+    for (const body of [undefined, {}, [], ['foreign'], { expectedCardRevision: 'bad' }, { expectedCardRevision: 'A'.repeat(64) },
+        { ...deleteRequest, company: otherAdmin.company }, { ...deleteRequest, companyId: '98765432000110' },
+        { ...deleteRequest, customerId: 'cus_foreign' }, { ...deleteRequest, cardId: 'card_foreign' }, { ...deleteRequest, token: 'token_foreign' }]) {
+        await expectError(await f.request('card', { method: 'DELETE', token, body }), 400, 'invalid_request');
+    }
+    f.state.users[0].role = 'Usuário';
+    await expectError(await f.request('card', { method: 'DELETE', token }), 403, 'administrator_required');
+    assert.ok(f.calls.every(([operation]) => operation === 'readUsers'));
+});
+
+test('deletion uses trusted company references, persists each stage, clears CNPJ references and permits customer reuse', async (t) => {
+    const f = await fixture(t, { appointments: { readDates: async () => [{ date: '2027-02-01', status: '' }] },
+        bookingStore: { pendingDates: async () => new Set() } });
+    const companyId = seedCompanyPayment(f);
+    const code = companyCode(companyId);
+    const previous = structuredClone(f.records.get(code));
+    const foreign = { customerId: 'cus_foreign', cardId: 'card_foreign', verification };
+    f.records.set(companyCode(otherAdmin.company), foreign);
+    const token = await f.login();
+    assert.equal((await (await f.request('calendar', { token })).json()).paymentMethodRegistered, true);
+    f.calls.length = 0;
+    const response = await f.request('card', { method: 'DELETE', token, body: deleteRequest });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /application\/json/u);
+    assert.deepEqual(await response.json(), { card: null });
+    assert.deepEqual(f.calls.filter(([operation]) => ['write', 'deleteCard', 'clearCompanyCard'].includes(operation)), [
+        ['write', code, { ...previous, pending: 'delete' }],
+        ['deleteCard', previous.customerId, previous.cardId],
+        ['write', code, { customerId: previous.customerId, cardId: previous.cardId, cardRevision: cardRevision(), pending: 'delete_workbook' }],
+        ['clearCompanyCard', companyId],
+        ['write', code, { customerId: previous.customerId }],
+    ]);
+    assert.deepEqual(f.records.get(companyCode(otherAdmin.company)), foreign);
+    assert.deepEqual(f.records.get(code), { customerId: previous.customerId });
+    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null });
+    assert.equal((await (await f.request('calendar', { token })).json()).paymentMethodRegistered, false);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+    assert.equal((await f.request('card', { method: 'PUT', token, body: cardRequest })).status, 200);
+    assert.deepEqual(f.calls.find(([operation]) => operation === 'createCard'), ['createCard', previous.customerId, cardRequest]);
+    assert.equal(f.calls.filter(([operation]) => operation === 'findCompanyCustomer' || operation === 'createCompanyCustomer').length, 0);
+    assert.equal(f.calls.find(([operation]) => operation === 'writeCompanyCard')[1], companyId);
+    assert.equal((await (await f.request('calendar', { token })).json()).paymentMethodRegistered, true);
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+});
+
+test('deletion shares the company lock and pending deletion closes cached calendar readiness immediately', async (t) => {
+    let calendarReads = 0;
+    const f = await fixture(t, { appointments: { readDates: async () => { calendarReads++; return [{ date: '2027-02-01', status: '' }]; } },
+        bookingStore: { pendingDates: async () => new Set() } });
+    const companyId = seedCompanyPayment(f);
+    const token = await f.login();
+    assert.equal((await (await f.request('calendar', { token })).json()).paymentMethodRegistered, true);
+    let release;
+    let entered;
+    const started = new Promise((resolve) => { entered = resolve; });
+    const gate = new Promise((resolve) => { release = resolve; });
+    t.after(() => release());
+    f.pagarme.deleteCard = async (...references) => {
+        f.calls.push(['deleteCard', ...references]);
+        entered();
+        await gate;
+        return { deleted: true };
+    };
+    const deleting = f.request('card', { method: 'DELETE', token, body: deleteRequest });
+    await started;
+    const mutationsBefore = f.calls.filter(([operation]) => ['write', 'deleteCard', 'clearCompanyCard', 'getCard'].includes(operation));
+    for (const request of [
+        ['card', { method: 'DELETE', token, body: deleteRequest }],
+        ['card', { method: 'PUT', token, body: cardRequest }],
+        ['card/sync', { method: 'POST', token }],
+    ]) await expectError(await f.request(...request), 409, 'card_busy');
+    assertCardResponse(await (await f.request('card', { token })).json(), { card: null, cardDeletionPending: true });
+    const calendar = await (await f.request('calendar', { token })).json();
+    assert.equal(calendar.paymentMethodRegistered, false);
+    assert.deepEqual(calendar.days, []);
+    assert.equal(calendarReads, 1);
+    assert.deepEqual(f.calls.filter(([operation]) => ['write', 'deleteCard', 'clearCompanyCard', 'getCard'].includes(operation)), mutationsBefore);
+    assert.equal(f.records.get(companyCode(companyId)).pending, 'delete');
+    release();
+    assert.deepEqual(await (await deleting).json(), { card: null });
+});
+
+test('definite deletion rejection restores the previous card while uncertain failures retain deletion intent', async (t) => {
+    for (const definite of [false, true]) {
+        await t.test(definite ? 'definite rejection' : 'uncertain failure', async (t) => {
+            const f = await fixture(t);
+            const companyId = seedCompanyPayment(f);
+            const code = companyCode(companyId);
+            const previous = structuredClone(f.records.get(code));
+            const token = await f.login();
+            f.pagarme.deleteCard = async (...references) => {
+                f.calls.push(['deleteCard', ...references]);
+                throw Object.assign(new Error('PRIVATE provider details'), definite ? { definiteRejection: true } : {});
+            };
+            await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 503, 'card_delete_failed');
+            assert.deepEqual(f.records.get(code), definite ? previous : { ...previous, pending: 'delete' });
+            assert.equal(f.calls.filter(([operation]) => operation === 'clearCompanyCard').length, 0);
+            assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 1);
+            const current = await f.request('card', { token });
+            if (definite) assert.equal((await current.json()).card.lastFour, card.lastFour);
+            else {
+                assertCardResponse(await current.json(), { card: null, cardDeletionPending: true });
+                await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_review_required');
+                await expectError(await f.request('card/sync', { method: 'POST', token }), 409, 'card_review_required');
+            }
+        });
+    }
+});
+
+test('missing or unconfirmed provider deletion results never clear workbook references or claim success', async (t) => {
+    for (const result of [undefined, null, {}, { deleted: false }, { deleted: 'true' }]) {
+        await t.test(JSON.stringify(result) || 'undefined result', async (t) => {
+            const f = await fixture(t);
+            const companyId = seedCompanyPayment(f);
+            const token = await f.login();
+            f.pagarme.deleteCard = async (...references) => { f.calls.push(['deleteCard', ...references]); return result; };
+            await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 503, 'card_delete_failed');
+            assert.equal(f.records.get(companyCode(companyId)).pending, 'delete');
+            assert.equal(f.calls.filter(([operation]) => operation === 'clearCompanyCard').length, 0);
+            assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 1);
+        });
+    }
+});
+
+test('pending deletion reconciles provider deleted status or 404 with GET and never repeats DELETE', async (t) => {
+    for (const absent of ['deleted', '404']) {
+        await t.test(absent, async (t) => {
+            const f = await fixture(t);
+            const companyId = seedCompanyPayment(f);
+            const code = companyCode(companyId);
+            f.records.set(code, { ...f.records.get(code), pending: 'delete' });
+            const token = await f.login();
+            f.pagarme.getCard = async (...references) => {
+                f.calls.push(['getCard', ...references]);
+                if (absent === '404') throw Object.assign(new Error('Card absent'), { code: 'pagarme.card_not_found' });
+                return { ...card, status: 'deleted' };
+            };
+            assert.deepEqual(await (await f.request('card', { method: 'DELETE', token, body: deleteRequest })).json(), { card: null });
+            assert.deepEqual(f.records.get(code), { customerId: 'cus_synthetic' });
+            assert.deepEqual(f.calls.find(([operation]) => operation === 'getCard'), ['getCard', 'cus_synthetic', card.id]);
+            assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 0);
+            assert.deepEqual(f.calls.find(([operation]) => operation === 'clearCompanyCard'), ['clearCompanyCard', companyId]);
+        });
+    }
+});
+
+test('pending deletion does not treat provider read errors as absence and retries DELETE only after finding the card', async (t) => {
+    const f = await fixture(t);
+    const companyId = seedCompanyPayment(f);
+    const code = companyCode(companyId);
+    const pending = { ...f.records.get(code), pending: 'delete' };
+    f.records.set(code, pending);
+    const token = await f.login();
+    const getCard = f.pagarme.getCard;
+    f.pagarme.getCard = async (...references) => { f.calls.push(['failedGetCard', ...references]); throw new Error('PRIVATE provider read failure'); };
+    await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 503, 'card_delete_failed');
+    assert.deepEqual(f.records.get(code), pending);
+    assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard' || operation === 'clearCompanyCard').length, 0);
+    f.pagarme.getCard = getCard;
+    assert.deepEqual(await (await f.request('card', { method: 'DELETE', token, body: deleteRequest })).json(), { card: null });
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
+    assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 1);
+    assert.ok(f.calls.findIndex(([operation]) => operation === 'getCard') < f.calls.findIndex(([operation]) => operation === 'deleteCard'));
+});
+
+test('partial workbook clearing remains pending and retries only workbook clearing for the trusted company', async (t) => {
+    const f = await fixture(t);
+    const companyId = seedCompanyPayment(f);
+    const code = companyCode(companyId);
+    const token = await f.login();
+    const colleagues = [false, false];
+    let attempts = 0;
+    f.users.clearCompanyCard = async (id) => {
+        f.calls.push(['clearCompanyCard', id]);
+        attempts++;
+        colleagues[0] = true;
+        if (attempts === 1) throw new Error('PRIVATE partial workbook failure');
+        colleagues[1] = true;
+    };
+    await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 503, 'card_delete_failed');
+    assert.deepEqual(colleagues, [true, false]);
+    assert.deepEqual(f.records.get(code), { customerId: 'cus_synthetic', cardId: card.id, cardRevision: cardRevision(), pending: 'delete_workbook' });
+    assertCardResponse(await (await f.request('card', { token })).json(), { card: null, cardDeletionPending: true });
+    await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_review_required');
+    await expectError(await f.request('card/sync', { method: 'POST', token }), 409, 'card_review_required');
+    assert.deepEqual(await (await f.request('card', { method: 'DELETE', token, body: deleteRequest })).json(), { card: null });
+    assert.deepEqual(colleagues, [true, true]);
+    assert.deepEqual(f.records.get(code), { customerId: 'cus_synthetic' });
+    assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
+    assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 1);
+    assert.deepEqual(f.calls.filter(([operation]) => operation === 'clearCompanyCard'), [['clearCompanyCard', companyId], ['clearCompanyCard', companyId]]);
+});
+
+test('deletion persistence failures retain the last safe stage and recover without repeated wallet deletion', async (t) => {
+    for (const stage of ['delete', 'delete_workbook', 'complete']) {
+        await t.test(stage, async (t) => {
+            const f = await fixture(t);
+            const companyId = seedCompanyPayment(f);
+            const code = companyCode(companyId);
+            const previous = structuredClone(f.records.get(code));
+            const token = await f.login();
+            const write = f.cardStore.write;
+            f.cardStore.write = async (key, record) => {
+                if ((record.pending || 'complete') === stage) throw new Error('PRIVATE persistence failure');
+                return write(key, record);
+            };
+            await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 503, 'card_delete_failed');
+            assert.deepEqual(f.records.get(code), stage === 'delete' ? previous
+                : stage === 'delete_workbook' ? { ...previous, pending: 'delete' }
+                    : { customerId: 'cus_synthetic', cardId: card.id, cardRevision: cardRevision(), pending: 'delete_workbook' });
+            assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, stage === 'delete' ? 0 : 1);
+            assert.equal(f.calls.filter(([operation]) => operation === 'clearCompanyCard').length, stage === 'complete' ? 1 : 0);
+            f.cardStore.write = write;
+            if (stage === 'delete_workbook') f.pagarme.getCard = async (...references) => { f.calls.push(['getCard', ...references]); return { ...card, status: 'deleted' }; };
+            assert.deepEqual(await (await f.request('card', { method: 'DELETE', token, body: deleteRequest })).json(), { card: null });
+            assert.deepEqual(f.records.get(code), { customerId: 'cus_synthetic' });
+            assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard').length, 1);
+            assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, stage === 'delete_workbook' ? 1 : 0);
+        });
+    }
+});
+
+test('repeating deletion without a registered card is idempotent and never invokes the provider', async (t) => {
+    const f = await fixture(t);
+    const companyId = seedCompanyPayment(f);
+    f.records.set(companyCode(companyId), { customerId: 'cus_synthetic' });
+    const token = await f.login();
+    for (let attempt = 0; attempt < 2; attempt++) {
+        assert.deepEqual(await (await f.request('card', { method: 'DELETE', token, body: deleteRequest })).json(), { card: null });
+        assert.deepEqual(f.records.get(companyCode(companyId)), { customerId: 'cus_synthetic' });
+    }
+    assert.equal(f.calls.filter(([operation]) => ['getCard', 'deleteCard', 'findCompanyCustomer', 'createCompanyCustomer', 'createCard'].includes(operation)).length, 0);
+});
+
+test('a stale deletion retry cannot remove a freshly registered card, including reused wallet IDs', async (t) => {
+    for (const replacementId of [card.id, 'card_replacement']) {
+        await t.test(replacementId === card.id ? 'same wallet ID' : 'different wallet ID', async (t) => {
+            const f = await fixture(t);
+            const companyId = seedCompanyPayment(f);
+            const code = companyCode(companyId);
+            const token = await f.login();
+            const before = await (await f.request('card', { token })).json();
+            assert.equal(before.cardRevision, cardRevision());
+            for (const sensitive of ['cus_synthetic', card.id]) assert.equal(JSON.stringify(before).includes(sensitive), false);
+            const completedDeletion = await f.request('card', { method: 'DELETE', token, body: { expectedCardRevision: before.cardRevision } });
+            assert.equal(completedDeletion.status, 200);
+            await completedDeletion.text(); // The caller may lose this response after the server completes deletion.
+            f.pagarme.createCard = async (customerId, details) => {
+                f.calls.push(['createCard', customerId, details]);
+                return { ...card, id: replacementId, verificationRequested: true };
+            };
+            f.pagarme.getCard = async (customerId, cardId) => {
+                f.calls.push(['getCard', customerId, cardId]);
+                return { ...card, id: cardId };
+            };
+            const registration = await f.request('card', { method: 'PUT', token, body: cardRequest });
+            assert.equal(registration.status, 200);
+            const replacement = await registration.json();
+            assert.match(replacement.cardRevision, /^[a-f0-9]{64}$/u);
+            assert.notEqual(replacement.cardRevision, before.cardRevision);
+            const current = structuredClone(f.records.get(code));
+            assert.equal(current.cardId, replacementId);
+            assert.equal(current.cardRevision, replacement.cardRevision);
+            f.calls.length = 0;
+            await expectError(await f.request('card', { method: 'DELETE', token, body: { expectedCardRevision: before.cardRevision } }), 409, 'card_changed');
+            assert.deepEqual(f.records.get(code), current);
+            assert.ok(f.calls.every(([operation]) => operation === 'readUsers' || operation === 'read'));
+            const remaining = await (await f.request('card', { token })).json();
+            assert.equal(remaining.cardRevision, replacement.cardRevision);
+            assert.equal(remaining.card.lastFour, card.lastFour);
+        });
+    }
 });
 
 test('sandbox config and login expose only public fields and issue an opaque token', async (t) => {
@@ -289,7 +588,7 @@ test('workbook card references recover the customer without creating verificatio
         return null;
     };
     const token = await f.login();
-    assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+    assertCardResponse(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
     assert.deepEqual(f.records.get(companyCode(companyId)), { customerId: references.customerId, cardId: references.cardId });
     assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
     await expectError(await f.request('card/sync', { method: 'POST', token, body: {} }), 409, 'card_verification_required');
@@ -299,7 +598,7 @@ test('workbook card references recover the customer without creating verificatio
     assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
     assert.deepEqual(f.calls.find(([operation]) => operation === 'readCompanyCardReferences'), ['readCompanyCardReferences', companyId]);
     assert.equal(f.calls.find(([operation]) => operation === 'writeCompanyCard')[1], companyId);
-    assert.deepEqual(f.records.get(companyCode(companyId)), { customerId: references.customerId, cardId: references.cardId, verification, workbookSynced: true, workbookReferencesSynced: true });
+    assertStoredRevision(f.records.get(companyCode(companyId)), { customerId: references.customerId, cardId: references.cardId, verification, workbookSynced: true, workbookReferencesSynced: true });
 });
 
 test('CNPJ recovery preserves local verification only when both provider references match exactly', async (t) => {
@@ -308,7 +607,7 @@ test('CNPJ recovery preserves local verification only when both provider referen
             const root = await fs.mkdtemp(path.join(os.tmpdir(), 'support-card-cnpj-recovery-'));
             t.after(() => fs.rm(root, { recursive: true, force: true }));
             const store = createSupportCardStore(root);
-            const previous = { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true };
+            const previous = { customerId: 'cus_synthetic', cardId: card.id, cardRevision: 'c'.repeat(64), verification, workbookSynced: true, workbookReferencesSynced: true };
             const legacyCode = companyCode(admin.company);
             await store.write(legacyCode, previous);
             const f = await fixture(t, { cardStore: store });
@@ -322,12 +621,14 @@ test('CNPJ recovery preserves local verification only when both provider referen
             const migrated = await store.read(companyCode(companyId));
             assert.deepEqual(await store.read(legacyCode), previous);
             if (!Object.keys(changed).length) {
-                assert.deepEqual(migrated, { customerId: previous.customerId, cardId: previous.cardId, verification });
-                assert.equal((await response.json()).workbookSyncPending, true);
+                assert.deepEqual(migrated, { customerId: previous.customerId, cardId: previous.cardId, cardRevision: previous.cardRevision, verification });
+                const result = await response.json();
+                assert.equal(result.workbookSyncPending, true);
+                assert.equal(result.cardRevision, previous.cardRevision);
                 assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
             } else {
                 assert.deepEqual(migrated, { customerId: references.customerId, cardId: references.cardId });
-                assert.deepEqual(await response.json(), { card: null, verificationRequired: true });
+                assertCardResponse(await response.json(), { card: null, verificationRequired: true });
                 assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0);
             }
             assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard' || operation.startsWith('create')).length, 0);
@@ -566,10 +867,10 @@ test('company card is shared with colleagues and isolated from another company',
     const saved = await f.request('card', { method: 'PUT', token: adminToken, body: cardRequest });
     assert.equal(saved.status, 200);
     const publicCard = { brand: 'Visa', lastFour: '0010', expMonth: 12, expYear: 2030 };
-    assert.deepEqual(await saved.json(), { card: publicCard });
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
+    assertCardResponse(await saved.json(), { card: publicCard });
+    assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
     const colleagueCard = await f.request('card', { token: colleagueToken });
-    assert.deepEqual(await colleagueCard.json(), { card: publicCard });
+    assertCardResponse(await colleagueCard.json(), { card: publicCard });
     const otherCard = await f.request('card', { token: otherToken });
     assert.deepEqual(await otherCard.json(), { card: null });
     assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
@@ -596,7 +897,7 @@ test('confirmed provider cards remain readable when workbook synchronization fai
     const result = await saved.json();
     assert.equal(result.workbookSyncPending, true);
     assert.deepEqual(Object.keys(result.card).sort(), ['brand', 'expMonth', 'expYear', 'lastFour']);
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, pending: 'workbook' });
+    assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, pending: 'workbook' });
     const read = await f.request('card', { token });
     assert.deepEqual(await read.json(), result);
     assert.equal(writes, 1, 'GET must not mutate the workbook');
@@ -611,8 +912,8 @@ test('administrator synchronization retries only the workbook for its own confir
     const token = await f.login();
     const response = await f.request('card/sync', { method: 'POST', token });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { card: { brand: 'Visa', lastFour: '0010', expMonth: 12, expYear: 2030 } });
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
+    assertCardResponse(await response.json(), { card: { brand: 'Visa', lastFour: '0010', expMonth: 12, expYear: 2030 } });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, cardRevision: cardRevision(), verification, workbookSynced: true, workbookReferencesSynced: true });
     const writes = f.calls.filter(([operation]) => operation === 'writeCompanyCard');
     assert.equal(writes.length, 1);
     assert.equal(writes[0][1], admin.company);
@@ -640,7 +941,7 @@ test('workbook sync requires current administrator access and rejects untrusted 
 
 test('workbook sync failures preserve the confirmed card and can be retried without repeating provider creation', async (t) => {
     const f = await fixture(t);
-    const record = { customerId: 'cus_synthetic', cardId: card.id, verification, pending: 'workbook' };
+    const record = { customerId: 'cus_synthetic', cardId: card.id, cardRevision: cardRevision(), verification, pending: 'workbook' };
     f.records.set(companyCode(admin.company), record);
     const token = await f.login();
     f.users.writeCompanyCard = async () => { throw new Error('private workbook failure'); };
@@ -656,7 +957,7 @@ test('workbook sync failures preserve the confirmed card and can be retried with
     assert.deepEqual(f.records.get(companyCode(admin.company)), record);
     f.cardStore.write = write;
     assert.equal((await f.request('card/sync', { method: 'POST', token })).status, 200);
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
+    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, cardRevision: cardRevision(), verification, workbookSynced: true, workbookReferencesSynced: true });
     assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer' || operation === 'createCard').length, 0);
 });
 
@@ -682,7 +983,7 @@ test('legacy card references require fresh verification and cannot be promoted b
     for (const flags of [{}, { workbookSynced: true }, { workbookSynced: true, workbookReferencesSynced: true }, { pending: 'workbook' }]) {
         f.records.set(companyCode(admin.company), { customerId: 'cus_synthetic', cardId: 'card_legacy', ...flags });
         const before = await f.request('card', { token });
-        assert.deepEqual(await before.json(), { card: null, verificationRequired: true });
+        assertCardResponse(await before.json(), { card: null, verificationRequired: true });
         await expectError(await f.request('card/sync', { method: 'POST', token }), 409, 'card_verification_required');
     }
     assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0);
@@ -704,12 +1005,12 @@ test('fresh accepted verification registers a legacy card even when Pagar.me ret
             const f = await fixture(t);
             f.records.set(companyCode(admin.company), { customerId: 'cus_synthetic', cardId: card.id, ...flags });
             const token = await f.login();
-            assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+            assertCardResponse(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
             assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 0, 'GET cannot grant verification to the old wallet record');
             const response = await f.request('card', { method: 'PUT', token, body: cardRequest });
             assert.equal(response.status, 200);
-            assert.deepEqual(await response.json(), { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
-            assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
+            assertCardResponse(await response.json(), { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
+            assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, workbookSynced: true, workbookReferencesSynced: true });
             assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 1);
             assert.deepEqual(f.calls.find(([operation]) => operation === 'createCard'), ['createCard', 'cus_synthetic', cardRequest]);
             assert.equal(f.calls.filter(([operation]) => operation === 'findCompanyCustomer' || operation === 'createCompanyCustomer').length, 0);
@@ -765,7 +1066,7 @@ test('registered reads and workbook writes reject revoked or expired cards despi
             f.records.set(companyCode(admin.company), existing);
             f.pagarme.getCard = async () => ({ ...card, ...patch });
             const token = await f.login();
-            assert.deepEqual(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
+            assertCardResponse(await (await f.request('card', { token })).json(), { card: null, verificationRequired: true });
             await expectError(await f.request('card/sync', { method: 'POST', token }), 409, 'card_verification_required');
             assert.deepEqual(f.records.get(companyCode(admin.company)), existing);
             assert.equal(f.calls.filter(([operation]) => operation === 'writeCompanyCard').length, 0);
@@ -783,7 +1084,7 @@ test('expiry checks use the injected UTC clock and accept the entire expiry mont
     assert.ok((await (await f.request('card', { token })).json()).card);
     f.advance(Date.UTC(2027, 1, 1) - 1_800_000_000_000);
     const refreshedToken = await f.login();
-    assert.deepEqual(await (await f.request('card', { token: refreshedToken })).json(), { card: null, verificationRequired: true });
+    assertCardResponse(await (await f.request('card', { token: refreshedToken })).json(), { card: null, verificationRequired: true });
 });
 
 test('provider verification rejection never writes the workbook and preserves previous card and verification state', async (t) => {
@@ -813,9 +1114,11 @@ test('workbook synchronization and registration share the company operation lock
     await started;
     await expectError(await f.request('card/sync', { method: 'POST', token }), 409, 'card_busy');
     await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_busy');
+    await expectError(await f.request('card', { method: 'DELETE', token, body: deleteRequest }), 409, 'card_busy');
     release();
     assert.equal((await first).status, 200);
     assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
+    assert.equal(f.calls.filter(([operation]) => operation === 'deleteCard' || operation === 'clearCompanyCard').length, 0);
 });
 
 test('raw payment fields and malformed addresses are rejected before storage or provider access', async (t) => {
@@ -876,7 +1179,7 @@ test('a definite provider rejection clears its intent and permits a fresh manual
             assert.equal((await f.request('card', { token })).status, 200);
             assert.equal((await f.request('card', { method: 'PUT', token, body: { ...cardRequest, token: 'token_fresh' } })).status, 200);
             assert.equal(attempts, 2);
-            assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
+            assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
         });
     }
 });
@@ -926,7 +1229,7 @@ test('a simultaneous company save is refused while its first save completes', as
     await expectError(await f.request('card', { method: 'PUT', token, body: cardRequest }), 409, 'card_busy');
     release({ ...card, verificationRequested: true });
     assert.equal((await first).status, 200);
-    assert.deepEqual(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
+    assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification, workbookSynced: true, workbookReferencesSynced: true });
 });
 
 test('provider read failure is sanitized and logout revokes the bearer', async (t) => {

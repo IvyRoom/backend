@@ -39,6 +39,7 @@ function fixture(results) {
 test('constructs without requests and refuses absent or production keys', () => {
     for (const config of [
         {}, { ...keys, secretKey: 'sk_production' }, { ...keys, publicKey: 'pk_production' },
+        { ...keys, secretKey: 'sk_live_synthetic' }, { ...keys, publicKey: 'pk_live_synthetic' },
         { ...keys, secretKey: 'sk_test_synthetic\n' }, { ...keys, publicKey: 'pk_test_' },
         { ...keys, now: 1234 },
     ]) {
@@ -102,6 +103,95 @@ test('gets selected card and verifies its identity', async () => {
     assert.equal(good.calls[0].url, `https://api.pagar.me/core/v5/customers/${customer.id}/cards/${card.id}`);
     const bad = fixture([{ ...card, id: 'card_Other' }]);
     await assert.rejects(bad.adapter.getCard(customer.id, card.id), { code: 'pagarme.invalid_response' });
+});
+
+test('deletes one selected sandbox wallet card and projects only confirmed deletion', async () => {
+    const { adapter, calls } = fixture([{ ...card, status: 'deleted', number: '4000000000000010', cvv: '123' }]);
+    assert.deepEqual(await adapter.deleteCard(customer.id, card.id), { deleted: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, `https://api.pagar.me/core/v5/customers/${customer.id}/cards/${card.id}`);
+    assert.equal(calls[0].options.method, 'DELETE');
+    assert.equal(calls[0].options.redirect, 'error');
+    assert.equal(calls[0].options.body, undefined);
+    assert.equal(calls[0].options.headers['Content-Type'], undefined);
+    assert.ok(calls[0].options.signal instanceof AbortSignal);
+    const minimal = fixture([{ id: card.id, status: 'deleted', live: false }]);
+    assert.deepEqual(await minimal.adapter.deleteCard(customer.id, card.id), { deleted: true });
+});
+
+test('documented card absence confirms deletion while GET exposes a fixed not-found code', async () => {
+    for (const method of ['deleteCard', 'getCard']) {
+        let attempts = 0;
+        const adapter = createPagarmeAdapter({ ...keys, async fetchImpl() {
+            attempts += 1;
+            return { ok: false, status: 404, async json() { throw new Error('Must not read provider failure body'); } };
+        } });
+        if (method === 'deleteCard') assert.deepEqual(await adapter.deleteCard(customer.id, card.id), { deleted: true });
+        else await assert.rejects(adapter.getCard(customer.id, card.id), {
+            code: 'pagarme.card_not_found', message: 'Pagar.me sandbox operation failed', definiteRejection: true,
+        });
+        assert.equal(attempts, 1);
+    }
+});
+
+test('deletion rejects unsafe identifiers before a request and never retries transport failures', async () => {
+    const invalid = fixture([]);
+    for (const [customerId, cardId] of [[null, card.id], ['cus_Company1/../other', card.id], [customer.id, 'card_../other'], [customer.id, null]]) {
+        await assert.rejects(invalid.adapter.deleteCard(customerId, cardId), { code: 'pagarme.invalid_input' });
+    }
+    assert.equal(invalid.calls.length, 0);
+    const failed = fixture([new Error('PRIVATE provider request body and credentials')]);
+    await assert.rejects(failed.adapter.deleteCard(customer.id, card.id), (error) => {
+        assert.equal(error.code, 'pagarme.request_failed');
+        assert.equal(error.message, 'Pagar.me sandbox operation failed');
+        assert.equal(error.definiteRejection, undefined);
+        assert.equal(error.cause, undefined);
+        return true;
+    });
+    assert.equal(failed.calls.length, 1);
+});
+
+test('only confirmed matching sandbox deletion bodies are accepted and malformed successes remain ambiguous', async () => {
+    for (const value of [
+        { id: 'card_Other', status: 'deleted' }, { id: card.id, status: 'active' },
+        { id: card.id }, {}, null, { id: card.id, status: 'deleted', live: true },
+        { id: card.id, status: 'deleted', live: 'false' },
+    ]) {
+        const { adapter, calls } = fixture([value]);
+        await assert.rejects(adapter.deleteCard(customer.id, card.id), (error) => {
+            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.definiteRejection, undefined);
+            assert.equal(error.cause, undefined);
+            return true;
+        });
+        assert.equal(calls.length, 1);
+    }
+    let attempts = 0;
+    const malformed = createPagarmeAdapter({ ...keys, async fetchImpl() {
+        attempts += 1;
+        return { ok: true, async json() { throw new Error('PRIVATE malformed response'); } };
+    } });
+    await assert.rejects(malformed.deleteCard(customer.id, card.id), { code: 'pagarme.request_failed' });
+    assert.equal(attempts, 1);
+});
+
+test('deletion distinguishes definite rejection from ambiguous HTTP failures without treating either as absence', async () => {
+    for (const status of [400, 401, 403, 412, 422, 429, 500, 502, 503]) {
+        let attempts = 0;
+        const adapter = createPagarmeAdapter({ ...keys, async fetchImpl() {
+            attempts += 1;
+            return { ok: false, status, async json() { throw new Error('Must not read provider failure body'); } };
+        } });
+        await assert.rejects(adapter.deleteCard(customer.id, card.id), (error) => {
+            const definite = [400, 401, 403, 412, 422].includes(status);
+            assert.equal(error.code, definite ? 'pagarme.request_rejected' : 'pagarme.request_failed');
+            assert.equal(error.definiteRejection === true, definite);
+            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.cause, undefined);
+            return true;
+        });
+        assert.equal(attempts, 1);
+    }
 });
 
 test('card metadata exposes only the holder needed for workbook sync and excludes PAN or CVV', async () => {

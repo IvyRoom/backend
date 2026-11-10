@@ -84,6 +84,15 @@ function createSupportUsersAdapter({ graphClient }) {
             }
         },
 
+        async clearCompanyCard(companyId) {
+            const rows = await readCompanyRows(companyId);
+            for (const row of rows) {
+                await graphClient.api(`${WORKSHEET_PATH}/range(address='I${row}:K${row}')`).update({
+                    values: [['', '', '']],
+                });
+            }
+        },
+
         async readCompanyCardReferences(companyId) {
             const rows = await readCompanyRows(companyId);
             let references = null;

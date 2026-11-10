@@ -25,7 +25,7 @@ function createSupportApp({ frontendDirectory, origin, preload = false, ...depen
     const handlers = createSupportManagementHandlers({ ...dependencies,
         ...(preload ? { bootstrap: async (user, directory) => ({ config: { environment: 'sandbox', publicKey: dependencies.publicKey },
             ...await bookingHandlers.getCalendarContext(user, directory) }) } : {}) });
-    bookingHandlers = createSupportBookingHandlers({ ...dependencies, companyCards: handlers.companyPayment });
+    bookingHandlers = createSupportBookingHandlers({ ...dependencies, companyCards: handlers.companyPayment, claimCompany: handlers.claimCompany });
     const base = '/support-management/api';
     app.get(`${base}/config`, handlers.config);
     app.post(`${base}/login`, handlers.login);
@@ -33,6 +33,7 @@ function createSupportApp({ frontendDirectory, origin, preload = false, ...depen
     app.post(`${base}/logout`, handlers.authorize, handlers.logout);
     app.get(`${base}/card`, handlers.authorize, handlers.getCard);
     app.put(`${base}/card`, handlers.authorize, handlers.saveCard);
+    app.delete(`${base}/card`, handlers.authorize, handlers.deleteCard);
     app.post(`${base}/card/sync`, handlers.authorize, handlers.syncCard);
     app.get(`${base}/calendar`, handlers.authorize, bookingHandlers.calendar);
     app.post(`${base}/reservations`, handlers.authorize, bookingHandlers.reserve);

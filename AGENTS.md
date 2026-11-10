@@ -38,8 +38,10 @@ repository separately.
 - Support-management exception: iterate locally with the users/appointments
   workbooks and Pagar.me test API. Authentication reads users A:H; approved card
   registration writes only reusable Pagar.me references/environment to I:K,
-  never raw card data or CVV. Companies are identified by CNPJ. User-operated
-  calendar access synchronizes managed availability in appointments B:C and adds
+  never raw card data or CVV. Administrator-requested deletion revokes the
+  selected sandbox wallet card and clears the matching company references.
+  Companies are identified by CNPJ. User-operated calendar access synchronizes
+  managed availability in appointments B:C and adds
   missing dates through the end of next month, preserving manual entries and
   formulas.
   Reservations update the selected appointment row and send the requested

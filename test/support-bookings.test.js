@@ -4,7 +4,9 @@ require('./deny-production-network');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { createSupportBookingHandlers, calendarDays, eventPayload, confirmation } = require('../domains/support-bookings');
+const { createSupportManagementHandlers, companyCode } = require('../domains/support-management');
 
 const NOW = Date.parse('2026-11-09T15:00:00Z');
 const ID = 'd0b07b46-1311-41fb-984f-b338fd6b8a16';
@@ -98,6 +100,142 @@ function assertError(res, status, code) {
     assert.equal(res.statusCode, status);
     assert.deepEqual(res.body, { error: `support_management.${code}` });
 }
+
+function deferredOperation() {
+    let enter;
+    let release;
+    const started = new Promise((resolve) => { enter = resolve; });
+    const pending = new Promise((resolve) => { release = resolve; });
+    return { started, release, wait() { enter(); return pending; } };
+}
+
+function cardLifecycleFixture({ getCard, deleteCard, reserveDate, createEvent } = {}) {
+    const user = { ...USER, role: 'Administrador' };
+    const calls = [];
+    const stored = new Map();
+    const rows = WEEKDAYS.map((date) => ({ date, status: '' }));
+    let record = { customerId: 'cus_synthetic', cardId: 'card_synthetic', verification: 'pagarme_verify_card_v1',
+        workbookSynced: true, workbookReferencesSynced: true };
+    const management = createSupportManagementHandlers({
+        now: () => NOW, publicKey: 'pk_test_synthetic',
+        users: { async clearCompanyCard(company) { calls.push(['clear', company]); } },
+        cardStore: {
+            async read(code) { assert.equal(code, companyCode(COMPANY_ID)); return structuredClone(record); },
+            async write(code, value) { assert.equal(code, companyCode(COMPANY_ID)); record = structuredClone(value); },
+        },
+        pagarme: {
+            async getCard() {
+                calls.push(['getCard']);
+                if (getCard) await getCard();
+                return { ...MASKED_CARD, id: 'card_synthetic', status: 'active', expMonth: 12, expYear: 2030 };
+            },
+            async deleteCard() {
+                calls.push(['deleteCard']);
+                if (deleteCard) await deleteCard();
+                return { deleted: true };
+            },
+        },
+    });
+    const bookings = createSupportBookingHandlers({
+        now: () => NOW, companyCards: management.companyPayment, claimCompany: management.claimCompany,
+        appointments: {
+            async readDates() { calls.push(['dates']); return structuredClone(rows); },
+            async reserveDate(payload) {
+                calls.push(['reserve', payload.date]);
+                if (reserveDate) await reserveDate(payload.date);
+                rows.find((row) => row.date === payload.date).status = 'RESERVADO';
+            },
+        },
+        bookingStore: {
+            async read(id) { return stored.get(id); },
+            async write(booking) { stored.set(booking.id, structuredClone(booking)); },
+            async remove(id) { stored.delete(id); },
+            async pendingDates() { return new Set([...stored.values()].filter((booking) => booking.stage !== 'complete').map((booking) => booking.date)); },
+        },
+        bookingNotifications: {
+            async createEvent() {
+                calls.push(['event']);
+                if (createEvent) await createEvent();
+                return { eventId: 'synthetic', iCalUid: 'synthetic@example.invalid' };
+            },
+            async sendConfirmation() { calls.push(['mail']); },
+        },
+    });
+    return { calls, stored,
+        async reserve(date = WEEKDAYS[0], requestId = ID) {
+            const res = response(user);
+            await bookings.reserve({ body: { date, priceCents: 100000, requestId, acknowledged: true } }, res);
+            return res;
+        },
+        async delete() {
+            const res = response(user);
+            const expectedCardRevision = crypto.createHash('sha256').update('cus_synthetic:card_synthetic').digest('hex');
+            await management.deleteCard({ body: { expectedCardRevision } }, res);
+            return res;
+        },
+    };
+}
+
+test('card deletion cannot race a delayed active-card response into an unbacked reservation', async () => {
+    const reading = deferredOperation();
+    const app = cardLifecycleFixture({ getCard: () => reading.wait() });
+    const booking = app.reserve();
+    await reading.started;
+    assertError(await app.delete(), 409, 'card_busy');
+    assert.equal(app.calls.filter(([type]) => type === 'deleteCard' || type === 'clear').length, 0);
+    reading.release();
+    assert.equal((await booking).body.reserved, true);
+    assert.deepEqual((await app.delete()).body, { card: null });
+    assert.equal(app.calls.filter(([type]) => type === 'getCard').length, 1);
+    assert.equal(app.calls.filter(([type]) => type === 'deleteCard').length, 1);
+    assert.ok(app.calls.findIndex(([type]) => type === 'reserve') < app.calls.findIndex(([type]) => type === 'deleteCard'));
+});
+
+test('a reservation starting during card deletion makes no provider or booking writes and remains gated afterward', async () => {
+    const deleting = deferredOperation();
+    const app = cardLifecycleFixture({ deleteCard: () => deleting.wait() });
+    const deletion = app.delete();
+    await deleting.started;
+    assertError(await app.reserve(), 409, 'card_busy');
+    assert.equal(app.stored.size, 0);
+    assert.equal(app.calls.filter(([type]) => ['getCard', 'reserve', 'event', 'mail'].includes(type)).length, 0);
+    deleting.release();
+    assert.deepEqual((await deletion).body, { card: null });
+    assertError(await app.reserve(), 403, 'payment_method_required');
+    assert.equal(app.stored.size, 0);
+});
+
+test('parallel same-company bookings retain their shared card guard until every workbook write completes', async () => {
+    const first = deferredOperation();
+    const second = deferredOperation();
+    const app = cardLifecycleFixture({ reserveDate: (date) => date === WEEKDAYS[0] ? first.wait() : second.wait() });
+    const bookingOne = app.reserve();
+    await first.started;
+    const bookingTwo = app.reserve(WEEKDAYS[1], OTHER_ID);
+    await second.started;
+    assertError(await app.delete(), 409, 'card_busy');
+    first.release();
+    assert.equal((await bookingOne).body.reserved, true);
+    assertError(await app.delete(), 409, 'card_busy');
+    second.release();
+    assert.equal((await bookingTwo).body.reserved, true);
+    assert.deepEqual((await app.delete()).body, { card: null });
+    assert.equal(app.calls.filter(([type]) => type === 'getCard').length, 2);
+    assert.equal(app.calls.filter(([type]) => type === 'reserve').length, 2);
+});
+
+test('the company card guard is released before booking notifications and after payment-check failures', async () => {
+    const notifying = deferredOperation();
+    const app = cardLifecycleFixture({ createEvent: () => notifying.wait() });
+    const booking = app.reserve();
+    await notifying.started;
+    assert.deepEqual((await app.delete()).body, { card: null });
+    notifying.release();
+    assert.equal((await booking).body.reserved, true);
+    const failed = cardLifecycleFixture({ getCard: async () => { throw new Error('Synthetic read failure'); } });
+    assertError(await failed.reserve(), 503, 'reservation_failed');
+    assert.deepEqual((await failed.delete()).body, { card: null });
+});
 
 test('calendar preserves past days and weekends as unavailable while tomorrow follows São Paulo time', () => {
     const rows = ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-14', '2026-11-15',

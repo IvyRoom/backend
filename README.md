@@ -9,12 +9,15 @@ companion frontend sources directly and restarts the support backend after code
 changes; refresh the browser for frontend edits. It reads user access from the
 real workbook and manages availability from tomorrow through the end of next month,
 excluding weekends and national/Curitiba holidays while preserving manual blocks.
-After a verified company card is registered, users can acknowledge the booking
-terms and reserve a 09:00 Microsoft Teams appointment, with a two-hour calendar
-hold and confirmation email. Company-card registration uses the Pagar.me test API
+After a verified company card is registered, users can review the date and price
+in a popup, then confirm the booking terms and reserve a 09:00 Microsoft Teams
+appointment, with a two-hour calendar hold and confirmation email. Company-card
+registration uses the Pagar.me test API
 and synchronizes reusable references by CNPJ. Sessions last one hour; login
-preloads the public scheduler context. Reservations and nonattendance do not
-automatically charge a card, and actual duration remains a workbook entry.
+preloads the public scheduler context. Administrators can delete the selected
+company card through the trash action and register a new card afterward.
+Reservations and nonattendance do not automatically charge a card, and actual
+duration remains a workbook entry.
 Run `npm run support:test` for isolated checks; real bookings are user-operated.
 Keep checkpoint commits local until Lucas explicitly requests publication.
 See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for test-key
