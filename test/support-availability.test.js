@@ -5,21 +5,37 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { appointmentAvailability, bookingCalendarRange, holidayReason, addCalendarDays } = require('../domains/support-availability');
 
-test('availability starts tomorrow and ends at today plus thirty calendar days, including neither weekends nor holidays', () => {
-    const today = '2026-11-09';
-    for (const date of ['2026-11-08', today, '2026-11-14', '2026-11-15', '2026-11-20', '2026-12-10']) {
+test('availability starts tomorrow and continues through the end of next month, excluding weekends and holidays', () => {
+    const today = '2026-11-10';
+    for (const date of ['2026-11-09', today, '2026-11-14', '2026-11-15', '2026-11-20', '2026-12-25', '2027-01-04']) {
         assert.equal(appointmentAvailability(date, today), false, date);
     }
-    for (const date of ['2026-11-10', '2026-11-11', '2026-12-09']) {
+    for (const date of ['2026-11-11', '2026-12-09', '2026-12-11', '2026-12-31']) {
         assert.equal(appointmentAvailability(date, today), true, date);
     }
 });
 
-test('visible calendar includes whole months containing today and the thirty-day horizon', () => {
+test('visible calendar always includes exactly the current and next month across short months and year boundaries', () => {
     assert.deepEqual(bookingCalendarRange('2026-11-09'), { first: '2026-11-01', last: '2026-12-31' });
     assert.deepEqual(bookingCalendarRange('2026-11-01'), { first: '2026-11-01', last: '2026-12-31' });
     assert.deepEqual(bookingCalendarRange('2026-02-01'), { first: '2026-02-01', last: '2026-03-31' });
+    assert.deepEqual(bookingCalendarRange('2026-10-01'), { first: '2026-10-01', last: '2026-11-30' });
+    assert.deepEqual(bookingCalendarRange('2026-01-31'), { first: '2026-01-01', last: '2026-02-28' });
+    assert.deepEqual(bookingCalendarRange('2028-01-31'), { first: '2028-01-01', last: '2028-02-29' });
     assert.deepEqual(bookingCalendarRange('2026-12-20'), { first: '2026-12-01', last: '2027-01-31' });
+    assert.deepEqual(bookingCalendarRange('2026-12-31'), { first: '2026-12-01', last: '2027-01-31' });
+});
+
+test('month windows allow day thirty-one and leap days while rejecting dates in the following month', () => {
+    assert.equal(appointmentAvailability('2026-12-11', '2026-11-10'), true);
+    assert.equal(appointmentAvailability('2026-12-31', '2026-11-10'), true);
+    assert.equal(appointmentAvailability('2027-01-04', '2026-11-10'), false);
+    assert.equal(appointmentAvailability('2026-03-31', '2026-02-01'), true);
+    assert.equal(appointmentAvailability('2026-04-01', '2026-02-01'), false);
+    assert.equal(appointmentAvailability('2028-02-29', '2028-01-10'), true);
+    assert.equal(appointmentAvailability('2028-03-01', '2028-01-10'), false);
+    assert.equal(appointmentAvailability('2027-01-29', '2026-12-20'), true);
+    assert.equal(appointmentAvailability('2027-02-01', '2026-12-20'), false);
 });
 
 test('national and Curitiba legal holidays are unavailable, including moving religious dates', () => {

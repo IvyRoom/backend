@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { MAX_AVAILABILITY_DATES } = require('../domains/support-availability');
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const STAGES = ['workbook', 'event', 'confirmation', 'complete'];
@@ -43,7 +44,7 @@ function validMeetingUrl(value) {
 
 function validateAvailabilityIntent(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1
-        || !Array.isArray(value.dates) || !value.dates.length || value.dates.length > 30
+        || !Array.isArray(value.dates) || !value.dates.length || value.dates.length > MAX_AVAILABILITY_DATES
         || value.dates.some((date, index) => typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(date)
             || !Number.isFinite(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date
             || (index > 0 && date <= value.dates[index - 1]))) throw new Error('Invalid availability intent');

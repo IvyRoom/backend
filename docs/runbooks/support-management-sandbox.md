@@ -2,7 +2,7 @@
 
 This version provides workbook-backed login, 09:00 Brasília-time Microsoft Teams
 reservations and administrator-managed company cards. Invitations hold up to
-90 minutes; actual duration remains a manual workbook entry. Reservations and
+two hours; actual duration remains a manual workbook entry. Reservations and
 nonattendance do not automatically charge a card. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
@@ -86,7 +86,7 @@ trigger a preview deployment even while a PR is a draft.
    not create an order or charge and does not send an email.
 8. For booking acceptance, select the intended date in Agendamento, review the
    rate and nonattendance term, tick Estou ciente and click Reservar Agenda.
-   Verify the reserved row, the 09:00–10:30 Teams invitation and confirmation at
+   Verify the reserved row, the 09:00–11:00 Teams invitation and confirmation at
    both recipient accounts. This is a real reservation and notification test.
 9. Stop the server with Ctrl+C when finished.
 
@@ -182,21 +182,24 @@ is running. Do not run parallel copies of the sandbox against the same test acco
 
 ## Date reservations
 
-Verified schema on 2026-11-09: BD - ATENDIMENTOS drive item
+Verified schema on 2026-11-10: BD - ATENDIMENTOS drive item
 `01OSXVECSFKTNUUJS3TZDKCLDRXFZCMVYB`, sheet ATENDIMENTOS, table BD
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}`, initially A3:H55. The table now grows as
 dates are added. Its exact columns are DATA,
 STATUS, OBSERVAÇÃO, CNPJ, NOME COMPLETO, VALOR POR HORA, DURAÇÃO (MIN), VALOR COBRADO.
 The last column has the table formula `=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HORA]]`.
 
-The white/light-gray scheduler follows the course-content header arrangement,
-showing full name and the one-hour countdown. Months appear as 500px squares,
-with Sunday–Saturday columns and successive week rows; they shrink on narrow
-screens. Gray tiles show unavailable dates without an INDISPONÍVEL caption.
-Only tomorrow through today+30, in São Paulo time, can be booked. Weekends,
+The scheduler has burgundy-to-dark-burgundy sidebar/header gradients and a white
+workspace. Its course-content header shows full name and the one-hour countdown.
+It always displays the current month and next month in approximately 500px-wide
+blocks with square day tiles, Sunday–Saturday columns and successive week rows;
+they shrink on narrow screens. Gray tiles show unavailable dates without an
+INDISPONÍVEL caption. Only tomorrow through the last day of next month, in São Paulo time, can be booked. Weekends,
 national holidays and Curitiba holidays are unavailable. A blank workbook status
 means vacant; any other status blocks booking. Full displayed months include gray
-dates outside the booking horizon.
+dates outside the booking horizon. The short date-selection instruction is
+followed by the calendar and a native expandable Perguntas Frequentes section.
+Its confirmation answer displays the authenticated user's email.
 
 Holiday rules cover the federal holidays plus Curitiba's September 8, Good Friday
 and Corpus Christi; government recesses and optional closures are not added.
@@ -207,8 +210,8 @@ Sources: [national holidays](https://www2.camara.leg.br/legin/fed/lei/1940-1949/
 and [official 2026 calendar](https://www.curitiba.pr.gov.br/noticias/prefeitura-de-curitiba-define-calendario-de-feriados-recessos-e-pontos-facultativos-para-2026/80481).
 Easter-based dates use the [USNO computus](https://aa.usno.navy.mil/faq/easter).
 
-When a verified card is present, calendar loading ensures all next 30 calendar
-dates have table rows. Automatic availability changes touch only B/C on otherwise
+When a verified card is present, calendar loading ensures all dates from tomorrow
+through the last day of next month have table rows. Automatic availability changes touch only B/C on otherwise
 vacant rows: B=`INDISPONÍVEL`, C=`APP: INDISPONÍVEL` marks an app-managed block.
 The app clears its own marker when a date becomes eligible. It preserves manual
 statuses/notes, existing booking data and every RESERVADO row. No BD - USUÁRIOS
@@ -254,13 +257,13 @@ CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
 OBSERVAÇÃO, DURAÇÃO (MIN) and VALOR COBRADO, including the existing formula.
 The date is rechecked immediately before the single Graph PATCH; reservation
 itself adds no row. Meetings start at 09:00 Brasília time and may last up to
-1h30min as needed. DURAÇÃO (MIN), column G, remains manual; H calculates the charge
+2h as needed. DURAÇÃO (MIN), column G, remains manual; H calculates the charge
 from that actual duration and the agreed rate. No card is charged.
 Workbook edits made concurrently outside this local app are not atomic
 with its PATCH; avoid another booking writer during this local trial.
 
 After the row is reserved, the app requests a Microsoft Teams event holding
-09:00–10:30 in the contato mailbox's calendar, in Brasília time, and invites the
+09:00–11:00 in the contato mailbox's calendar, in Brasília time, and invites the
 authenticated user. Its returned Teams link is included when provided. Graph
 sends the attendee invitation automatically. A confirmation goes to
 contato@machadogestao.com and the authenticated user, with a calendar attachment

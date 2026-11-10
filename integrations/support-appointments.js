@@ -1,7 +1,7 @@
 'use strict';
 
 const { RetryHandlerOptions } = require('@microsoft/microsoft-graph-client');
-const { appointmentAvailability, isCalendarDate, addCalendarDays } = require('../domains/support-availability');
+const { appointmentAvailability, bookingCalendarRange, isCalendarDate, addCalendarDays, MAX_AVAILABILITY_DATES } = require('../domains/support-availability');
 
 const WORKSHEET_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be/drive/items/01OSXVECSFKTNUUJS3TZDKCLDRXFZCMVYB/workbook/worksheets/{00000000-0001-0000-0000-000000000000}';
 const TABLE_PATH = `${WORKSHEET_PATH}/tables/{7C4EBF15-124A-4107-9867-F83E9C664B31}`;
@@ -96,7 +96,9 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
             await availabilityJournal.clear();
         }
         const present = new Set(rows.map(({ date }) => date));
-        const missing = Array.from({ length: 30 }, (_, index) => addCalendarDays(today, index + 1)).filter((date) => !present.has(date));
+        const lastDate = bookingCalendarRange(today).last;
+        const remainingDays = (Date.parse(`${lastDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MILLISECONDS;
+        const missing = Array.from({ length: remainingDays }, (_, index) => addCalendarDays(today, index + 1)).filter((date) => !present.has(date));
         if (missing.length) {
             // A durable intent prevents replay when rows/add succeeds but its response is lost.
             await availabilityJournal.write({ dates: missing });
@@ -180,8 +182,8 @@ function snapshotRows(response, count, firstRow) {
 
 function validIntent(intent) {
     return intent && typeof intent === 'object' && !Array.isArray(intent)
-        && Object.keys(intent).length === 1 && Array.isArray(intent.dates) && intent.dates.length > 0 && intent.dates.length <= 30
-        && intent.dates.every(isCalendarDate) && new Set(intent.dates).size === intent.dates.length;
+        && Object.keys(intent).length === 1 && Array.isArray(intent.dates) && intent.dates.length > 0 && intent.dates.length <= MAX_AVAILABILITY_DATES
+        && intent.dates.every((date, index) => isCalendarDate(date) && (index === 0 || date > intent.dates[index - 1]));
 }
 
 function managedAvailabilityChange(row, today) {

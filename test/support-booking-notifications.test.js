@@ -74,7 +74,7 @@ test('calendar creation preserves the domain payload and projects only bounded p
         transactionId: 'd0b07b46-1311-41fb-984f-b338fd6b8a16',
         isAllDay: false,
         start: { dateTime: '2026-11-12T09:00:00', timeZone: 'E. South America Standard Time' },
-        end: { dateTime: '2026-11-12T10:30:00', timeZone: 'E. South America Standard Time' },
+        end: { dateTime: '2026-11-12T11:00:00', timeZone: 'E. South America Standard Time' },
         isOnlineMeeting: true,
         onlineMeetingProvider: 'teamsForBusiness',
         attendees: [{ emailAddress: { address: 'user@example.invalid' }, type: 'required' }],

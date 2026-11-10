@@ -40,7 +40,8 @@ repository separately.
   registration writes only reusable Pagar.me references/environment to I:K,
   never raw card data or CVV. Companies are identified by CNPJ. User-operated
   calendar access synchronizes managed availability in appointments B:C and adds
-  missing dates in the next 30 days, preserving manual entries and formulas.
+  missing dates through the end of next month, preserving manual entries and
+  formulas.
   Reservations update the selected appointment row and send the requested
   confirmation/invitation to the authenticated user and contato. Automated checks
   use synthetic bookings/messages and never exercise those real writes. Keep

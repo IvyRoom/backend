@@ -1,6 +1,7 @@
 'use strict';
 
 const DAY_MILLISECONDS = 86400000;
+const MAX_AVAILABILITY_DATES = 62;
 // Federal Laws 662/1949, 6.802/1980 and 14.759/2023; Curitiba Law 3.015/1967.
 const FIXED_HOLIDAYS = new Map([
     ['01-01', 'Confraternização Universal'], ['04-21', 'Tiradentes'], ['05-01', 'Dia do Trabalho'],
@@ -24,9 +25,8 @@ function addCalendarDays(date, days) {
 
 function bookingCalendarRange(today) {
     if (!isCalendarDate(today)) throw new Error('support_availability.invalid_date');
-    const horizon = addCalendarDays(today, 30);
-    const month = new Date(`${horizon}T00:00:00Z`);
-    month.setUTCMonth(month.getUTCMonth() + 1, 0);
+    const month = new Date(`${today}T00:00:00Z`);
+    month.setUTCMonth(month.getUTCMonth() + 2, 0);
     return { first: `${today.slice(0, 7)}-01`, last: month.toISOString().slice(0, 10) };
 }
 
@@ -59,8 +59,8 @@ function holidayReason(date) {
 
 function appointmentAvailability(date, today) {
     if (!isCalendarDate(today)) throw new Error('support_availability.invalid_date');
-    if (!isCalendarDate(date) || date <= today || date > addCalendarDays(today, 30)) return false;
+    if (!isCalendarDate(date) || date <= today || date > bookingCalendarRange(today).last) return false;
     return ![0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !holidayReason(date);
 }
 
-module.exports = { appointmentAvailability, bookingCalendarRange, holidayReason, isCalendarDate, addCalendarDays };
+module.exports = { appointmentAvailability, bookingCalendarRange, holidayReason, isCalendarDate, addCalendarDays, MAX_AVAILABILITY_DATES };

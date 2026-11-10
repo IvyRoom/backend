@@ -109,9 +109,9 @@ test('availability intent persists an ordered batch separately from reservations
     assert.deepEqual(await createSupportBookingStore(root).readAvailabilityIntent(), intent);
     assert.deepEqual(await store.pendingDates(), new Set(['2026-11-10']));
     assert.deepEqual(await store.read(ID), record());
-    const thirtyDays = { dates: Array.from({ length: 30 }, (_, index) => new Date(Date.UTC(2028, 1, index + 1)).toISOString().slice(0, 10)) };
-    await store.writeAvailabilityIntent(thirtyDays);
-    assert.deepEqual(await store.readAvailabilityIntent(), thirtyDays);
+    const calendarWindow = { dates: Array.from({ length: 62 }, (_, index) => new Date(Date.UTC(2028, 0, index + 1)).toISOString().slice(0, 10)) };
+    await store.writeAvailabilityIntent(calendarWindow);
+    assert.deepEqual(await store.readAvailabilityIntent(), calendarWindow);
     await store.clearAvailabilityIntent();
     await store.clearAvailabilityIntent();
     assert.equal(await store.readAvailabilityIntent(), null);
@@ -128,7 +128,7 @@ test('invalid availability intents cannot replace the last durable batch', async
         { dates: ['2026-13-01'] }, { dates: ['2026-11-10T00:00:00Z'] }, { dates: ['../escape'] },
         { dates: ['2026-11-10', '2026-11-10'] }, { dates: ['2026-11-11', '2026-11-10'] },
         { dates: ['2026-11-10'], extra: true },
-        { dates: Array.from({ length: 31 }, (_, index) => new Date(Date.UTC(2026, 10, index + 1)).toISOString().slice(0, 10)) }]) {
+        { dates: Array.from({ length: 63 }, (_, index) => new Date(Date.UTC(2026, 10, index + 1)).toISOString().slice(0, 10)) }]) {
         await assert.rejects(store.writeAvailabilityIntent(value), /Invalid availability intent/u);
         assert.deepEqual(await store.readAvailabilityIntent(), previous);
         assert.deepEqual(await fs.readdir(root), ['availability-sync.json']);

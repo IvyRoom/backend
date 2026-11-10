@@ -11,7 +11,7 @@ const COLUMNS = ['DATA', 'STATUS', 'OBSERVAÇÃO', 'CNPJ', 'NOME COMPLETO', 'VAL
 const FORMULA = '=[@[DURAÇÃO (MIN)]]/60*[@[VALOR POR HORA]]';
 const MARKER = 'APP: INDISPONÍVEL';
 const TODAY = '2026-11-09';
-const WINDOW = Array.from({ length: 30 }, (_, index) => addCalendarDays(TODAY, index + 1));
+const WINDOW = Array.from({ length: 52 }, (_, index) => addCalendarDays(TODAY, index + 1));
 
 function row(date, status = '', note = '', identity = ['', '', '', '']) {
     return [(Date.parse(`${date}T00:00:00Z`) - Date.UTC(1899, 11, 30)) / 86400000, status, note, ...identity, 0];
@@ -107,7 +107,7 @@ test('no-change sync verifies table location, headers, data and formulas with on
     assert.equal(f.requests.length, 1);
     assert.match(f.requests[0].path, /\/tables\/\{7C4EBF15-124A-4107-9867-F83E9C664B31\}\/range\?\$select=address,rowCount,columnCount,values,formulas$/u);
     assert.equal(mutations(f).length, 0);
-    assert.deepEqual(result.map(({ excelRow }) => excelRow), Array.from({ length: 30 }, (_, index) => index + 4));
+    assert.deepEqual(result.map(({ excelRow }) => excelRow), Array.from({ length: WINDOW.length }, (_, index) => index + 4));
     assert.deepEqual(f.state, initial);
 });
 
@@ -143,12 +143,14 @@ test('availability sync preserves manual blocks, notes, bookings and computed co
     initial[1] = row('2026-11-11', 'INDISPONÍVEL');
     initial[2] = row('2026-11-12', '', 'Manual observation');
     initial[3] = row('2026-11-13', 'INDISPONÍVEL', MARKER);
-    initial.push(row('2026-11-08'), row('2026-12-10'));
+    initial[WINDOW.indexOf('2026-12-28')] = row('2026-12-28', 'INDISPONÍVEL');
+    initial[WINDOW.indexOf('2026-12-29')] = row('2026-12-29', 'INDISPONÍVEL', 'Recesso');
+    initial.push(row('2026-11-08'), row('2027-01-04'));
     const f = fixture({ initial });
     const result = await f.adapter.syncAvailability({ today: TODAY });
     assert.deepEqual(f.state.slice(0, 3), initial.slice(0, 3));
     assert.deepEqual(f.state[3].slice(1, 3), ['', '']);
-    for (const date of ['2026-11-08', '2026-11-14', '2026-11-20', '2026-12-10']) {
+    for (const date of ['2026-11-08', '2026-11-14', '2026-11-20', '2027-01-04']) {
         const entry = result.find((item) => item.date === date);
         assert.equal(entry.status, 'INDISPONÍVEL', date);
         assert.equal(f.state[entry.excelRow - 4][2], MARKER, date);
@@ -158,11 +160,13 @@ test('availability sync preserves manual blocks, notes, bookings and computed co
     assert.ok(mutations(f)[0].body.values.some((cells) => cells[0] === null && cells[1] === null));
     for (const request of mutations(f)) noSdkRetry(request);
     assert.equal(result.some((entry) => Object.hasOwn(entry, 'cells')), false);
+    assert.deepEqual(f.state[WINDOW.indexOf('2026-12-28')], initial[WINDOW.indexOf('2026-12-28')]);
+    assert.deepEqual(f.state[WINDOW.indexOf('2026-12-29')], initial[WINDOW.indexOf('2026-12-29')]);
     assert.ok(f.state.every((cells, index) => cells.slice(3).every((value, offset) => value === initial[index][offset + 3])));
 });
 
-test('sync appends missing dates once in one batch limited to tomorrow through day thirty', async () => {
-    const missing = new Set(['2026-11-10', '2026-11-14', '2026-11-20', '2026-12-09']);
+test('sync appends missing dates once in one batch through the end of next month', async () => {
+    const missing = new Set(['2026-11-10', '2026-11-14', '2026-11-20', '2026-12-31']);
     const f = fixture({ initial: WINDOW.filter((date) => !missing.has(date)).map((date) => row(date)) });
     const result = await f.adapter.syncAvailability({ today: TODAY });
     const appends = mutations(f).filter(({ path }) => path.endsWith('/rows/add'));
@@ -177,6 +181,33 @@ test('sync appends missing dates once in one batch limited to tomorrow through d
     assert.deepEqual(appended.map((cells) => cells[1]), ['', 'INDISPONÍVEL', 'INDISPONÍVEL', '']);
     await f.adapter.syncAvailability({ today: TODAY });
     assert.equal(mutations(f).filter(({ path }) => path.endsWith('/rows/add')).length, 1);
+});
+
+test('November tenth sync fills every remaining date through December thirty-first, including beyond day thirty', async () => {
+    const f = fixture({ initial: [] });
+    const result = await f.adapter.syncAvailability({ today: '2026-11-10' });
+    const appends = mutations(f).filter(({ path }) => path.endsWith('/rows/add'));
+    assert.equal(appends.length, 1);
+    assert.equal(appends[0].body.values.length, 51);
+    assert.equal(result[0].date, '2026-11-11');
+    assert.equal(result[result.length - 1].date, '2026-12-31');
+    assert.equal(result.find(({ date }) => date === '2026-12-11').status, '');
+    assert.equal(result.find(({ date }) => date === '2026-12-31').status, '');
+    assert.equal(result.some(({ date }) => date <= '2026-11-10' || date >= '2027-01-01'), false);
+    assert.equal(f.intent(), null);
+});
+
+test('sync reconciles larger sorted intents but refuses unsorted or oversized intents without writes', async () => {
+    const initial = WINDOW.map((date) => appointmentAvailability(date, TODAY) ? row(date) : row(date, 'INDISPONÍVEL', MARKER));
+    const reconciled = fixture({ initial, intent: { dates: WINDOW } });
+    assert.equal((await reconciled.adapter.syncAvailability({ today: TODAY })).length, WINDOW.length);
+    assert.equal(reconciled.intent(), null);
+    assert.equal(mutations(reconciled).length, 0);
+    for (const dates of [[WINDOW[1], WINDOW[0]], Array.from({ length: 63 }, (_, index) => addCalendarDays(TODAY, index + 1))]) {
+        const f = fixture({ initial, intent: { dates } });
+        await assert.rejects(f.adapter.syncAvailability({ today: TODAY }), /availability_review_required/u);
+        assert.equal(mutations(f).length, 0);
+    }
 });
 
 test('successful append with a lost response reconciles its durable intent after adapter recreation without replay', async () => {

@@ -5,7 +5,7 @@ const { appointmentAvailability, bookingCalendarRange, isCalendarDate } = requir
 
 const CONTACT = 'contato@machadogestao.com';
 const TIME_ZONE = 'E. South America Standard Time';
-const TIME_LABEL = 'Início às 09:00 (horário de Brasília), com duração de até 1h30min, conforme necessário.';
+const TIME_LABEL = 'Início às 09:00 (horário de Brasília), com duração de até 2h, conforme necessário.';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -68,7 +68,7 @@ function confirmation(booking) {
         'BEGIN:VEVENT', `UID:${textCalendar(booking.iCalUid)}`,
         `DTSTAMP:${new Date(booking.createdAt).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '')}`,
         `DTSTART:${calendarTime(booking.date, '09:00')}`,
-        `DTEND:${calendarTime(booking.date, '10:30')}`,
+        `DTEND:${calendarTime(booking.date, '11:00')}`,
         `SUMMARY:${textCalendar(subject)}`, `DESCRIPTION:${textCalendar(description)}`,
         `ORGANIZER:mailto:${CONTACT}`, `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
         ...(booking.meetingUrl ? [`URL:${booking.meetingUrl}`] : []),
@@ -84,7 +84,7 @@ function eventPayload(booking) {
     const message = confirmation({ ...booking, iCalUid: booking.iCalUid || booking.id });
     return { subject: message.subject, body: message.body, isAllDay: false,
         start: { dateTime: `${booking.date}T09:00:00`, timeZone: TIME_ZONE },
-        end: { dateTime: `${booking.date}T10:30:00`, timeZone: TIME_ZONE },
+        end: { dateTime: `${booking.date}T11:00:00`, timeZone: TIME_ZONE },
         isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness',
         attendees: normalize(booking.email) === CONTACT ? [] : [{ emailAddress: { address: booking.email, name: booking.name }, type: 'required' }],
         showAs: 'busy', transactionId: booking.id,

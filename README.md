@@ -7,10 +7,10 @@ The service connects the frontend applications in [`IvyRoom/sistemas`](https://g
 Develop support management locally with `npm run support:dev`. It serves the
 companion frontend sources directly and restarts the support backend after code
 changes; refresh the browser for frontend edits. It reads user access from the
-real workbook and manages availability from tomorrow through the next 30 days,
+real workbook and manages availability from tomorrow through the end of next month,
 excluding weekends and national/Curitiba holidays while preserving manual blocks.
 After a verified company card is registered, users can acknowledge the booking
-terms and reserve a 09:00 Microsoft Teams appointment, with a 90-minute calendar
+terms and reserve a 09:00 Microsoft Teams appointment, with a two-hour calendar
 hold and confirmation email. Company-card registration uses the Pagar.me test API
 and synchronizes reusable references by CNPJ. Sessions last one hour; login
 preloads the public scheduler context. Reservations and nonattendance do not

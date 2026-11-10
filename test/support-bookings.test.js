@@ -111,13 +111,13 @@ test('calendar preserves past days and weekends as unavailable while tomorrow fo
     assert.equal(calendarDays(rows, 1000, Date.parse('2026-11-14T02:30:00Z')).find(({ available }) => available).date, '2026-11-16');
 });
 
-test('calendar includes all seven days but limits availability to tomorrow through the thirtieth day', () => {
+test('calendar includes all seven days and eligible dates through the end of next month', () => {
     const dates = ['2026-10-31', '2026-11-01', '2026-11-09', '2026-11-10', '2026-11-14',
         '2026-11-15', '2026-11-20', '2026-12-08', '2026-12-09', '2026-12-10', '2026-12-31', '2027-01-01'];
     const result = calendarDays(dates.map((date) => ({ date, status: '' })), 1000, NOW);
     assert.deepEqual(result.map(({ date }) => date), dates.slice(1, -1));
     assert.deepEqual(result.filter(({ available }) => available).map(({ date }) => date),
-        ['2026-11-10', '2026-12-08', '2026-12-09']);
+        ['2026-11-10', '2026-12-08', '2026-12-09', '2026-12-10', '2026-12-31']);
     assert.ok(result.filter(({ available }) => !available).every(({ priceCents, pricePosition }) => priceCents === null && pricePosition === null));
 });
 
@@ -264,9 +264,9 @@ test('reservation rechecks availability and the current price before its first w
     }
 });
 
-test('today, weekends, holidays, and dates beyond thirty days cannot be reserved', async () => {
+test('today, weekends, holidays, and dates after next month cannot be reserved', async () => {
     for (const [date, nowMs] of [['2026-11-09', NOW], ['2026-11-14', NOW], ['2026-11-20', NOW],
-        ['2026-12-10', NOW], ['2026-09-08', Date.parse('2026-09-01T15:00:00Z')]]) {
+        ['2027-01-04', NOW], ['2026-09-08', Date.parse('2026-09-01T15:00:00Z')]]) {
         const app = fixture({ rows: [{ date, status: '' }], nowMs });
         assertError(await app.reserve({ date, priceCents: 100000, requestId: ID, acknowledged: true }), 409, 'date_unavailable');
         assert.ok(app.calls.every(({ type }) => ['read', 'cards:fresh', 'pending', 'dates'].includes(type)));
@@ -274,7 +274,17 @@ test('today, weekends, holidays, and dates beyond thirty days cannot be reserved
     }
 });
 
-test('successful reservation stores consent and creates a 09:00–10:30 Brasília Teams hold and confirmation', async () => {
+test('eligible late-next-month dates can be reserved beyond thirty days, including a year boundary', async () => {
+    for (const [today, date] of [['2026-11-10', '2026-12-31'], ['2026-12-15', '2027-01-29']]) {
+        const app = fixture({ rows: [{ date, status: '' }], nowMs: Date.parse(`${today}T15:00:00Z`) });
+        const result = await app.reserve({ date, priceCents: 100000, requestId: ID, acknowledged: true });
+        assert.equal(result.statusCode, 200);
+        assert.deepEqual(result.body, { date, reserved: true });
+        assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 1);
+    }
+});
+
+test('successful reservation stores consent and creates a 09:00–11:00 Brasília Teams hold and confirmation', async () => {
     const app = fixture();
     const res = await app.reserve();
     assert.equal(res.statusCode, 200);
@@ -292,7 +302,7 @@ test('successful reservation stores consent and creates a 09:00–10:30 Brasíli
     assert.equal(event.isAllDay, false);
     assert.equal(event.showAs, 'busy');
     assert.deepEqual(event.start, { dateTime: '2026-11-10T09:00:00', timeZone: 'E. South America Standard Time' });
-    assert.deepEqual(event.end, { dateTime: '2026-11-10T10:30:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(event.end, { dateTime: '2026-11-10T11:00:00', timeZone: 'E. South America Standard Time' });
     assert.equal(event.isOnlineMeeting, true);
     assert.equal(event.onlineMeetingProvider, 'teamsForBusiness');
     assert.deepEqual(event.attendees, [{ emailAddress: { address: USER.email.toLowerCase(), name: USER.name }, type: 'required' }]);
@@ -303,7 +313,7 @@ test('successful reservation stores consent and creates a 09:00–10:30 Brasíli
     assert.deepEqual(mail.body, event.body);
     assert.match(mail.body.content, /Preço por hora:/u);
     assert.match(mail.body.content, /09:00/u);
-    assert.match(mail.body.content, /1h30min/u);
+    assert.match(mail.body.content, /2h/u);
     assert.match(mail.body.content, /conforme necessário/u);
     assert.match(mail.body.content, /Brasília/u);
     assert.equal(mail.attachments.length, 1);
@@ -313,7 +323,7 @@ test('successful reservation stores consent and creates a 09:00–10:30 Brasíli
     assert.match(ics, /METHOD:REQUEST\r\n/u);
     assert.match(ics, /UID:provider-calendar-uid@example\.invalid\r\n/u);
     assert.match(ics, /DTSTAMP:20261109T150000Z\r\n/u);
-    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T133000Z\r\n/u);
+    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T140000Z\r\n/u);
     assert.doesNotMatch(ics, /VALUE=DATE:/u);
     assert.match(ics, /ORGANIZER:mailto:contato@machadogestao\.com\r\n/u);
     assert.match(ics, /ATTENDEE;RSVP=TRUE:mailto:user@example\.invalid\r\n/u);
@@ -329,19 +339,19 @@ test('timed invites preserve the selected Brasília date across month, year, and
             const event = eventPayload(booking);
             assert.equal(event.isAllDay, false);
             assert.deepEqual(event.start, { dateTime: `${date}T09:00:00`, timeZone: 'E. South America Standard Time' });
-            assert.deepEqual(event.end, { dateTime: `${date}T10:30:00`, timeZone: 'E. South America Standard Time' });
+            assert.deepEqual(event.end, { dateTime: `${date}T11:00:00`, timeZone: 'E. South America Standard Time' });
             const mail = confirmation(booking);
             const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8').replace(/\r\n /gu, '');
             const start = /^DTSTART:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
             const end = /^DTEND:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
             assert.equal(start, `${date.replace(/-/gu, '')}T120000Z`);
-            assert.equal(end, `${date.replace(/-/gu, '')}T133000Z`);
+            assert.equal(end, `${date.replace(/-/gu, '')}T140000Z`);
             const instant = (compact) => `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}T${compact.slice(9, 11)}:${compact.slice(11, 13)}:${compact.slice(13, 15)}Z`;
             assert.equal(Date.parse(instant(start)), Date.parse(`${date}T09:00:00-03:00`));
-            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 5400000);
+            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 7200000);
             assert.doesNotMatch(ics, /VALUE=DATE:/u);
             assert.match(mail.body.content, /09:00/u);
-            assert.match(mail.body.content, /1h30min/u);
+            assert.match(mail.body.content, /2h/u);
             assert.match(mail.body.content, /Brasília/u);
         });
     }
