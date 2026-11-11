@@ -962,15 +962,22 @@ test('company card is shared with colleagues and isolated from another company',
     assert.ok(providerIndex < pendingIndex && pendingIndex < workbookIndex);
 });
 
-test('confirmed provider cards remain readable when workbook synchronization fails, without provider replay', async (t) => {
+test('partial workbook registration stays pending until explicit sync without replaying provider creation', async (t) => {
     const f = await fixture(t);
     let writes = 0;
-    f.users.writeCompanyCard = async () => { writes++; throw new Error('private workbook transport failure'); };
+    const synchronized = [false, false];
+    f.users.writeCompanyCard = async () => {
+        writes++;
+        synchronized[0] = true;
+        if (writes === 1) throw new Error('private partial workbook transport failure');
+        synchronized[1] = true;
+    };
     const token = await f.login();
     const saved = await f.request('card', { method: 'PUT', token, body: cardRequest });
     assert.equal(saved.status, 200);
     const result = await saved.json();
     assert.equal(result.workbookSyncPending, true);
+    assert.deepEqual(synchronized, [true, false]);
     assert.deepEqual(Object.keys(result.card).sort(), ['brand', 'expMonth', 'expYear', 'lastFour']);
     assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id, verification, pending: 'workbook' });
     const read = await f.request('card', { token });
@@ -979,6 +986,18 @@ test('confirmed provider cards remain readable when workbook synchronization fai
     await expectError(await f.request('card', { method: 'PUT', token, body: { ...cardRequest, token: 'token_fresh' } }), 409, 'workbook_sync_required');
     assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
     assert.equal(writes, 1);
+    const retried = await f.request('card/sync', { method: 'POST', token });
+    assert.equal(retried.status, 200);
+    const confirmed = await retried.json();
+    assert.equal(confirmed.cardRevision, result.cardRevision);
+    assert.deepEqual(confirmed.card, result.card);
+    assert.equal(confirmed.workbookSyncPending, undefined);
+    assert.deepEqual(synchronized, [true, true]);
+    assert.equal(writes, 2);
+    assertStoredRevision(f.records.get(companyCode(admin.company)), { customerId: 'cus_synthetic', cardId: card.id,
+        verification, workbookSynced: true, workbookReferencesSynced: true });
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCard').length, 1);
+    assert.equal(f.calls.filter(([operation]) => operation === 'createCompanyCustomer').length, 1);
 });
 
 test('administrator synchronization retries only the workbook for its own confirmed card', async (t) => {

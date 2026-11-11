@@ -12,7 +12,7 @@ const companyId = '12345678000195';
 const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Sim'];
 const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
 
-function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt, batchResponses, failPost } = {}) {
+function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt, failAfterReferenceWriteAt, batchResponses, failPost } = {}) {
     metadata = structuredClone(metadata);
     values = structuredClone(values);
     const calls = [];
@@ -39,6 +39,11 @@ function fixture({ metadata = columns, range, values = [defaultRow], companyValu
                     if (writes.length === failUpdateAt) throw new Error('synthetic patch failure');
                     const cell = /address='H(\d+):H\d+'/u.exec(path);
                     if (cell) body.values.forEach((row, index) => { values[Number(cell[1]) - 4 + index][7] = row[0]; });
+                    const reference = /address='I(\d+):K\d+'/u.exec(path);
+                    if (reference) {
+                        body.values.forEach((row, index) => { referenceRows[Number(reference[1]) + index] = [structuredClone(row)]; });
+                        if (writes.length === failAfterReferenceWriteAt) throw new Error('synthetic patch response lost');
+                    }
                 },
                 async post(body) {
                     writes.push({ path, body: structuredClone(body), options });
@@ -176,9 +181,15 @@ test('company card sync writes I:K only for matching CNPJ, regardless of company
 });
 
 test('company card sync validates schema and existence before any write', async () => {
-    const changed = fixture({ metadata: columns.map((column, index) => index === 8 ? { ...column, name: 'SHIFTED' } : column) });
-    await assert.rejects(changed.users.writeCompanyCard(companyId, null, cardReferences), /schema_mismatch/u);
-    assert.equal(changed.writes.length, 0);
+    for (const options of [
+        { metadata: columns.map((column, index) => index === 8 ? { ...column, name: 'SHIFTED' } : column) },
+        { range: { address: 'USUÁRIOS!A3:J4', columnCount: 10, rowCount: 2 } },
+        { companyValues: [['12.345.678/0001-95', 'extra']] },
+    ]) {
+        const changed = fixture(options);
+        await assert.rejects(changed.users.writeCompanyCard(companyId, null, cardReferences), /schema_mismatch/u);
+        assert.equal(changed.writes.length, 0);
+    }
     const absent = fixture();
     await assert.rejects(absent.users.writeCompanyCard('98765432000110', null, cardReferences), /company_not_found/u);
     assert.equal(absent.writes.length, 0);
@@ -272,11 +283,13 @@ test('company reference lookup rejects partial, conflicting and non-sandbox data
 });
 
 test('company card sync stops on a failed patch without retrying or appending', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
     for (const failUpdateAt of [1, 2]) {
-        const { users, writes } = fixture({ values: [defaultRow, defaultRow], failUpdateAt });
+        const { users, writes } = fixture({ values: [defaultRow, other, defaultRow], failUpdateAt });
         await assert.rejects(users.writeCompanyCard(companyId, null, cardReferences), /synthetic patch failure/u);
         assert.equal(writes.length, failUpdateAt);
-        assert.ok(writes.every(({ path }) => /range\(address='I[45]:K[45]'\)$/u.test(path)));
+        assert.ok(writes.every(({ path }) => /range\(address='I([46]):K\1'\)$/u.test(path)));
     }
 });
 
@@ -317,14 +330,68 @@ test('company card clearing validates schema, row shape and company existence be
 });
 
 test('company card clearing stops on the first failed patch without retrying or appending', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
     for (const failUpdateAt of [1, 2]) {
-        const { users, writes } = fixture({ values: [defaultRow, defaultRow], failUpdateAt });
+        const { users, writes } = fixture({ values: [defaultRow, other, defaultRow], failUpdateAt });
         await assert.rejects(users.clearCompanyCard(companyId), /synthetic patch failure/u);
         assert.equal(writes.length, failUpdateAt);
-        assert.ok(writes.every(({ path, body }) => /range\(address='I[45]:K[45]'\)$/u.test(path)
+        assert.ok(writes.every(({ path, body }) => /range\(address='I([46]):K\1'\)$/u.test(path)
             && JSON.stringify(body) === JSON.stringify({ values: [['', '', '']] })));
     }
 });
+
+for (const clear of [false, true]) {
+    test(`${clear ? 'clearing' : 'saving'} a thirty-person company updates all references in one patch and preserves other cells`, async () => {
+        const other = [...defaultRow];
+        other[0] = '98.765.432/0001-10';
+        const values = [other, ...Array.from({ length: 30 }, () => [...defaultRow]), other];
+        const outside = [['cus_Other', 'card_Other', 'sandbox']];
+        const referenceRows = { 4: structuredClone(outside), 35: structuredClone(outside) };
+        if (clear) for (let row = 5; row <= 34; row++) referenceRows[row] = [['cus_Test1', 'card_Test1', 'sandbox']];
+        const f = fixture({ values, referenceRows });
+        if (clear) await f.users.clearCompanyCard(companyId);
+        else await f.users.writeCompanyCard(companyId, { number: '4000000000000010', cvv: '123' }, cardReferences);
+        const expected = clear ? ['', '', ''] : ['cus_Test1', 'card_Test1', 'sandbox'];
+        assert.equal(f.writes.length, 1, 'Employee count must not add a separate Graph mutation for each row');
+        assert.equal(f.calls.length, 4);
+        assert.match(f.writes[0].path, /range\(address='I5:K34'\)$/u);
+        assert.deepEqual(f.writes[0].body, { values: Array.from({ length: 30 }, () => [...expected]) });
+        for (let row = 5; row <= 34; row++) assert.deepEqual(referenceRows[row], [expected]);
+        assert.deepEqual(referenceRows[4], outside);
+        assert.deepEqual(referenceRows[35], outside);
+        assert.deepEqual(f.values, values, 'Identity, password and permission cells must not change');
+        assert.equal(f.writes[0].options.length, 1);
+        assert.equal(f.writes[0].options[0].maxRetries, 0);
+        assert.equal(f.writes[0].options[0].shouldRetry(0, 0, {}, {}, { status: 503 }), false);
+        for (const excluded of ['4000000000000010', 'private-password']) assert.ok(!JSON.stringify(f.writes).includes(excluded));
+    });
+
+    test(`${clear ? 'clearing' : 'saving'} split company blocks stops on a lost response and completes only through an explicit idempotent retry`, async () => {
+        const other = [...defaultRow];
+        other[0] = '98.765.432/0001-10';
+        const values = [defaultRow, defaultRow, other, defaultRow, defaultRow, defaultRow, other, defaultRow, defaultRow];
+        const before = clear ? ['cus_Test1', 'card_Test1', 'sandbox'] : ['', '', ''];
+        const expected = clear ? ['', '', ''] : ['cus_Test1', 'card_Test1', 'sandbox'];
+        const outside = [['cus_Other', 'card_Other', 'sandbox']];
+        const referenceRows = { 6: structuredClone(outside), 10: structuredClone(outside) };
+        for (const row of [4, 5, 7, 8, 9, 11, 12]) referenceRows[row] = [[...before]];
+        const f = fixture({ values, referenceRows, failAfterReferenceWriteAt: 2 });
+        const apply = () => clear ? f.users.clearCompanyCard(companyId) : f.users.writeCompanyCard(companyId, null, cardReferences);
+        await assert.rejects(apply(), /synthetic patch response lost/u);
+        assert.equal(f.writes.length, 2, 'An ambiguous group write must stop before the next group without replaying');
+        for (const row of [4, 5, 7, 8, 9]) assert.deepEqual(referenceRows[row], [expected]);
+        for (const row of [11, 12]) assert.deepEqual(referenceRows[row], [before]);
+        await apply();
+        assert.deepEqual(f.writes.map(({ path }) => /address='([^']+)'/u.exec(path)[1]),
+            ['I4:K5', 'I7:K9', 'I4:K5', 'I7:K9', 'I11:K12']);
+        for (const row of [4, 5, 7, 8, 9, 11, 12]) assert.deepEqual(referenceRows[row], [expected]);
+        assert.deepEqual(referenceRows[6], outside);
+        assert.deepEqual(referenceRows[10], outside);
+        assert.deepEqual(f.values, values);
+        assert.deepEqual(await f.users.readCompanyCardReferences(companyId), clear ? null : cardReferences);
+    });
+}
 
 const selection = (values, allowed) => values.map((row, index) => ({ email: row[4], allowed: Array.isArray(allowed) ? allowed[index] : allowed }));
 const employee = (email, permission = 'Sim', company = companyId) => [company, 'Empresa teste', 1000, email, email, 'private-password', 'Usuário', permission];

@@ -71,6 +71,16 @@ function createSupportUsersAdapter({ graphClient }) {
         return rows;
     }
 
+    async function writeCompanyReferences(companyId, values) {
+        const ranges = contiguousRanges(await readCompanyRows(companyId));
+        for (const { first, last } of ranges) {
+            await graphClient.api(`${WORKSHEET_PATH}/range(address='I${first}:K${last}')`)
+                .middlewareOptions([new RetryHandlerOptions(0, 0, () => false)]).update({
+                    values: Array.from({ length: last - first + 1 }, () => [...values]),
+                });
+        }
+    }
+
     return {
         readUsers: () => readVerifiedUsers(),
 
@@ -123,31 +133,15 @@ function createSupportUsersAdapter({ graphClient }) {
         async writeCompanyCard(company, _card, references) {
             if (!normalizeCompanyId(company)) throw new Error('support_users.invalid_company');
             validateCardReferences(references);
-            const rows = await readCompanyRows(company);
-            for (const row of rows) {
-                await graphClient.api(`${WORKSHEET_PATH}/range(address='I${row}:K${row}')`).update({
-                    values: [[references.customerId, references.cardId, references.environment]],
-                });
-            }
+            await writeCompanyReferences(company, [references.customerId, references.cardId, references.environment]);
         },
 
         async clearCompanyCard(companyId) {
-            const rows = await readCompanyRows(companyId);
-            for (const row of rows) {
-                await graphClient.api(`${WORKSHEET_PATH}/range(address='I${row}:K${row}')`).update({
-                    values: [['', '', '']],
-                });
-            }
+            await writeCompanyReferences(companyId, ['', '', '']);
         },
 
         async readCompanyCardReferences(companyId) {
-            const rows = await readCompanyRows(companyId);
-            const ranges = [];
-            for (const row of rows) {
-                const previous = ranges.at(-1);
-                if (previous && previous.last + 1 === row) previous.last = row;
-                else ranges.push({ first: row, last: row });
-            }
+            const ranges = contiguousRanges(await readCompanyRows(companyId));
             let references = null;
             for (const { first, last } of ranges) {
                 const records = await readRows(`I${first}:K${last}`, last - first + 1, 3);
@@ -166,6 +160,16 @@ function createSupportUsersAdapter({ graphClient }) {
             return references;
         },
     };
+}
+
+function contiguousRanges(rows) {
+    const ranges = [];
+    for (const row of rows) {
+        const previous = ranges.at(-1);
+        if (previous && previous.last + 1 === row) previous.last = row;
+        else ranges.push({ first: row, last: row });
+    }
+    return ranges;
 }
 
 function normalizeCompanyId(value) {

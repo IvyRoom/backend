@@ -144,7 +144,12 @@ accepting real cards.
 Only after this gate passes does the adapter read the current schema and A:H
 again, then update I:K for every matching CNPJ row: I (`PAGARME CUSTOMER ID`),
 J (`PAGARME CARD ID`), and K (`PAGARME AMBIENTE`). The values are the trusted local
-provider IDs and the literal `sandbox`. No card number, holder, expiry, CVV, or
+provider IDs and the literal `sandbox`. Each contiguous company block is updated
+in one range PATCH, repeating the same three values on every employee row. Keep
+company users grouped for one write per company; separated blocks are handled
+individually without touching another company's cells. Card-reference writes
+disable SDK retries and stop on failure; the existing pending-sync flow owns
+explicit recovery. No card number, holder, expiry, CVV, or
 registration-status column remains in this workbook contract. The masked card
 display is fetched from Pagar.me. A missing company or changed schema blocks
 synchronization instead of adding rows or columns.
@@ -399,7 +404,8 @@ It rechecks the workbook role and current revision, derives the selected company
 card locally, and persists `pending: "delete"` before one Pagar.me sandbox wallet DELETE.
 A matching deleted response or documented 404 establishes removal. It then stores
 `pending: "delete_workbook"`, clears I:K for the authenticated CNPJ, and retains
-only the reusable customer ID locally. The original registration form returns
+only the reusable customer ID locally. Clearing also uses one range PATCH per
+contiguous company block. The original registration form returns
 after that cleanup succeeds; the next registration reuses the company customer.
 Each fresh verified registration gets a new local revision, so a delayed deletion
 retry cannot remove its replacement. Existing registrations use a deterministic
