@@ -1,8 +1,8 @@
 # Support management sandbox
 
 This version provides workbook-backed login, 09:00 Brasília-time Microsoft Teams
-reservations and administrator-managed company cards. Invitations hold up to
-two hours; actual duration remains a manual workbook entry. Reservations and
+reservations and administrator-managed company cards. Invitations hold
+09:00–10:00; actual duration remains a manual workbook entry. Reservations and
 nonattendance do not automatically charge a card. Production `app.js` and
 `server.js` do not expose these endpoints. Merging the frontend publishes static
 pages, but the functional sandbox is local and uses its own same-origin API.
@@ -87,8 +87,9 @@ trigger a preview deployment even while a PR is a draft.
    not create an order or charge and does not send an email.
 8. For booking acceptance, select the intended date in Agendamento, review the
    rate, click Reservar Agenda, then accept the nonattendance term with Confirmar.
-   Verify the reserved row, the 09:00–12:00 Teams invitation and confirmation at
-   both recipient accounts. This is a real reservation and notification test.
+   Verify the reserved row, the 09:00–10:00 Teams meeting in contato's calendar,
+   the user's invitation and the user's separate confirmation email. This is a
+   real reservation and notification test.
 9. Stop the server with Ctrl+C when finished.
 
 Pagar.me uses the same API origin for test/live; this entry point accepts only
@@ -291,6 +292,11 @@ and Confirmar/Cancelar actions, with Cancelar focused by default. No reservation
 request is sent until Confirmar; it supplies `acknowledged: true`, and the journal
 records `acknowledgedAt`. Cancelar, Escape or dismissal before submission closes
 the popup without reserving. Dismissal is blocked while submission is pending.
+During submission the popup shows only Reservando... and the page cursor waits.
+On a reserved response it shows Agendamento confirmado. until dismissed; the
+calendar refreshes silently in the background and remains locked until dismissal.
+Booking feedback stays inside the popup. Confirmar posts directly to the server,
+which authoritatively rechecks permission, card, date and price.
 There is no cancellation API after a reservation is confirmed. The displayed
 nonattendance term does not implement an automatic charge.
 
@@ -304,14 +310,20 @@ from that actual duration and the agreed rate. No card is charged.
 Workbook edits made concurrently outside this local app are not atomic
 with its PATCH; avoid another booking writer during this local trial.
 
-After the row is reserved, the app requests a Microsoft Teams event holding
-09:00–12:00 in the contato mailbox's calendar, in Brasília time, and invites the
-authenticated user. Its returned Teams link is included when provided. Graph
-sends the attendee invitation automatically. A confirmation goes to
-contato@machadogestao.com and the authenticated user, with a calendar attachment
-using the same event UID. The organizer gets its calendar entry and confirmation;
-the user gets the native invitation and confirmation. Templates are intentionally
-minimal. Mail API acceptance is not proof of final inbox delivery.
+The uncontended request reuses its freshly authorized user directory. Queued
+claims reread it after waiting. A fresh adapter-owned availability snapshot can
+be consumed once for booking, saving three duplicate Graph reads; the selected
+date/status is still reread immediately before writing. Copied or superseded
+snapshots fall back to full validation.
+
+After the row is reserved, the app requests a Microsoft Teams event titled
+Atendimento Consultivo: followed by the user's full name, holding 09:00–10:00
+in the contato mailbox's calendar in Brasília time. Contato is the organizer and
+the authenticated user is the attendee; Graph sends the native invitation.
+Only a valid returned Teams URL permits the separate user-only confirmation
+email, which includes the first name, date/time, link and existing Machado
+signature. It has no ICS attachment, avoiding a duplicate invitation. Mail API
+acceptance is not proof of final inbox delivery.
 
 Each request UUID has an atomic ignored `reservation_<UUID>.json` journal:
 workbook → event → confirmation → complete. Replaying a completed request does not
@@ -333,7 +345,7 @@ same UUID, using the exact stored identity/date/price:
    with the existing `eventPayload(record)` helper and the same transactionId;
    persist the returned references before proceeding. Never create a second event
    just because the previous response was lost.
-3. At confirmation stage, inspect Sent Items for the matching date/user/UID. If
+3. At confirmation stage, inspect Sent Items for the matching date/user/Teams link. If
    already sent, mark complete. Otherwise, after establishing it was not sent,
    make one explicit `sendConfirmation(confirmation(record))` attempt and mark
    complete only after acceptance. Both payload helpers are exported from

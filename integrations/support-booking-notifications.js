@@ -27,14 +27,11 @@ function createSupportBookingNotifications({ graphClient }) {
                     throw failure('invalid_response');
                 }
                 const meetingUrl = response?.onlineMeeting?.joinUrl;
-                if (meetingUrl !== undefined && meetingUrl !== null) {
-                    if (typeof meetingUrl !== 'string' || meetingUrl.length > 4096 || /[\p{C}\s]/u.test(meetingUrl)) throw failure('invalid_response');
-                    const url = new URL(meetingUrl);
-                    if (url.protocol !== 'https:' || url.username || url.password
-                        || !['teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft'].includes(url.hostname)) throw failure('invalid_response');
-                    return { eventId, iCalUid, meetingUrl };
-                }
-                return { eventId, iCalUid };
+                if (typeof meetingUrl !== 'string' || !meetingUrl || meetingUrl.length > 4096 || /[\p{C}\s]/u.test(meetingUrl)) throw failure('invalid_response');
+                const url = new URL(meetingUrl);
+                if (url.protocol !== 'https:' || url.username || url.password
+                    || !['teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft'].includes(url.hostname)) throw failure('invalid_response');
+                return { eventId, iCalUid, meetingUrl };
             } catch {
                 throw failure('invalid_response');
             }

@@ -19,6 +19,8 @@ const CHARGE_FORMULAS = new Set([
 
 function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) {
     let operations = Promise.resolve();
+    let generation = 0;
+    const snapshots = new WeakMap();
     function exclusive(operation) {
         const result = operations.then(operation, operation);
         operations = result.catch(() => {});
@@ -26,13 +28,15 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
     }
 
     async function readVerifiedTable() {
-        const columns = await graphClient.api(`${TABLE_PATH}/columns?$select=index,name`).get();
+        const [columns, range] = await Promise.all([
+            graphClient.api(`${TABLE_PATH}/columns?$select=index,name`).get(),
+            graphClient.api(`${TABLE_PATH}/range?$select=address,rowCount,columnCount`).get(),
+        ]);
         if (!Array.isArray(columns.value) || columns.value.length !== COLUMNS.length
             || columns.value.some((column, index) => column?.index !== index
                 || typeof column.name !== 'string' || column.name.trim() !== COLUMNS[index])) {
             throw new Error('support_appointments.schema_mismatch');
         }
-        const range = await graphClient.api(`${TABLE_PATH}/range?$select=address,rowCount,columnCount`).get();
         const address = /^ATENDIMENTOS!A3:H([3-9]|[1-9]\d+)$/.exec(range.address);
         const lastRow = Number(address?.[1]);
         if (!address || range.columnCount !== COLUMNS.length || range.rowCount !== lastRow - 2) {
@@ -51,6 +55,7 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
     }
 
     async function readDates() {
+        generation++;
         const lastRow = await readVerifiedTable();
         if (lastRow === 3) return [];
         const dates = await readDateRows(`A4:B${lastRow}`, lastRow - 3);
@@ -83,6 +88,7 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
     }
 
     async function syncAvailability({ today }) {
+        const currentGeneration = ++generation;
         if (!isCalendarDate(today)) throw new Error('support_appointments.invalid_date');
         if (!availabilityJournal || !['read', 'write', 'clear'].every((method) => typeof availabilityJournal[method] === 'function')) {
             throw new Error('support_appointments.availability_journal_required');
@@ -131,10 +137,17 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
             }
             current.forEach((row, index) => { rows[firstIndex + index] = { ...row, status: values[index][0] ?? row.status }; });
         }
-        return rows.map(({ date, status, excelRow }) => ({ date, status, excelRow }));
+        const result = rows.map(({ date, status, excelRow }) => ({ date, status, excelRow }));
+        snapshots.set(result, { generation: currentGeneration, rows: result.map((row) => ({ ...row })) });
+        return result;
     }
 
-    async function reserveDate({ date, companyId, name, hourlyRate }) {
+    async function reserveDate({ date, companyId, name, hourlyRate }, availability) {
+        // Reuse only this adapter's current snapshot once; the selected row is still rechecked below.
+        const snapshot = snapshots.get(availability);
+        snapshots.delete(availability);
+        const trusted = snapshot?.generation === generation;
+        generation++;
         let selected;
         try {
             if (!isCalendarDate(date) || typeof companyId !== 'string' || !/^\d{14}$/u.test(companyId)
@@ -142,7 +155,7 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
                 || typeof hourlyRate !== 'number' || !Number.isFinite(hourlyRate) || hourlyRate <= 0) {
                 throw new Error('support_appointments.invalid_reservation');
             }
-            const dates = await readDates();
+            const dates = trusted ? snapshot.rows : await readDates();
             selected = dates.find((entry) => entry.date === date);
             if (!selected || selected.status) throw unavailable();
             const [current] = await readDateRows(`A${selected.excelRow}:B${selected.excelRow}`, 1);
@@ -163,7 +176,7 @@ function createSupportAppointmentsAdapter({ graphClient, availabilityJournal }) 
     return {
         readDates,
         syncAvailability: (input) => exclusive(() => syncAvailability(input)),
-        reserveDate: (input) => exclusive(() => reserveDate(input)),
+        reserveDate: (input, availability) => exclusive(() => reserveDate(input, availability)),
     };
 }
 

@@ -142,11 +142,26 @@ test('calendar routes authorize freshly and verify the card before reserving wit
     assert.equal(notifications.length, 0);
     assert.equal(dates[0].status, '');
     f.pagarme.getCard = getCard;
+    const userReadsBeforeReservation = f.calls.filter(([operation]) => operation === 'readUsers').length;
     const response = await f.request('reservations', { method: 'POST', token,
         body: { ...reservation, acknowledged: true } });
     assert.deepEqual(await response.json(), { date: dates[0].date, reserved: true });
     assert.equal(response.status, 200);
+    assert.equal(f.calls.filter(([operation]) => operation === 'readUsers').length - userReadsBeforeReservation, 1,
+        'An uncontended booking must reuse its freshly authorized directory');
     assert.equal(notifications.length, 2);
+    const [invite, mail] = notifications;
+    assert.equal(invite.subject, `Atendimento Consultivo: ${admin.name}`);
+    assert.deepEqual(invite.start, { dateTime: '2027-02-01T09:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(invite.end, { dateTime: '2027-02-01T10:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(invite.attendees, [{ emailAddress: { address: admin.email, name: admin.name }, type: 'required' }]);
+    assert.equal(mail.subject, 'Atendimento Consultivo - Machado | Método Gerencial para Empresas');
+    assert.deepEqual(mail.toRecipients, [{ emailAddress: { address: admin.email } }]);
+    assert.equal(mail.attachments, undefined, 'The Graph meeting already sends its invitation');
+    assert.ok(mail.body.content.includes('<p>Prezado(a) Administradora,</p>'));
+    assert.ok(mail.body.content.includes('01/02/2027 às 09:00 (horário de Brasília)'));
+    assert.ok(mail.body.content.includes('https://teams.microsoft.com/meet/synthetic'));
+    assert.ok(mail.body.content.includes('ASSINATURA_E-MAIL.jpg'));
     assert.equal(bookings.get(reservation.requestId).acknowledgedAt, 1_800_000_000_000);
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].available, false);
     assert.ok(f.calls.every(([type]) => ['readUsers', 'read', 'getCard'].includes(type)));

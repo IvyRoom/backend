@@ -67,6 +67,30 @@ test('availability reads only dates and statuses, preserving all-day dates and t
     assert.ok(calls.every((path) => !path.includes('/rows') && !path.includes('/usedRange')));
 });
 
+test('availability starts independent metadata reads together and waits for both before reading dates', async () => {
+    let resolveColumns;
+    let resolveRange;
+    const pendingColumns = new Promise((resolve) => { resolveColumns = resolve; });
+    const pendingRange = new Promise((resolve) => { resolveRange = resolve; });
+    const calls = [];
+    const appointments = createSupportAppointmentsAdapter({ graphClient: { api(path) {
+        calls.push(path);
+        return { get() {
+            if (path.endsWith('/columns?$select=index,name')) return pendingColumns;
+            if (path.endsWith('/range?$select=address,rowCount,columnCount')) return pendingRange;
+            return Promise.resolve({ values: [[46336, '']] });
+        } };
+    } } });
+    const pending = appointments.readDates();
+    assert.equal(calls.length, 2);
+    resolveRange({ address: 'ATENDIMENTOS!A3:H4', columnCount: 8, rowCount: 2 });
+    await new Promise(setImmediate);
+    assert.equal(calls.length, 2);
+    resolveColumns({ value: columns });
+    assert.deepEqual(await pending, [{ date: '2026-11-10', status: '', excelRow: 4 }]);
+    assert.equal(calls.length, 3);
+});
+
 test('availability rejects shifted schemas and ranges before reading appointment values', async () => {
     for (const metadata of [
         columns.slice(0, 7), [...columns].reverse(), [...columns, { name: 'EXTRA', index: 8 }],
@@ -75,7 +99,7 @@ test('availability rejects shifted schemas and ranges before reading appointment
     ]) {
         const { appointments, calls } = fixture({ metadata });
         await assert.rejects(appointments.readDates(), /schema_mismatch/u);
-        assert.equal(calls.length, 1);
+        assert.equal(calls.length, 2);
     }
     for (const range of [
         { address: 'ATENDIMENTOS!A2:H5', columnCount: 8, rowCount: 4 },

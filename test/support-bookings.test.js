@@ -27,16 +27,17 @@ function savedRecord(overrides = {}) {
         stage: 'workbook', ...overrides };
 }
 
-function response(user = USER, directory = []) {
+function response(user = USER, directory = [user]) {
     return { locals: { supportUser: user, supportUsers: directory }, statusCode: 200, body: null,
         status(value) { this.statusCode = value; return this; },
         json(value) { this.body = value; return this; } };
 }
 
 function fixture({ rows = WEEKDAYS.map((date) => ({ date, status: '' })), records = [],
-    faults = {}, reserveDate, writeRecord, user = USER, directory = [], card = MASKED_CARD,
-    syncAvailability = false, nowMs = NOW, meetingUrl } = {}) {
+    faults = {}, reserveDate, writeRecord, user = USER, directory, users, card = MASKED_CARD,
+    syncAvailability = false, nowMs = NOW, meetingUrl = MEETING_URL } = {}) {
     const calls = [];
+    const calendarRows = [];
     const stored = new Map(records.map((record) => [record.id, structuredClone(record)]));
     const dates = structuredClone(rows);
     async function call(type, payload) {
@@ -44,20 +45,27 @@ function fixture({ rows = WEEKDAYS.map((date) => ({ date, status: '' })), record
         if (faults[type]) throw faults[type];
     }
     const appointments = {
-        async readDates() { await call('dates'); return structuredClone(dates); },
-        async reserveDate(payload) {
+        async readDates() {
+            await call('dates');
+            const snapshot = structuredClone(dates);
+            calendarRows.push(snapshot);
+            return snapshot;
+        },
+        async reserveDate(payload, snapshot) {
             await call('reserve', payload);
-            if (reserveDate) await reserveDate(payload);
+            if (reserveDate) await reserveDate(payload, snapshot);
             dates.find((row) => row.date === payload.date).status = 'RESERVADO';
         },
     };
     if (syncAvailability) appointments.syncAvailability = async (payload) => {
         await call('sync', payload);
-        return structuredClone(dates);
+        const snapshot = structuredClone(dates);
+        calendarRows.push(snapshot);
+        return snapshot;
     };
     const handlers = createSupportBookingHandlers({
         now: () => nowMs,
-        appointments,
+        appointments, users,
         async companyCards(actingUser, options) {
             await call(options?.cached ? 'cards:cached' : 'cards:fresh', { user: actingUser, options });
             return { card: typeof card === 'function' ? card(options) : card };
@@ -83,7 +91,7 @@ function fixture({ rows = WEEKDAYS.map((date) => ({ date, status: '' })), record
             async sendConfirmation(message) { await call('mail', message); },
         },
     });
-    return { calls, stored, handlers,
+    return { calls, stored, handlers, calendarRows,
         async reserve(body = { date: WEEKDAYS[0], priceCents: 100000, requestId: ID, acknowledged: true }, actingUser = user) {
             const res = response(actingUser, directory);
             await handlers.reserve({ body }, res);
@@ -156,7 +164,7 @@ function cardLifecycleFixture({ getCard, deleteCard, reserveDate, createEvent } 
             async createEvent() {
                 calls.push(['event']);
                 if (createEvent) await createEvent();
-                return { eventId: 'synthetic', iCalUid: 'synthetic@example.invalid' };
+                return { eventId: 'synthetic', iCalUid: 'synthetic@example.invalid', meetingUrl: MEETING_URL };
             },
             async sendConfirmation() { calls.push(['mail']); },
         },
@@ -371,6 +379,38 @@ test('payment lookup failures fail closed before reservation or availability eff
     assert.deepEqual(calendar.calls.map(({ type }) => type), ['cards:cached']);
 });
 
+test('an uncontended reservation reuses its fresh authorized directory and exact availability snapshot', async () => {
+    let directoryReads = 0;
+    let receivedRows;
+    const app = fixture({ syncAvailability: true,
+        users: { async readUsers() { directoryReads++; throw new Error('Redundant directory read'); } },
+        reserveDate: async (payload, snapshot) => { receivedRows = snapshot; },
+    });
+    assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
+    assert.equal(directoryReads, 0);
+    assert.equal(app.calendarRows.length, 1);
+    assert.equal(receivedRows, app.calendarRows[0], 'Only the exact just-validated snapshot may use the adapter fast path');
+});
+
+test('a queued reservation rechecks employee permission after waiting instead of trusting its old request snapshot', async () => {
+    const writing = deferredOperation();
+    let directoryReads = 0;
+    const app = fixture({
+        users: { async readUsers() { directoryReads++; return [{ ...USER, bookingAllowed: false }]; } },
+        writeRecord: async record => { if (record.id === ID && record.stage === 'workbook') await writing.wait(); },
+    });
+    const first = app.reserve();
+    await writing.started;
+    const second = app.reserve({ date: WEEKDAYS[1], priceCents: 100000, requestId: OTHER_ID, acknowledged: true });
+    writing.release();
+    assert.equal((await first).body.reserved, true);
+    assertError(await second, 403, 'booking_permission_required');
+    assert.equal(directoryReads, 1);
+    assert.equal(app.calls.filter(({ type }) => type === 'cards:fresh').length, 1);
+    assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 1);
+    assert.equal(app.stored.has(OTHER_ID), false);
+});
+
 test('reservation validates the request and identity before reading or writing state', async () => {
     const valid = { date: WEEKDAYS[0], priceCents: 100000, requestId: ID, acknowledged: true };
     for (const body of [null, {}, { ...valid, extra: 'ignored?' }, { ...valid, date: '2026-02-31' },
@@ -422,7 +462,7 @@ test('eligible late-next-month dates can be reserved beyond thirty days, includi
     }
 });
 
-test('successful reservation stores consent and creates a 09:00–12:00 Brasília Teams hold and confirmation', async () => {
+test('successful reservation creates one 09:00–10:00 Brasília Teams invitation and a separate user-only confirmation', async () => {
     const app = fixture();
     const res = await app.reserve();
     assert.equal(res.statusCode, 200);
@@ -436,94 +476,81 @@ test('successful reservation stores consent and creates a 09:00–12:00 Brasíli
         date: WEEKDAYS[0], companyId: COMPANY_ID, name: USER.name, hourlyRate: 1000,
     });
     const event = app.calls.find(({ type }) => type === 'event').payload;
+    assert.equal(event.subject, `Atendimento Consultivo: ${USER.name}`);
     assert.equal(event.transactionId, ID);
     assert.equal(event.isAllDay, false);
     assert.equal(event.showAs, 'busy');
     assert.deepEqual(event.start, { dateTime: '2026-11-10T09:00:00', timeZone: 'E. South America Standard Time' });
-    assert.deepEqual(event.end, { dateTime: '2026-11-10T12:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(event.end, { dateTime: '2026-11-10T10:00:00', timeZone: 'E. South America Standard Time' });
     assert.equal(event.isOnlineMeeting, true);
     assert.equal(event.onlineMeetingProvider, 'teamsForBusiness');
     assert.deepEqual(event.attendees, [{ emailAddress: { address: USER.email.toLowerCase(), name: USER.name }, type: 'required' }]);
     const mail = app.calls.find(({ type }) => type === 'mail').payload;
-    assert.deepEqual(mail.toRecipients, [{ emailAddress: { address: CONTACT } },
-        { emailAddress: { address: USER.email.toLowerCase() } }]);
-    assert.equal(mail.subject, event.subject);
-    assert.deepEqual(mail.body, event.body);
-    assert.match(mail.body.content, /Preço por hora:/u);
-    assert.match(mail.body.content, /09:00/u);
-    assert.match(mail.body.content, /3h/u);
-    assert.match(mail.body.content, /conforme necessário/u);
-    assert.match(mail.body.content, /Brasília/u);
-    assert.equal(mail.attachments.length, 1);
-    assert.equal(mail.attachments[0]['@odata.type'], '#microsoft.graph.fileAttachment');
-    assert.equal(mail.attachments[0].name, 'atendimento.ics');
-    const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8');
-    assert.match(ics, /METHOD:REQUEST\r\n/u);
-    assert.match(ics, /UID:provider-calendar-uid@example\.invalid\r\n/u);
-    assert.match(ics, /DTSTAMP:20261109T150000Z\r\n/u);
-    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T150000Z\r\n/u);
-    assert.doesNotMatch(ics, /VALUE=DATE:/u);
-    assert.match(ics, /ORGANIZER:mailto:contato@machadogestao\.com\r\n/u);
-    assert.match(ics, /ATTENDEE;RSVP=TRUE:mailto:user@example\.invalid\r\n/u);
-    assert.ok(ics.endsWith('END:VEVENT\r\nEND:VCALENDAR\r\n'));
+    assert.deepEqual(mail.toRecipients, [{ emailAddress: { address: USER.email.toLowerCase() } }]);
+    assert.equal(mail.ccRecipients, undefined);
+    assert.equal(mail.bccRecipients, undefined);
+    assert.equal(mail.subject, 'Atendimento Consultivo - Machado | Método Gerencial para Empresas');
+    assert.match(mail.body.content, /^<p>Prezado\(a\) João,<\/p>/u);
+    assert.ok(mail.body.content.includes('<p>Seu atendimento consultivo junto a nosso diretor está agendado para 10/11/2026 às 09:00 (horário de Brasília).</p>'));
+    assert.ok(mail.body.content.includes('<p>Por favor confirme sua presença no invite do calendário.</p>'));
+    assert.ok(mail.body.content.includes('<p>O link de acesso ao encontro é: <a href='));
+    assert.ok(mail.body.content.includes('<p>Atenciosamente,</p>'));
+    assert.ok(mail.body.content.includes('<img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" />'));
+    assert.equal(mail.attachments, undefined, 'Graph event invitations must not be duplicated by an ICS attachment');
     assert.deepEqual(app.stored.get(ID), savedRecord({ stage: 'complete', acknowledgedAt: NOW, eventId: 'graph-event-id',
-        iCalUid: 'provider-calendar-uid@example.invalid' }));
+        iCalUid: 'provider-calendar-uid@example.invalid', meetingUrl: MEETING_URL }));
 });
 
 test('timed invites preserve the selected Brasília date across month, year, and leap-day boundaries', async (t) => {
     for (const date of ['2026-11-30', '2026-12-31', '2027-01-01', '2028-02-29']) {
         await t.test(date, async () => {
-            const booking = savedRecord({ date, iCalUid: 'provider-calendar-uid@example.invalid' });
+            const booking = savedRecord({ date, iCalUid: 'provider-calendar-uid@example.invalid', meetingUrl: MEETING_URL });
             const event = eventPayload(booking);
             assert.equal(event.isAllDay, false);
             assert.deepEqual(event.start, { dateTime: `${date}T09:00:00`, timeZone: 'E. South America Standard Time' });
-            assert.deepEqual(event.end, { dateTime: `${date}T12:00:00`, timeZone: 'E. South America Standard Time' });
+            assert.deepEqual(event.end, { dateTime: `${date}T10:00:00`, timeZone: 'E. South America Standard Time' });
             const mail = confirmation(booking);
-            const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8').replace(/\r\n /gu, '');
-            const start = /^DTSTART:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
-            const end = /^DTEND:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
-            assert.equal(start, `${date.replace(/-/gu, '')}T120000Z`);
-            assert.equal(end, `${date.replace(/-/gu, '')}T150000Z`);
-            const instant = (compact) => `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}T${compact.slice(9, 11)}:${compact.slice(11, 13)}:${compact.slice(13, 15)}Z`;
-            assert.equal(Date.parse(instant(start)), Date.parse(`${date}T09:00:00-03:00`));
-            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 10800000);
-            assert.doesNotMatch(ics, /VALUE=DATE:/u);
-            assert.match(mail.body.content, /09:00/u);
-            assert.match(mail.body.content, /3h/u);
-            assert.match(mail.body.content, /Brasília/u);
+            assert.ok(mail.body.content.includes(`${date.split('-').reverse().join('/')} às 09:00 (horário de Brasília)`));
+            assert.equal(mail.attachments, undefined);
         });
     }
 });
 
-test('a Teams join URL is stored once and included safely in the confirmation and matching invitation', async () => {
+test('the exact Teams join URL is stored once and linked safely without a second invitation', async () => {
     const app = fixture({ meetingUrl: MEETING_URL });
     assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
     assert.equal(app.stored.get(ID).meetingUrl, MEETING_URL);
     assert.equal(app.stored.get(ID).acknowledgedAt, NOW);
     const mail = app.calls.find(({ type }) => type === 'mail').payload;
     assert.ok(mail.body.content.includes(`href="${MEETING_URL.replace(/&/gu, '&amp;')}"`));
-    assert.match(mail.body.content, /Ingressar no Microsoft Teams/u);
-    const calendar = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8').replace(/\r\n /gu, '');
-    assert.ok(calendar.includes(`URL:${MEETING_URL}\r\n`));
-    assert.match(calendar, /UID:provider-calendar-uid@example\.invalid\r\n/u);
+    assert.ok(mail.body.content.includes(`>${MEETING_URL.replace(/&/gu, '&amp;')}</a>`));
+    assert.equal(mail.attachments, undefined);
     assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 1);
     assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
     assert.equal(app.calls.filter(({ type }) => type === 'event').length, 1);
     assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 1);
 });
 
-test('confirmation safely escapes HTML/calendar text, folds UTF-8 lines, and cannot inject ICS fields', async () => {
-    const user = { ...USER, name: 'João <A&B>\rInjected: bad', company: `Empresa, Gestão; \\ ${'á'.repeat(80)}` };
+test('a created event without its Teams URL leaves notification pending and never sends incomplete confirmation or replays the invite', async () => {
+    const app = fixture({ meetingUrl: null });
+    assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true, notificationPending: true });
+    assert.equal(app.stored.get(ID).stage, 'confirmation');
+    assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 0);
+    assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true, notificationPending: true });
+    assert.equal(app.calls.filter(({ type }) => type === 'event').length, 1);
+    assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 0);
+});
+
+test('notification HTML escapes the first name, full name and company without a calendar attachment', async () => {
+    const user = { ...USER, name: 'João<A&B> da Silva', company: '<Empresa & Gestão>' };
     const app = fixture({ user });
     assert.equal((await app.reserve()).statusCode, 200);
     const mail = app.calls.find(({ type }) => type === 'mail').payload;
-    assert.match(mail.body.content, /João &lt;A&amp;B&gt;/u);
-    const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8');
-    assert.ok(ics.split('\r\n').every((line) => Buffer.byteLength(line, 'utf8') <= 75));
-    assert.equal(ics.replace(/\r\n/gu, '').includes('\r'), false);
-    const unfolded = ics.replace(/\r\n /gu, '');
-    assert.ok(unfolded.includes('João <A&B>\\nInjected: bad\\nEmpresa\\, Gestão\\; \\\\ '));
-    assert.equal(unfolded.split('\r\n').filter((line) => line.startsWith('Injected:')).length, 0);
+    assert.match(mail.body.content, /Prezado\(a\) João&lt;A&amp;B&gt;,/u);
+    const event = app.calls.find(({ type }) => type === 'event').payload;
+    assert.match(event.body.content, /João&lt;A&amp;B&gt; da Silva/u);
+    assert.match(event.body.content, /&lt;Empresa &amp; Gestão&gt;/u);
+    assert.equal(mail.attachments, undefined);
 });
 
 test('contact booking keeps one confirmation recipient and avoids inviting its organizer to itself', async () => {

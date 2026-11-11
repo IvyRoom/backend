@@ -5,7 +5,7 @@ const { appointmentAvailability, bookingCalendarRange, isCalendarDate } = requir
 
 const CONTACT = 'contato@machadogestao.com';
 const TIME_ZONE = 'E. South America Standard Time';
-const TIME_LABEL = 'Início às 09:00 (horário de Brasília), com duração de até 3h, conforme necessário.';
+const CONFIRMATION_SUBJECT = 'Atendimento Consultivo - Machado | Método Gerencial para Empresas';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -36,55 +36,26 @@ function emailAddress(value) {
         && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(value);
 }
 
-function textCalendar(value) {
-    return String(value).replace(/\\/gu, '\\\\').replace(/\r\n|\r|\n/gu, '\\n').replace(/;/gu, '\\;').replace(/,/gu, '\\,');
-}
-
-function foldCalendarLine(value) {
-    let line = '';
-    const lines = [];
-    for (const character of value) {
-        if (Buffer.byteLength(line + character) > 75) { lines.push(line); line = ' '; }
-        line += character;
-    }
-    lines.push(line);
-    return lines.join('\r\n');
-}
-
-function calendarTime(date, time) {
-    const zone = new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', timeZoneName: 'longOffset' })
-        .formatToParts(new Date(`${date}T12:00:00Z`)).find(({ type }) => type === 'timeZoneName').value;
-    const offset = zone === 'GMT' ? '+00:00' : zone.slice(3);
-    return new Date(`${date}T${time}:00${offset}`).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '');
+function appointmentDateTime(booking) {
+    return `${booking.date.split('-').reverse().join('/')} às 09:00 (horário de Brasília)`;
 }
 
 function confirmation(booking) {
-    const displayDate = booking.date.split('-').reverse().join('/');
-    const price = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(booking.priceCents / 100);
-    const subject = `Atendimento consultivo - ${displayDate}`;
-    const description = `${booking.name}\n${booking.company}\n${displayDate}\n${TIME_LABEL}\nPreço por hora: ${price}${booking.meetingUrl ? `\n${booking.meetingUrl}` : ''}`;
-    const calendar = [
-        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Machado//Atendimentos Consultivos//PT-BR', 'METHOD:REQUEST',
-        'BEGIN:VEVENT', `UID:${textCalendar(booking.iCalUid)}`,
-        `DTSTAMP:${new Date(booking.createdAt).toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}/u, '')}`,
-        `DTSTART:${calendarTime(booking.date, '09:00')}`,
-        `DTEND:${calendarTime(booking.date, '12:00')}`,
-        `SUMMARY:${textCalendar(subject)}`, `DESCRIPTION:${textCalendar(description)}`,
-        `ORGANIZER:mailto:${CONTACT}`, `ATTENDEE;RSVP=TRUE:mailto:${booking.email}`,
-        ...(booking.meetingUrl ? [`URL:${booking.meetingUrl}`] : []),
-        'STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR',
-    ].map(foldCalendarLine).join('\r\n') + '\r\n';
-    return { subject, body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${displayDate}<br>${TIME_LABEL}<br>Preço por hora: ${escapeHtml(price)}</p>${booking.meetingUrl ? `<p><a href="${escapeHtml(booking.meetingUrl)}">Ingressar no Microsoft Teams</a></p>` : ''}` },
-        toRecipients: Array.from(new Set([CONTACT, normalize(booking.email)])).map((address) => ({ emailAddress: { address } })),
-        attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'atendimento.ics', contentType: 'text/calendar; method=REQUEST; charset=UTF-8', contentBytes: Buffer.from(calendar, 'utf8').toString('base64') }],
+    if (typeof booking.meetingUrl !== 'string' || !booking.meetingUrl) throw new Error('Teams link unavailable');
+    const firstName = booking.name.trim().split(/\s+/u)[0];
+    const meetingUrl = escapeHtml(booking.meetingUrl);
+    return { subject: CONFIRMATION_SUBJECT,
+        body: { contentType: 'HTML', content: `<p>Prezado(a) ${escapeHtml(firstName)},</p><p>Seu atendimento consultivo junto a nosso diretor está agendado para ${escapeHtml(appointmentDateTime(booking))}.</p><p>Por favor confirme sua presença no invite do calendário.</p><p>O link de acesso ao encontro é: <a href="${meetingUrl}">${meetingUrl}</a></p><p>Atenciosamente,</p><p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>` },
+        toRecipients: [{ emailAddress: { address: normalize(booking.email) } }],
     };
 }
 
 function eventPayload(booking) {
-    const message = confirmation({ ...booking, iCalUid: booking.iCalUid || booking.id });
-    return { subject: message.subject, body: message.body, isAllDay: false,
+    return { subject: `Atendimento Consultivo: ${booking.name}`,
+        body: { contentType: 'HTML', content: `<p>${escapeHtml(booking.name)}<br>${escapeHtml(booking.company)}</p><p>${escapeHtml(appointmentDateTime(booking))}.</p>` },
+        isAllDay: false,
         start: { dateTime: `${booking.date}T09:00:00`, timeZone: TIME_ZONE },
-        end: { dateTime: `${booking.date}T12:00:00`, timeZone: TIME_ZONE },
+        end: { dateTime: `${booking.date}T10:00:00`, timeZone: TIME_ZONE },
         isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness',
         attendees: normalize(booking.email) === CONTACT ? [] : [{ emailAddress: { address: booking.email, name: booking.name }, type: 'required' }],
         showAs: 'busy', transactionId: booking.id,
@@ -95,19 +66,20 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
     const busyDates = new Set();
     const busyIds = new Set();
     let claims = Promise.resolve();
+    let pendingClaims = 0;
     const fail = (res, status, code) => res.status(status).json({ error: `support_management.${code}` });
     async function readCalendar(user) {
         const pendingDates = await bookingStore.pendingDates();
         const today = localDate(now());
         const rows = appointments.syncAvailability ? await appointments.syncAvailability({ today }) : await appointments.readDates();
-        return calendarDays(rows, user.referenceRate, now(), pendingDates);
+        return { days: calendarDays(rows, user.referenceRate, now(), pendingDates), rows };
     }
     async function getCalendarContext(user, directory = []) {
         const card = await companyCards(user, { cached: true });
         const administrators = directory.filter((person) => person.role === 'Administrador'
             && normalize(person.companyId || person.company) === normalize(user.companyId || user.company));
         const canBook = Boolean(card.card) && user.bookingAllowed === true;
-        return { card, calendar: { days: canBook ? await readCalendar(user) : [], canBook,
+        return { card, calendar: { days: canBook ? (await readCalendar(user)).days : [], canBook,
             paymentMethodRegistered: Boolean(card.card),
             administratorName: [...new Set(administrators.map((person) => person.name))].join(', ') || 'não informado',
             userEmail: user.email, today: localDate(now()) } };
@@ -128,9 +100,13 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
             if (busyDates.has(date) || busyIds.has(requestId)) return fail(res, 409, 'date_unavailable');
             busyDates.add(date);
             busyIds.add(requestId);
+            const queued = pendingClaims > 0;
+            pendingClaims++;
             const previousClaim = claims;
             let releaseClaim;
-            claims = new Promise((resolve) => { releaseClaim = resolve; });
+            claims = new Promise((resolve) => {
+                releaseClaim = () => { pendingClaims--; resolve(); };
+            });
             let reserved = false;
             let record;
             let releaseCompany;
@@ -146,10 +122,14 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                 }
                 releaseCompany = claimCompany(user);
                 if (!releaseCompany) return fail(res, 409, 'card_busy');
-                const current = users ? (await users.readUsers()).filter((person) => normalize(person.email) === normalize(user.email)) : [user];
+                // Authorization just read this directory; queued claims must recheck it after waiting.
+                const directory = !queued && Array.isArray(res.locals.supportUsers) ? res.locals.supportUsers
+                    : users ? await users.readUsers() : [user];
+                const current = directory.filter((person) => normalize(person.email) === normalize(user.email));
                 if (current.length !== 1 || current[0].companyId !== user.companyId || current[0].password !== user.password || current[0].bookingAllowed !== true) return fail(res, 403, 'booking_permission_required');
                 if (!(await companyCards(user)).card) return fail(res, 403, 'payment_method_required');
-                const day = (await readCalendar(current[0])).find((entry) => entry.date === date);
+                const calendar = await readCalendar(current[0]);
+                const day = calendar.days.find((entry) => entry.date === date);
                 if (!day?.available) return fail(res, 409, 'date_unavailable');
                 if (day.priceCents !== priceCents) return fail(res, 409, 'price_changed');
                 record = { id: requestId, date, companyId: user.companyId, email: normalize(user.email), name: user.name,
@@ -159,7 +139,7 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                 releaseClaim();
                 releaseClaim = undefined;
                 try {
-                    await appointments.reserveDate({ date, companyId: user.companyId, name: user.name, hourlyRate: priceCents / 100 });
+                    await appointments.reserveDate({ date, companyId: user.companyId, name: user.name, hourlyRate: priceCents / 100 }, calendar.rows);
                 } catch (error) {
                     if (error.definiteRejection) {
                         await bookingStore.remove(requestId);

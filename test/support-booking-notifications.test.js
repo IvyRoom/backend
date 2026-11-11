@@ -8,6 +8,7 @@ const { RetryHandlerOptions } = require('@microsoft/microsoft-graph-client');
 const { createSupportBookingNotifications } = require('../integrations/support-booking-notifications');
 
 const USER_PATH = '/users/a8f570ff-a292-4b2f-a1e4-629ccd7a26be';
+const MEETING_URL = 'https://teams.microsoft.com/l/meetup-join/synthetic';
 
 function fakeClient(response, rejection) {
     const requests = [];
@@ -67,6 +68,7 @@ test('calendar creation preserves the domain payload and projects only bounded p
         iCalUId: '040000008200E00074C5B7101A82E00800000000@outlook.com',
         body: { content: 'private provider content' },
         attendees: [{ emailAddress: { address: 'private@example.invalid' } }],
+        onlineMeeting: { joinUrl: MEETING_URL },
     });
     const adapter = createSupportBookingNotifications({ graphClient });
     const payload = {
@@ -74,7 +76,7 @@ test('calendar creation preserves the domain payload and projects only bounded p
         transactionId: 'd0b07b46-1311-41fb-984f-b338fd6b8a16',
         isAllDay: false,
         start: { dateTime: '2026-11-12T09:00:00', timeZone: 'E. South America Standard Time' },
-        end: { dateTime: '2026-11-12T11:00:00', timeZone: 'E. South America Standard Time' },
+        end: { dateTime: '2026-11-12T10:00:00', timeZone: 'E. South America Standard Time' },
         isOnlineMeeting: true,
         onlineMeetingProvider: 'teamsForBusiness',
         attendees: [{ emailAddress: { address: 'user@example.invalid' }, type: 'required' }],
@@ -83,6 +85,7 @@ test('calendar creation preserves the domain payload and projects only bounded p
     assert.deepEqual(await adapter.createEvent(payload), {
         eventId: 'AAMkAGFhZC8-AAAB=',
         iCalUid: '040000008200E00074C5B7101A82E00800000000@outlook.com',
+        meetingUrl: MEETING_URL,
     });
     assert.equal(graphClient.requests.length, 1);
     const [request] = graphClient.requests;
@@ -92,7 +95,7 @@ test('calendar creation preserves the domain payload and projects only bounded p
     assertSingleAttempt(request);
 });
 
-test('calendar creation projects only an optional bounded HTTPS Teams join URL', async (t) => {
+test('calendar creation requires and projects only a bounded HTTPS Teams join URL', async (t) => {
     for (const meetingUrl of [
         'https://teams.microsoft.com/l/meetup-join/synthetic?context=test&tenant=test',
         'https://teams.live.com/meet/synthetic',
@@ -112,9 +115,9 @@ test('calendar creation projects only an optional bounded HTTPS Teams join URL',
     for (const onlineMeeting of [undefined, null, {}, { joinUrl: undefined }, { joinUrl: null }]) {
         const graphClient = fakeClient({ id: 'event-id', iCalUId: 'calendar-uid', onlineMeeting });
         const adapter = createSupportBookingNotifications({ graphClient });
-        assert.deepEqual(await adapter.createEvent({ transactionId: 'booking-id' }), {
-            eventId: 'event-id', iCalUid: 'calendar-uid',
-        });
+        await assert.rejects(adapter.createEvent({ transactionId: 'booking-id' }), assertFixedFailure('invalid_response'));
+        assert.equal(graphClient.requests.length, 1);
+        assertSingleAttempt(graphClient.requests[0]);
     }
 });
 
@@ -144,16 +147,7 @@ test('confirmation mail preserves the message and exact sendMail envelope withou
     const message = {
         subject: 'Data reservada',
         body: { contentType: 'HTML', content: '<p>Reserva confirmada.</p>' },
-        toRecipients: [
-            { emailAddress: { address: 'contato@machadogestao.com' } },
-            { emailAddress: { address: 'user@example.invalid' } },
-        ],
-        attachments: [{
-            '@odata.type': '#microsoft.graph.fileAttachment',
-            name: 'atendimento.ics',
-            contentType: 'text/calendar',
-            contentBytes: Buffer.from('BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n').toString('base64'),
-        }],
+        toRecipients: [{ emailAddress: { address: 'user@example.invalid' } }],
     };
 
     assert.equal(await adapter.sendConfirmation(message), undefined);

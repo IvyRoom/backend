@@ -111,6 +111,65 @@ test('no-change sync verifies table location, headers, data and formulas with on
     assert.deepEqual(f.state, initial);
 });
 
+const booking = { date: '2026-11-10', companyId: '12345678000195', name: 'Pessoa teste', hourlyRate: 975.25 };
+const managedRows = () => WINDOW.map((date) => appointmentAvailability(date, TODAY) ? row(date) : row(date, 'INDISPONÍVEL', MARKER));
+
+test('a fresh availability snapshot skips duplicate table reads while privately retaining its selected row', async () => {
+    const f = fixture({ initial: managedRows() });
+    const rows = await f.adapter.syncAvailability({ today: TODAY });
+    rows[0].excelRow = 999;
+    rows[0].date = '2026-12-31';
+    rows[0].status = 'RESERVADO';
+    assert.deepEqual(await f.adapter.reserveDate(booking, rows), { date: booking.date, status: 'RESERVADO', excelRow: 4 });
+    assert.equal(f.requests.length, 3, 'Only the existing snapshot, a fresh selected-row check and the reservation PATCH are needed');
+    assert.match(f.requests[1].path, /range\(address='A4:B4'\)\?\$select=values$/u);
+    assert.match(f.requests[2].path, /range\(address='A4:H4'\)$/u);
+    assert.deepEqual(f.requests[2].body, { values: [[null, 'RESERVADO', null, '12.345.678/0001-95', 'Pessoa teste', 975.25, null, null]] });
+    assert.equal(f.state[0][1], 'RESERVADO');
+    assert.equal(mutations(f).length, 1);
+    noSdkRetry(mutations(f)[0]);
+});
+
+test('snapshot reuse still rejects a selected date that was moved or occupied after the quote', async () => {
+    for (const changed of [[46336, 'RESERVADO'], [46336, 'INDISPONÍVEL'], [46337, '']]) {
+        const f = fixture({ initial: managedRows() });
+        const rows = await f.adapter.syncAvailability({ today: TODAY });
+        [f.state[0][0], f.state[0][1]] = changed;
+        await assert.rejects(f.adapter.reserveDate(booking, rows), (error) => {
+            assert.equal(error.code, 'support_appointments.date_unavailable');
+            assert.equal(error.definiteRejection, true);
+            return true;
+        });
+        assert.equal(f.requests.length, 2);
+        assert.equal(mutations(f).length, 0);
+    }
+});
+
+test('copied, foreign, superseded and already-used snapshots fall back to complete current validation', async () => {
+    for (const source of ['copied', 'foreign', 'readDates', 'sync', 'consumed']) {
+        const f = fixture({ initial: managedRows() });
+        const rows = await f.adapter.syncAvailability({ today: TODAY });
+        let adapter = f.adapter;
+        let availability = rows;
+        let input = booking;
+        if (source === 'copied') availability = rows.map((entry) => ({ ...entry, excelRow: 999 }));
+        if (source === 'foreign') adapter = f.reload();
+        if (source === 'readDates') await f.adapter.readDates();
+        if (source === 'sync') await f.adapter.syncAvailability({ today: TODAY });
+        if (source === 'consumed') {
+            await f.adapter.reserveDate(booking, rows);
+            input = { ...booking, date: '2026-11-11' };
+        }
+        const before = f.requests.length;
+        await adapter.reserveDate(input, availability);
+        const requests = f.requests.slice(before);
+        assert.equal(requests.length, 5, source);
+        assert.ok(requests[0].path.endsWith('/columns?$select=index,name'), source);
+        assert.ok(requests[1].path.endsWith('/range?$select=address,rowCount,columnCount'), source);
+        assert.ok(requests.every(({ path }) => !path.includes('999')), source);
+    }
+});
+
 test('single-response sync snapshot fails closed on header, range, shape, formula or date drift', async () => {
     const changes = [
         (response) => { response.values[0] = [...COLUMNS].reverse(); },
