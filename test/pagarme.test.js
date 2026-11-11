@@ -327,3 +327,11 @@ test('only documented definite HTTP rejections permit clearing pending intent', 
         assert.equal(attempts, 1);
     }
 });
+
+
+test('wallet card verification can omit the optional billing address without weakening verification', async () => {
+    const { adapter, calls } = fixture([{ ...card, status: 'active' }]);
+    const result = await adapter.createCard(customer.id, { token: 'token_Synthetic' });
+    assert.equal(result.verificationRequested, true);
+    assert.deepEqual(JSON.parse(calls[0].options.body), { token: 'token_Synthetic', options: { verify_card: true } });
+});

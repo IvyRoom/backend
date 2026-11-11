@@ -13,7 +13,7 @@ function companyCode(company) {
 }
 
 function publicUser(user) {
-    return { name: user.name, company: user.company, role: user.role, email: user.email };
+    return { name: user.name, company: user.company, role: user.role, email: user.email, bookingAllowed: user.bookingAllowed === true };
 }
 
 function publicCard(card) {
@@ -42,6 +42,15 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
     const fingerprint = (user) => digest(`${sessionStore.salt}:${user.password}`);
     const companyIdentity = (user) => normalize(user.companyId || user.company);
     const fail = (res, status, reason) => res.status(status).json({ error: `support_management.${reason}` });
+
+    function companyPermissions(user, directory) {
+        return { employees: directory.filter((person) => companyIdentity(person) === companyIdentity(user)).map((person) => ({
+            email: normalize(person.email), name: person.name,
+            allowed: person.bookingAllowed === true && person.status === 'Ativo',
+            active: person.status === 'Ativo' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(person.email)
+                && directory.filter((entry) => normalize(entry.email) === normalize(person.email)).length === 1,
+        })) };
+    }
 
     // Keep wallet mutations outside each booking's payment check and workbook write.
     function claimCompany(user) {
@@ -136,8 +145,9 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
 
     async function initialContext(user, directory) {
         if (!bootstrap) return {};
-        try { return await bootstrap(user, directory); }
-        catch { return { config: { environment: 'sandbox', publicKey } }; }
+        const permissions = user.role === 'Administrador' ? { permissions: companyPermissions(user, directory) } : {};
+        try { return { ...await bootstrap(user, directory), ...permissions }; }
+        catch { return { config: { environment: 'sandbox', publicKey }, ...permissions }; }
     }
 
     async function finishCardDeletion(code, record, company) {
@@ -220,6 +230,32 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
                 return fail(res, 503, 'card_unavailable');
             }
         },
+        permissions(req, res) {
+            const user = res.locals.supportUser;
+            if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
+            return res.json(companyPermissions(user, res.locals.supportUsers));
+        },
+        async updatePermission(req, res) {
+            const user = res.locals.supportUser;
+            if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
+            const body = req.body;
+            if (!body || typeof body !== 'object' || Array.isArray(body)
+                || Object.keys(body).some((key) => !['email', 'allowed'].includes(key))
+                || typeof body.email !== 'string' || body.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(body.email)
+                || typeof body.allowed !== 'boolean') return fail(res, 400, 'invalid_request');
+            const directory = res.locals.supportUsers;
+            const targets = directory.filter((person) => normalize(person.email) === normalize(body.email));
+            if (targets.length !== 1 || companyIdentity(targets[0]) !== companyIdentity(user) || targets[0].status !== 'Ativo') return fail(res, 404, 'employee_not_found');
+            const code = companyCode(companyIdentity(user));
+            if (busyCompanies.has(code)) return fail(res, 409, 'permission_busy');
+            busyCompanies.add(code);
+            try {
+                await users.writeBookingPermission(user.companyId, normalize(body.email), body.allowed);
+                return res.json(companyPermissions(user, directory.map((person) => person === targets[0] ? { ...person, bookingAllowed: body.allowed } : person)));
+            } catch {
+                return fail(res, 503, 'permission_save_failed');
+            } finally { busyCompanies.delete(code); }
+        },
         async deleteCard(req, res) {
             const user = res.locals.supportUser;
             if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
@@ -263,7 +299,8 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             const user = res.locals.supportUser;
             if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
             const { token, billingAddress } = req.body || {};
-            if (Object.keys(req.body || {}).some((key) => !['token', 'billingAddress'].includes(key)) || typeof token !== 'string' || !/^token_[A-Za-z0-9]{1,200}$/u.test(token) || !validBillingAddress(billingAddress)) return fail(res, 400, 'invalid_card');
+            if (Object.keys(req.body || {}).some((key) => !['token', 'billingAddress'].includes(key)) || typeof token !== 'string' || !/^token_[A-Za-z0-9]{1,200}$/u.test(token)
+                || (billingAddress !== undefined && !validBillingAddress(billingAddress))) return fail(res, 400, 'invalid_card');
             const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'card_busy');
             busyCompanies.add(code);

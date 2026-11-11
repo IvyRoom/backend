@@ -32,6 +32,8 @@ function createSupportApp({ frontendDirectory, origin, preload = false, ...depen
     app.get(`${base}/session`, handlers.authorize, handlers.session);
     app.post(`${base}/logout`, handlers.authorize, handlers.logout);
     app.get(`${base}/card`, handlers.authorize, handlers.getCard);
+    app.get(`${base}/permissions`, handlers.authorize, handlers.permissions);
+    app.patch(`${base}/permissions`, handlers.authorize, handlers.updatePermission);
     app.put(`${base}/card`, handlers.authorize, handlers.saveCard);
     app.delete(`${base}/card`, handlers.authorize, handlers.deleteCard);
     app.post(`${base}/card/sync`, handlers.authorize, handlers.syncCard);

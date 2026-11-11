@@ -73,11 +73,11 @@ trigger a preview deployment even while a PR is a draft.
    Do not expose this listener through a tunnel or use the production entry point.
    Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
 5. Log in using an active workbook account. An account whose `TIPO DE ACESSO` is
-   `Administrador` can register or replace a card in Cadastro de Cartão. Until a
-   verified active card exists, Agendamento shows the company's administrator
-   name instead of its calendar.
+   `Administrador` can register a card and enable individual employee booking
+   checkboxes in Configurações da Conta PJ. Until a verified card and explicit
+   employee permission exist, Agendamento shows the company administrator.
 6. Use the Pagar.me simulator card `4000000000000010`, CVV `123`, and a future
-   expiry date, with synthetic cardholder/address details. Do not enter the real
+   expiry date, with synthetic cardholder details. Do not enter the real
    company card into this sandbox. It cannot prove a real issuer authorization.
 7. Refresh, sign out and back in, and restart the sandbox to verify persistence.
    A colleague with the same CNPJ sees the masked card and cannot alter it;
@@ -85,26 +85,35 @@ trigger a preview deployment even while a PR is a draft.
    **test** dashboard and the reusable references in BD - USUÁRIOS. Registration does
    not create an order or charge and does not send an email.
 8. For booking acceptance, select the intended date in Agendamento, review the
-   rate and nonattendance term, tick Estou ciente and click Reservar Agenda.
-   Verify the reserved row, the 09:00–11:00 Teams invitation and confirmation at
+   rate, click Reservar Agenda, then accept the nonattendance term with Confirmar.
+   Verify the reserved row, the 09:00–12:00 Teams invitation and confirmation at
    both recipient accounts. This is a real reservation and notification test.
 9. Stop the server with Ctrl+C when finished.
 
 Pagar.me uses the same API origin for test/live; this entry point accepts only
 `pk_test_` and `sk_test_` keys and rejects responses marked live. The secret key
 stays server-side. The public key is returned by `/support-management/api/config`.
-Browser tokenization goes straight to Pagar.me; only a single-use token and billing
-address reach the backend. PAN/CVV are never sent to Graph or saved by the app.
+Browser tokenization goes straight to Pagar.me; only a single-use token reaches
+the backend. Wallet registration omits optional billing-address fields and keeps
+`verify_card: true`. PAN/CVV are never sent to Graph or saved by the app. The live
+card representation exists only during entry; saved cards remain masked. See the
+[official card request model](https://github.com/pagarme/pagarme-nodejs-sdk/blob/main/doc/models/create-card-request.md)
+for optional address fields; a later order/antifraud flow may require them.
 
 ## Identity and persistence
 
 Verified workbook: drive item `01OSXVECRXPEMKXY4F5RH34SKSN35K757F`, table
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}` (`BD`), sheet `USUÁRIOS`.
-Authentication requires the exact 11-column A:K contract: CNPJ, RAZÃO SOCIAL,
+Authentication verifies the exact A:K contract, optionally extended by the single
+L column CONTRATAR ATENDIMENTOS: CNPJ, RAZÃO SOCIAL,
 VALOR REFERÊNCIA, NOME COMPLETO, E-MAIL, SENHA, TIPO DE ACESSO, STATUS,
 PAGARME CUSTOMER ID, PAGARME CARD ID, PAGARME AMBIENTE. Header comparison trims
 whitespace. Any other header, index or range drift fails closed.
-Credential validation retrieves only A:H and does not use card references.
+Credential validation retrieves A:H and, when present, L separately. It does not
+read provider references for authentication. Only the literal Sim grants booking;
+blank/Não denies it. Administrator permission changes target one unique email in
+their own CNPJ. The first such user action adds L only when unused and verifies
+the new schema before writing the cell. No automated check changes the workbook.
 Passwords follow the existing workbook contract and never
 appear in responses or local metadata. Inactive, missing, or duplicate email
 matches fail.
@@ -132,9 +141,9 @@ registration-status column remains in this workbook contract. The masked card
 display is fetched from Pagar.me. A missing company or changed schema blocks
 synchronization instead of adding rows or columns.
 
-On 2026-11-09, read-only verification confirmed USUÁRIOS!A3:K49 with 46 data
-rows and the revised CNPJ/reference-rate schema. No workbook migration is needed
-for this version. The six legacy raw/masked-card columns were removed previously.
+On 2026-11-11, read-only verification confirmed USUÁRIOS!A3:K49 with 46 data
+rows and L unused. The optional permission column is initialized on the first
+administrator checkbox change. The six legacy raw/masked-card columns were removed previously.
 
 Workbook references mirror the reusable provider wallet IDs for reporting and
 backup. They are never supplied by the browser, exposed by the card API, read for
@@ -244,8 +253,9 @@ Unavailable days do not advance the discount. Price and availability are checked
 again on reservation; stale quotes require reselection. A global claim queue
 prevents different dates from accepting incompatible concurrent quotes.
 
-A verified, active and unexpired company card is required for calendar access and
-new reservations. Initial context/calendar reads cache provider readiness for up
+A verified, active and unexpired company card plus an explicit employee booking
+permission are required for calendar access and new reservations. Revocation is
+rechecked server-side even with an existing session or cached calendar. Initial context/calendar reads cache provider readiness for up
 to 60 seconds, while still reading local verification/pending state. Explicit
 card reads are fresh; save/sync invalidate that cache. Every new reservation
 performs a fresh Pagar.me GET before accepting the booking. No order or charge is
@@ -265,13 +275,13 @@ CNPJ, E=authenticated name, F=hourly price. Null placeholders preserve DATA,
 OBSERVAÇÃO, DURAÇÃO (MIN) and VALOR COBRADO, including the existing formula.
 The date is rechecked immediately before the single Graph PATCH; reservation
 itself adds no row. Meetings start at 09:00 Brasília time and may last up to
-2h as needed. DURAÇÃO (MIN), column G, remains manual; H calculates the charge
+3h as needed. DURAÇÃO (MIN), column G, remains manual; H calculates the charge
 from that actual duration and the agreed rate. No card is charged.
 Workbook edits made concurrently outside this local app are not atomic
 with its PATCH; avoid another booking writer during this local trial.
 
 After the row is reserved, the app requests a Microsoft Teams event holding
-09:00–11:00 in the contato mailbox's calendar, in Brasília time, and invites the
+09:00–12:00 in the contato mailbox's calendar, in Brasília time, and invites the
 authenticated user. Its returned Teams link is included when provided. Graph
 sends the attendee invitation automatically. A confirmation goes to
 contato@machadogestao.com and the authenticated user, with a calendar attachment

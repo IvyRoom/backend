@@ -15,7 +15,7 @@ const { createSupportCardStore } = require('../integrations/support-card-store')
 const { openSupportSessionStore, createMemorySupportSessionStore } = require('../integrations/support-session-store');
 const { createTestApp, startLoopback } = require('./app-test-support');
 
-const admin = { company: 'Empresa A', name: 'Administradora teste', email: 'admin@example.test', password: 'test-password', role: 'Administrador', status: 'Ativo' };
+const admin = { company: 'Empresa A', name: 'Administradora teste', email: 'admin@example.test', password: 'test-password', role: 'Administrador', status: 'Ativo', bookingAllowed: true };
 const colleague = { ...admin, name: 'Colega teste', email: 'colleague@example.test', role: 'Usuário' };
 const otherAdmin = { ...admin, company: 'Empresa B', email: 'other@example.test' };
 const verification = 'pagarme_verify_card_v1';
@@ -45,6 +45,10 @@ async function fixture(t, overrides = {}) {
         async readUsers() { calls.push(['readUsers']); return state.users; },
         async writeCompanyCard(company, details, references) { calls.push(['writeCompanyCard', company, structuredClone(details), structuredClone(references)]); },
         async clearCompanyCard(company) { calls.push(['clearCompanyCard', company]); },
+        async writeBookingPermission(companyId, email, allowed) {
+            calls.push(['writeBookingPermission', companyId, email, allowed]);
+            state.users.find((person) => person.companyId === companyId && person.email.toLowerCase() === email).bookingAllowed = allowed;
+        },
     };
     const cardStore = {
         async read(code) { calls.push(['read', code]); return structuredClone(records.get(code) || {}); },
@@ -159,7 +163,7 @@ test('preloaded login supplies safe initial context once and session refresh kee
     const response = await f.request('login', { method: 'POST', body: { email: admin.email, password: admin.password } });
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.deepEqual(Object.keys(body).sort(), ['calendar', 'card', 'config', 'expiresAt', 'token', 'user']);
+    assert.deepEqual(Object.keys(body).sort(), ['calendar', 'card', 'config', 'expiresAt', 'permissions', 'token', 'user']);
     assert.deepEqual(body.config, { environment: 'sandbox', publicKey: 'pk_test_synthetic' });
     assertCardResponse(body.card, { card: { brand: card.brand, lastFour: card.lastFour, expMonth: card.expMonth, expYear: card.expYear } });
     assert.equal(body.calendar.paymentMethodRegistered, true);
@@ -540,7 +544,7 @@ test('sandbox config and login expose only public fields and issue an opaque tok
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.match(body.token, /^[A-Za-z0-9_-]{43}$/);
-    assert.deepEqual(body.user, { name: admin.name, company: admin.company, role: admin.role, email: admin.email });
+    assert.deepEqual(body.user, { name: admin.name, company: admin.company, role: admin.role, email: admin.email, bookingAllowed: true });
     assert.equal(body.expiresAt, 1_800_000_000_000 + 60 * 60 * 1000);
     assert.deepEqual(Object.keys(body).sort(), ['expiresAt', 'token', 'user']);
     const session = await f.request('session', { token: body.token });
@@ -560,7 +564,7 @@ test('CNPJ keeps sessions and company card identity stable across company name c
     f.state.users[1].company = 'Outra apresentação da mesma razão social';
 
     assert.deepEqual(await (await f.request('session', { token })).json(), {
-        user: { name: admin.name, company: f.state.users[0].company, role: admin.role, email: admin.email },
+        user: { name: admin.name, company: f.state.users[0].company, role: admin.role, email: admin.email, bookingAllowed: true },
         expiresAt: 1_800_000_000_000 + 60 * 60 * 1000,
     });
     const colleagueToken = await f.login(colleague);
@@ -756,7 +760,7 @@ test('a persisted session survives backend recreation and keeps its original one
     clock += 30 * 60 * 1000;
     const second = await fixture(t, { sessionStore: await openSupportSessionStore(directory), now: () => clock });
     assert.deepEqual(await (await second.request('session', { token })).json(), {
-        user: { name: admin.name, company: admin.company, role: admin.role, email: admin.email },
+        user: { name: admin.name, company: admin.company, role: admin.role, email: admin.email, bookingAllowed: true },
         expiresAt: issuedAt + 60 * 60 * 1000,
     });
     clock = issuedAt + 60 * 60 * 1000 - 1;
@@ -1325,4 +1329,85 @@ test('card reference store survives reload, replaces records and refuses invalid
     await assert.rejects(store.read('../escape'), /storage unavailable/);
     await fs.writeFile(path.join(directory, `${code}.json`), '{corrupt');
     await assert.rejects(reloaded.read(code), /storage unavailable/);
+});
+
+
+test('company permissions list only authenticated company employees and never private workbook fields', async (t) => {
+    const f = await fixture(t);
+    seedCompanyPayment(f);
+    f.state.users.push({ ...f.state.users[1], name: 'Inativo', email: 'inactive@example.test', status: 'Inativo' });
+    const token = await f.login();
+    const result = await (await f.request('permissions', { token })).json();
+    assert.deepEqual(result.employees, [
+        { name: admin.name, email: admin.email, allowed: true, active: true },
+        { name: colleague.name, email: colleague.email, allowed: true, active: true },
+        { name: 'Inativo', email: 'inactive@example.test', allowed: false, active: false },
+    ]);
+    assert.ok(!JSON.stringify(result).includes(admin.password));
+    const memberToken = await f.login(colleague);
+    await expectError(await f.request('permissions', { token: memberToken }), 403, 'administrator_required');
+});
+
+test('administrator permission changes derive the company and reject malformed, foreign or ambiguous targets before writes', async (t) => {
+    const f = await fixture(t);
+    const companyId = seedCompanyPayment(f);
+    const token = await f.login();
+    const memberToken = await f.login(colleague);
+    await expectError(await f.request('permissions', { method: 'PATCH', token: memberToken, body: { email: colleague.email, allowed: true } }), 403, 'administrator_required');
+    for (const body of [undefined, [], null, {}, { email: colleague.email, allowed: 'Sim' }, { email: 'bad', allowed: true }, { email: colleague.email, allowed: true, companyId }]) {
+        await expectError(await f.request('permissions', { method: 'PATCH', token, body }), 400, 'invalid_request');
+    }
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: otherAdmin.email, allowed: true } }), 404, 'employee_not_found');
+    f.state.users.push({ ...f.state.users[1] });
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: true } }), 404, 'employee_not_found');
+    assert.equal(f.calls.some(([kind]) => kind === 'writeBookingPermission'), false);
+});
+
+test('permission changes take effect for an existing session and revoke booking before provider or workbook effects', async (t) => {
+    const f = await fixture(t, { appointments: { readDates: async () => [{ date: '2027-02-01', status: '' }] }, bookingStore: { pendingDates: async () => new Set(), read: async () => null } });
+    const companyId = seedCompanyPayment(f);
+    const token = await f.login();
+    const memberToken = await f.login(colleague);
+    assert.equal((await (await f.request('calendar', { token: memberToken })).json()).canBook, true);
+    const result = await (await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } })).json();
+    assert.equal(result.employees.find((person) => person.email === colleague.email).allowed, false);
+    assert.deepEqual(f.calls.filter(([kind]) => kind === 'writeBookingPermission'), [['writeBookingPermission', companyId, colleague.email, false]]);
+    const calendar = await (await f.request('calendar', { token: memberToken })).json();
+    assert.equal(calendar.paymentMethodRegistered, true);
+    assert.equal(calendar.canBook, false);
+    assert.deepEqual(calendar.days, []);
+    const before = f.calls.length;
+    await expectError(await f.request('reservations', { method: 'POST', token: memberToken, body: { date: '2027-02-01', priceCents: 100000, requestId: 'd0b07b46-1311-41fb-984f-b338fd6b8a16', acknowledged: true } }), 403, 'booking_permission_required');
+    assert.ok(f.calls.slice(before).every(([kind]) => kind === 'readUsers'));
+    const session = await (await f.request('session', { token: memberToken })).json();
+    assert.equal(session.user.bookingAllowed, false);
+});
+
+test('permissions cannot change during a company card operation and failed saves remain retryable', async (t) => {
+    const f = await fixture(t);
+    seedCompanyPayment(f);
+    const token = await f.login();
+    let release;
+    let started;
+    const entered = new Promise((resolve) => { started = resolve; });
+    f.pagarme.deleteCard = async () => { started(); await new Promise((resolve) => { release = resolve; }); return { deleted: true }; };
+    const deleting = f.request('card', { method: 'DELETE', token, body: deleteRequest });
+    await entered;
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } }), 409, 'permission_busy');
+    release();
+    assert.equal((await deleting).status, 200);
+    f.users.writeBookingPermission = async () => { throw new Error('private Graph response'); };
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } }), 503, 'permission_save_failed');
+    f.users.writeBookingPermission = async () => {};
+    assert.equal((await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } })).status, 200);
+});
+
+test('addressless registration still requires explicit Pagar.me verification', async (t) => {
+    const f = await fixture(t);
+    seedCompanyPayment(f);
+    const token = await f.login();
+    const result = await f.request('card', { method: 'PUT', token, body: { token: 'token_synthetic' } });
+    assert.equal(result.status, 200);
+    assert.ok((await result.json()).card);
+    assert.equal(f.calls.find(([kind]) => kind === 'createCard')[2].billingAddress, undefined);
 });

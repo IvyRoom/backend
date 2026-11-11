@@ -19,7 +19,7 @@ const WEEKDAYS = ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-
 const MASKED_CARD = { brand: 'Visa', lastFour: '1111' };
 const MEETING_URL = 'https://teams.microsoft.com/l/meetup-join/synthetic-meeting?context=example&tenant=example';
 const USER = { companyId: COMPANY_ID, company: 'Empresa de Consultoria', name: 'João da Silva',
-    email: 'USER@example.invalid', referenceRate: 1000 };
+    email: 'USER@example.invalid', referenceRate: 1000, bookingAllowed: true, status: 'Ativo' };
 
 function savedRecord(overrides = {}) {
     return { id: ID, date: WEEKDAYS[0], companyId: COMPANY_ID, company: USER.company,
@@ -317,7 +317,7 @@ test('calendar without a company card returns administrator context and does not
     const app = fixture({ card: null, directory, syncAvailability: true });
     const res = await app.calendar();
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { days: [], paymentMethodRegistered: false, administratorName: 'Ana, Beto',
+    assert.deepEqual(res.body, { days: [], canBook: false, paymentMethodRegistered: false, administratorName: 'Ana, Beto',
         userEmail: USER.email, today: '2026-11-09' });
     assert.deepEqual(app.calls.map(({ type }) => type), ['cards:cached']);
     assert.deepEqual(app.calls[0].payload.options, { cached: true });
@@ -422,7 +422,7 @@ test('eligible late-next-month dates can be reserved beyond thirty days, includi
     }
 });
 
-test('successful reservation stores consent and creates a 09:00–11:00 Brasília Teams hold and confirmation', async () => {
+test('successful reservation stores consent and creates a 09:00–12:00 Brasília Teams hold and confirmation', async () => {
     const app = fixture();
     const res = await app.reserve();
     assert.equal(res.statusCode, 200);
@@ -440,7 +440,7 @@ test('successful reservation stores consent and creates a 09:00–11:00 Brasíli
     assert.equal(event.isAllDay, false);
     assert.equal(event.showAs, 'busy');
     assert.deepEqual(event.start, { dateTime: '2026-11-10T09:00:00', timeZone: 'E. South America Standard Time' });
-    assert.deepEqual(event.end, { dateTime: '2026-11-10T11:00:00', timeZone: 'E. South America Standard Time' });
+    assert.deepEqual(event.end, { dateTime: '2026-11-10T12:00:00', timeZone: 'E. South America Standard Time' });
     assert.equal(event.isOnlineMeeting, true);
     assert.equal(event.onlineMeetingProvider, 'teamsForBusiness');
     assert.deepEqual(event.attendees, [{ emailAddress: { address: USER.email.toLowerCase(), name: USER.name }, type: 'required' }]);
@@ -451,7 +451,7 @@ test('successful reservation stores consent and creates a 09:00–11:00 Brasíli
     assert.deepEqual(mail.body, event.body);
     assert.match(mail.body.content, /Preço por hora:/u);
     assert.match(mail.body.content, /09:00/u);
-    assert.match(mail.body.content, /2h/u);
+    assert.match(mail.body.content, /3h/u);
     assert.match(mail.body.content, /conforme necessário/u);
     assert.match(mail.body.content, /Brasília/u);
     assert.equal(mail.attachments.length, 1);
@@ -461,7 +461,7 @@ test('successful reservation stores consent and creates a 09:00–11:00 Brasíli
     assert.match(ics, /METHOD:REQUEST\r\n/u);
     assert.match(ics, /UID:provider-calendar-uid@example\.invalid\r\n/u);
     assert.match(ics, /DTSTAMP:20261109T150000Z\r\n/u);
-    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T140000Z\r\n/u);
+    assert.match(ics, /DTSTART:20261110T120000Z\r\nDTEND:20261110T150000Z\r\n/u);
     assert.doesNotMatch(ics, /VALUE=DATE:/u);
     assert.match(ics, /ORGANIZER:mailto:contato@machadogestao\.com\r\n/u);
     assert.match(ics, /ATTENDEE;RSVP=TRUE:mailto:user@example\.invalid\r\n/u);
@@ -477,19 +477,19 @@ test('timed invites preserve the selected Brasília date across month, year, and
             const event = eventPayload(booking);
             assert.equal(event.isAllDay, false);
             assert.deepEqual(event.start, { dateTime: `${date}T09:00:00`, timeZone: 'E. South America Standard Time' });
-            assert.deepEqual(event.end, { dateTime: `${date}T11:00:00`, timeZone: 'E. South America Standard Time' });
+            assert.deepEqual(event.end, { dateTime: `${date}T12:00:00`, timeZone: 'E. South America Standard Time' });
             const mail = confirmation(booking);
             const ics = Buffer.from(mail.attachments[0].contentBytes, 'base64').toString('utf8').replace(/\r\n /gu, '');
             const start = /^DTSTART:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
             const end = /^DTEND:(\d{8}T\d{6}Z)\r?$/mu.exec(ics)?.[1];
             assert.equal(start, `${date.replace(/-/gu, '')}T120000Z`);
-            assert.equal(end, `${date.replace(/-/gu, '')}T140000Z`);
+            assert.equal(end, `${date.replace(/-/gu, '')}T150000Z`);
             const instant = (compact) => `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}T${compact.slice(9, 11)}:${compact.slice(11, 13)}:${compact.slice(13, 15)}Z`;
             assert.equal(Date.parse(instant(start)), Date.parse(`${date}T09:00:00-03:00`));
-            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 7200000);
+            assert.equal(Date.parse(instant(end)) - Date.parse(instant(start)), 10800000);
             assert.doesNotMatch(ics, /VALUE=DATE:/u);
             assert.match(mail.body.content, /09:00/u);
-            assert.match(mail.body.content, /2h/u);
+            assert.match(mail.body.content, /3h/u);
             assert.match(mail.body.content, /Brasília/u);
         });
     }
@@ -661,4 +661,18 @@ test('simultaneous different-date claims refresh the second price after the firs
     const refreshed = await app.reserve({ date: WEEKDAYS[3], priceCents: 100000, requestId: OTHER_ID, acknowledged: true });
     assert.deepEqual(refreshed.body, { date: WEEKDAYS[3], reserved: true });
     assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 2);
+});
+
+
+test('missing, false or malformed employee permission hides availability and blocks new reservations before payment checks', async () => {
+    for (const bookingAllowed of [undefined, false, 'Sim', 1]) {
+        const app = fixture({ user: { ...USER, bookingAllowed } });
+        const calendar = await app.calendar();
+        assert.equal(calendar.body.paymentMethodRegistered, true);
+        assert.equal(calendar.body.canBook, false);
+        assert.deepEqual(calendar.body.days, []);
+        const before = app.calls.length;
+        assertError(await app.reserve(), 403, 'booking_permission_required');
+        assert.deepEqual(app.calls.slice(before).map(({ type }) => type), ['read']);
+    }
 });

@@ -12,26 +12,37 @@ const companyId = '12345678000195';
 const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Ativo'];
 const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
 
-function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt } = {}) {
+function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, permissionValues, usedAddress, failUpdateAt, failPost } = {}) {
+    metadata = structuredClone(metadata);
     const calls = [];
     const writes = [];
     const graphClient = {
         api(path) {
             calls.push(path);
+            let options;
             return {
+                middlewareOptions(value) { options = value; return this; },
                 async get() {
                     if (path.endsWith('/columns?$select=index,name')) return { value: metadata };
                     if (path.endsWith('/range?$select=address,rowCount,columnCount')) return range || {
-                        address: `USUÁRIOS!A3:K${values.length + 3}`, columnCount: 11, rowCount: values.length + 1,
+                        address: `USUÁRIOS!A3:${metadata.length === 12 ? 'L' : 'K'}${values.length + 3}`, columnCount: metadata.length, rowCount: values.length + 1,
                     };
+                    if (path.includes('/usedRange(')) return { address: usedAddress || `USUÁRIOS!A1:K${values.length + 3}` };
+                    if (/address='L4:L\d+'/u.test(path)) return { values: permissionValues ?? values.map(() => ['']) };
                     if (/address='A4:A\d+'/u.test(path)) return { values: companyValues ?? values.map((row) => [row[0]]) };
                     const reference = /address='I(\d+):K\d+'/u.exec(path);
                     if (reference) return { values: referenceRows[reference[1]] ?? [['', '', '']] };
                     return { values };
                 },
                 async update(body) {
-                    writes.push({ path, body: structuredClone(body) });
+                    writes.push({ path, body: structuredClone(body), ...(options ? { options } : {}) });
                     if (writes.length === failUpdateAt) throw new Error('synthetic patch failure');
+                },
+                async post(body) {
+                    writes.push({ path, body: structuredClone(body), options });
+                    metadata.push({ name: body.name, index: metadata.length });
+                    if (failPost) throw new Error('synthetic column response lost');
+                    return { name: body.name, index: metadata.length - 1 };
                 },
             };
         },
@@ -50,7 +61,7 @@ test('support users reads identity, stable company and reference price without p
     const { users, calls } = fixture();
     assert.deepEqual(await users.readUsers(), [{
         companyId, company: 'Empresa teste', referenceRate: 1000, name: 'Pessoa teste',
-        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo',
+        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo', bookingAllowed: false,
     }]);
     assert.equal(calls.length, 3);
     assert.match(calls[0], /\/tables\/\{7C4EBF15-124A-4107-9867-F83E9C664B31\}\/columns\?\$select=index,name$/u);
@@ -262,5 +273,60 @@ test('company card clearing stops on the first failed patch without retrying or 
         assert.equal(writes.length, failUpdateAt);
         assert.ok(writes.every(({ path, body }) => /range\(address='I[45]:K[45]'\)$/u.test(path)
             && JSON.stringify(body) === JSON.stringify({ values: [['', '', '']] })));
+    }
+});
+
+
+test('permission column is read separately from identity and provider references are never retrieved', async () => {
+    const { users, calls } = fixture({ metadata: [...columns, { name: 'CONTRATAR ATENDIMENTOS', index: 11 }], values: [defaultRow, defaultRow, defaultRow], permissionValues: [['Sim'], ['Não'], ['']] });
+    assert.deepEqual((await users.readUsers()).map((person) => person.bookingAllowed), [true, false, false]);
+    assert.ok(calls.some((path) => path.includes("range(address='L4:L6')")));
+    assert.ok(calls.every((path) => !path.includes("range(address='I") && !path.includes('/rows')));
+});
+
+test('first permission save appends one named column then writes only the resolved employee L cell', async () => {
+    const other = [...defaultRow]; other[4] = 'colleague@example.test';
+    const { users, calls, writes } = fixture({ values: [defaultRow, other] });
+    await users.writeBookingPermission(companyId, ' COLLEAGUE@example.test '.trim(), true);
+    assert.deepEqual(writes.map(({ body }) => body), [{ name: 'CONTRATAR ATENDIMENTOS' }, { values: [['Sim']] }]);
+    assert.match(writes[0].path, /\/columns$/u);
+    assert.match(writes[1].path, /range\(address='L5:L5'\)$/u);
+    for (const write of writes) {
+        assert.equal(write.options.length, 1);
+        assert.equal(write.options[0].maxRetries, 0);
+        assert.equal(write.options[0].shouldRetry(0, 0, {}, {}, { status: 503 }), false);
+    }
+    assert.ok(calls.some((path) => path.includes('usedRange(valuesOnly=true)')));
+    await users.writeBookingPermission(companyId, 'colleague@example.test', false);
+    assert.equal(writes.filter(({ path }) => path.endsWith('/columns')).length, 1);
+    assert.deepEqual(writes.at(-1).body, { values: [['Não']] });
+});
+
+test('column creation stops safely on occupied outside-table cells and recovers a lost append response without duplicating it', async () => {
+    const occupied = fixture({ usedAddress: 'USUÁRIOS!A1:L49' });
+    await assert.rejects(occupied.users.writeBookingPermission(companyId, defaultRow[4], true), /permission_column_occupied/u);
+    assert.equal(occupied.writes.length, 0);
+    const lost = fixture({ failPost: true });
+    await assert.rejects(lost.users.writeBookingPermission(companyId, defaultRow[4], true), /response lost/u);
+    assert.equal(lost.writes.length, 1);
+    await lost.users.writeBookingPermission(companyId, defaultRow[4], false);
+    assert.equal(lost.writes.filter(({ path }) => path.endsWith('/columns')).length, 1);
+    assert.deepEqual(lost.writes.at(-1).body, { values: [['Não']] });
+});
+
+test('permission changes reject cross-company, inactive and ambiguous identities before schema or data writes', async () => {
+    const inactive = [...defaultRow]; inactive[7] = 'Inativo';
+    for (const options of [{ values: [defaultRow, defaultRow] }, { values: [inactive] }]) {
+        const f = fixture(options);
+        await assert.rejects(f.users.writeBookingPermission(companyId, defaultRow[4], true), /employee_not_found/u);
+        assert.equal(f.writes.length, 0);
+    }
+    const other = fixture();
+    await assert.rejects(other.users.writeBookingPermission('99999999000199', defaultRow[4], true), /employee_not_found/u);
+    assert.equal(other.writes.length, 0);
+    for (const [company, email, allowed] of [['invalid', defaultRow[4], true], [companyId, 'bad', true], [companyId, defaultRow[4], 'Sim']]) {
+        const f = fixture();
+        await assert.rejects(f.users.writeBookingPermission(company, email, allowed), /invalid_permission/u);
+        assert.equal(f.calls.length, 0);
     }
 });

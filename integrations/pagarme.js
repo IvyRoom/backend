@@ -118,7 +118,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
                 cardVerification: true,
                 body: {
                     token,
-                    billing_address: projectAddress(billingAddress),
+                    ...(billingAddress === undefined ? {} : { billing_address: projectAddress(billingAddress) }),
                     // The v5 SDK documents authorization before saving with options.verify_card.
                     options: { verify_card: true },
                 },
