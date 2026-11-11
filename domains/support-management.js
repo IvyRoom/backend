@@ -240,18 +240,23 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
             if (user.role !== 'Administrador') return fail(res, 403, 'administrator_required');
             const body = req.body;
             if (!body || typeof body !== 'object' || Array.isArray(body)
-                || Object.keys(body).some((key) => !['email', 'allowed'].includes(key))
-                || typeof body.email !== 'string' || body.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(body.email)
-                || typeof body.allowed !== 'boolean') return fail(res, 400, 'invalid_request');
+                || Object.keys(body).some((key) => key !== 'employees') || !Array.isArray(body.employees) || body.employees.length > 1000
+                || body.employees.some((person) => !person || typeof person !== 'object' || Array.isArray(person)
+                    || Object.keys(person).some((key) => !['email', 'allowed'].includes(key))
+                    || typeof person.email !== 'string' || person.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(person.email)
+                    || typeof person.allowed !== 'boolean')) return fail(res, 400, 'invalid_request');
+            const updates = new Map(body.employees.map((person) => [normalize(person.email), person.allowed]));
+            if (updates.size !== body.employees.length) return fail(res, 400, 'invalid_request');
             const directory = res.locals.supportUsers;
-            const targets = directory.filter((person) => normalize(person.email) === normalize(body.email));
-            if (targets.length !== 1 || companyIdentity(targets[0]) !== companyIdentity(user) || targets[0].status !== 'Ativo') return fail(res, 404, 'employee_not_found');
+            const targets = companyPermissions(user, directory).employees.filter((person) => person.active);
+            if (targets.length !== updates.size || targets.some((person) => !updates.has(person.email))) return fail(res, 404, 'employee_not_found');
             const code = companyCode(companyIdentity(user));
             if (busyCompanies.has(code)) return fail(res, 409, 'permission_busy');
             busyCompanies.add(code);
             try {
-                await users.writeBookingPermission(user.companyId, normalize(body.email), body.allowed);
-                return res.json(companyPermissions(user, directory.map((person) => person === targets[0] ? { ...person, bookingAllowed: body.allowed } : person)));
+                await users.writeBookingPermissions(user.companyId, [...updates].map(([email, allowed]) => ({ email, allowed })), directory);
+                return res.json(companyPermissions(user, directory.map((person) => companyIdentity(person) === companyIdentity(user) && updates.has(normalize(person.email))
+                    ? { ...person, bookingAllowed: updates.get(normalize(person.email)) } : person)));
             } catch {
                 return fail(res, 503, 'permission_save_failed');
             } finally { busyCompanies.delete(code); }

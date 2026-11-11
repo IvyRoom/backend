@@ -6,14 +6,15 @@ const { createSupportUsersAdapter } = require('../integrations/support-users');
 
 const columns = [
     'CNPJ', 'RAZÃO SOCIAL', 'VALOR REFERÊNCIA', 'NOME COMPLETO', 'E-MAIL', 'SENHA',
-    'TIPO DE ACESSO', 'STATUS', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'PAGARME AMBIENTE ',
+    'TIPO DE ACESSO', 'AUTORIZADO A CONTRATAR ATENDIMENTOS', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'PAGARME AMBIENTE ',
 ].map((name, index) => ({ name, index }));
 const companyId = '12345678000195';
-const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Ativo'];
+const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Sim'];
 const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
 
-function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, permissionValues, usedAddress, failUpdateAt, failPost } = {}) {
+function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt, batchResponses, failPost } = {}) {
     metadata = structuredClone(metadata);
+    values = structuredClone(values);
     const calls = [];
     const writes = [];
     const graphClient = {
@@ -27,8 +28,6 @@ function fixture({ metadata = columns, range, values = [defaultRow], companyValu
                     if (path.endsWith('/range?$select=address,rowCount,columnCount')) return range || {
                         address: `USUÁRIOS!A3:${metadata.length === 12 ? 'L' : 'K'}${values.length + 3}`, columnCount: metadata.length, rowCount: values.length + 1,
                     };
-                    if (path.includes('/usedRange(')) return { address: usedAddress || `USUÁRIOS!A1:K${values.length + 3}` };
-                    if (/address='L4:L\d+'/u.test(path)) return { values: permissionValues ?? values.map(() => ['']) };
                     if (/address='A4:A\d+'/u.test(path)) return { values: companyValues ?? values.map((row) => [row[0]]) };
                     const reference = /address='I(\d+):K\d+'/u.exec(path);
                     if (reference) return { values: referenceRows[reference[1]] ?? [['', '', '']] };
@@ -37,17 +36,25 @@ function fixture({ metadata = columns, range, values = [defaultRow], companyValu
                 async update(body) {
                     writes.push({ path, body: structuredClone(body), ...(options ? { options } : {}) });
                     if (writes.length === failUpdateAt) throw new Error('synthetic patch failure');
+                    const cell = /address='H(\d+):H\d+'/u.exec(path);
+                    if (cell) body.values.forEach((row, index) => { values[Number(cell[1]) - 4 + index][7] = row[0]; });
                 },
                 async post(body) {
                     writes.push({ path, body: structuredClone(body), options });
-                    metadata.push({ name: body.name, index: metadata.length });
-                    if (failPost) throw new Error('synthetic column response lost');
-                    return { name: body.name, index: metadata.length - 1 };
+                    if (failPost) throw new Error('synthetic batch response lost');
+                    const result = typeof batchResponses === 'function' ? batchResponses(body.requests) : batchResponses
+                        || { responses: body.requests.map(({ id }) => ({ id, status: 200 })) };
+                    for (const response of result.responses || []) if (response.status >= 200 && response.status < 300) {
+                        const request = body.requests.find(({ id }) => id === response.id);
+                        const cell = /address='H(\d+):H\d+'/u.exec(request?.url || '');
+                        if (cell) request.body.values.forEach((row, index) => { values[Number(cell[1]) - 4 + index][7] = row[0]; });
+                    }
+                    return result;
                 },
             };
         },
     };
-    return { users: createSupportUsersAdapter({ graphClient }), calls, writes };
+    return { users: createSupportUsersAdapter({ graphClient }), calls, writes, values };
 }
 
 test('support users adapter construction does not access Graph', () => {
@@ -61,7 +68,7 @@ test('support users reads identity, stable company and reference price without p
     const { users, calls } = fixture();
     assert.deepEqual(await users.readUsers(), [{
         companyId, company: 'Empresa teste', referenceRate: 1000, name: 'Pessoa teste',
-        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo', bookingAllowed: false,
+        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo', bookingAllowed: true,
     }]);
     assert.equal(calls.length, 3);
     assert.match(calls[0], /\/tables\/\{7C4EBF15-124A-4107-9867-F83E9C664B31\}\/columns\?\$select=index,name$/u);
@@ -276,57 +283,118 @@ test('company card clearing stops on the first failed patch without retrying or 
     }
 });
 
+const selection = (values, allowed) => values.map((row, index) => ({ email: row[4], allowed: Array.isArray(allowed) ? allowed[index] : allowed }));
+const employee = (email, permission = 'Sim', company = companyId) => [company, 'Empresa teste', 1000, email, email, 'private-password', 'Usuário', permission];
 
-test('permission column is read separately from identity and provider references are never retrieved', async () => {
-    const { users, calls } = fixture({ metadata: [...columns, { name: 'CONTRATAR ATENDIMENTOS', index: 11 }], values: [defaultRow, defaultRow, defaultRow], permissionValues: [['Sim'], ['Não'], ['']] });
-    assert.deepEqual((await users.readUsers()).map((person) => person.bookingAllowed), [true, false, false]);
-    assert.ok(calls.some((path) => path.includes("range(address='L4:L6')")));
-    assert.ok(calls.every((path) => !path.includes("range(address='I") && !path.includes('/rows')));
+test('H permission defaults to Sim while explicit Não and invalid values deny booking without a login-status column', async () => {
+    const values = ['Sim', 'Não', '', ' Sim ', 'unexpected'].map((permission, index) => employee(`person${index}@example.test`, permission));
+    const f = fixture({ values });
+    const directory = await f.users.readUsers();
+    assert.deepEqual(directory.map(({ bookingAllowed }) => bookingAllowed), [true, false, true, true, false]);
+    assert.ok(directory.every(({ status }) => status === 'Ativo'));
+    assert.equal(f.calls.length, 3);
+    assert.ok(f.calls.every(path => !/address='[IL]/u.test(path)));
+    const old = columns.map((column, index) => index === 7 ? { ...column, name: 'STATUS' } : column);
+    await assert.rejects(fixture({ metadata: old }).users.readUsers(), /schema_mismatch/u);
+    await assert.rejects(fixture({ metadata: [...columns, { name: 'CONTRATAR ATENDIMENTOS', index: 11 }] }).users.readUsers(), /schema_mismatch/u);
 });
 
-test('first permission save appends one named column then writes only the resolved employee L cell', async () => {
-    const other = [...defaultRow]; other[4] = 'colleague@example.test';
-    const { users, calls, writes } = fixture({ values: [defaultRow, other] });
-    await users.writeBookingPermission(companyId, ' COLLEAGUE@example.test '.trim(), true);
-    assert.deepEqual(writes.map(({ body }) => body), [{ name: 'CONTRATAR ATENDIMENTOS' }, { values: [['Sim']] }]);
-    assert.match(writes[0].path, /\/columns$/u);
-    assert.match(writes[1].path, /range\(address='L5:L5'\)$/u);
-    for (const write of writes) {
-        assert.equal(write.options.length, 1);
-        assert.equal(write.options[0].maxRetries, 0);
-        assert.equal(write.options[0].shouldRetry(0, 0, {}, {}, { status: 503 }), false);
+test('Save reuses its trusted authorization snapshot, skips unchanged values and writes one exact H cell for one change', async () => {
+    const values = [defaultRow, employee('colleague@example.test')];
+    const f = fixture({ values });
+    const directory = await f.users.readUsers();
+    const reads = f.calls.length;
+    await f.users.writeBookingPermissions(companyId, selection(values, true), directory);
+    assert.equal(f.calls.length, reads);
+    assert.equal(f.writes.length, 0);
+    await f.users.writeBookingPermissions(companyId, selection(values, [true, false]), directory);
+    assert.equal(f.calls.length, reads + 1);
+    assert.match(f.writes[0].path, /range\(address='H5:H5'\)$/u);
+    assert.deepEqual(f.writes[0].body, { values: [['Não']] });
+    assert.equal(f.writes[0].options[0].maxRetries, 0);
+    assert.equal(f.writes[0].options[0].shouldRetry(0, 0, {}, {}, { status: 503 }), false);
+});
+
+test('an unrecognized or modified browser-like snapshot cannot choose workbook rows and blank defaults are materialized', async () => {
+    const values = [employee('a@example.test', ''), employee('other@example.test', 'Sim', '98765432000110')];
+    const f = fixture({ values });
+    await f.users.writeBookingPermissions(companyId, [{ email: values[0][4], allowed: true }], [{ email: values[0][4], row: 99 }]);
+    assert.equal(f.calls.length, 4);
+    assert.match(f.writes[0].path, /range\(address='H4:H4'\)$/u);
+    assert.deepEqual(f.writes[0].body, { values: [['Sim']] });
+    assert.equal(f.values[1][7], 'Sim');
+});
+
+test('several changed company cells share one strict Graph batch while foreign company rows and provider columns are untouched', async () => {
+    const a = employee('a@example.test'), b = employee('b@example.test'), foreign = employee('outside@example.test', 'Sim', '98765432000110');
+    const f = fixture({ values: [a, foreign, b] });
+    const directory = await f.users.readUsers();
+    await f.users.writeBookingPermissions(companyId, selection([a, b], false), directory);
+    assert.equal(f.writes.length, 1);
+    assert.equal(f.writes[0].path, '/$batch');
+    assert.equal(f.writes[0].options[0].maxRetries, 0);
+    const requests = f.writes[0].body.requests;
+    assert.deepEqual(requests.map(({ url }) => /address='([^']+)'/u.exec(url)[1]), ['H4:H4', 'H6:H6']);
+    assert.ok(requests.every(request => request.method === 'PATCH' && request.headers['Content-Type'] === 'application/json'));
+    assert.deepEqual(requests.map(({ body }) => body), [{ values: [['Não']] }, { values: [['Não']] }]);
+    assert.deepEqual(requests[1].dependsOn, ['1']);
+    assert.ok(!JSON.stringify(requests).includes('private-password'));
+    assert.equal(f.values[1][7], 'Sim');
+});
+
+test('adjacent changed employee rows are saved with one range update while unchanged cells break the range', async () => {
+    const values = [employee('a@example.test'), employee('b@example.test'), employee('c@example.test')];
+    const all = fixture({ values });
+    await all.users.writeBookingPermissions(companyId, selection(values, false));
+    assert.equal(all.writes.length, 1);
+    assert.match(all.writes[0].path, /range\(address='H4:H6'\)$/u);
+    assert.deepEqual(all.writes[0].body, { values: [['Não'], ['Não'], ['Não']] });
+    const separated = fixture({ values });
+    await separated.users.writeBookingPermissions(companyId, selection(values, [false, true, false]));
+    assert.equal(separated.writes[0].path, '/$batch');
+    assert.deepEqual(separated.writes[0].body.requests.map(({ url }) => /address='([^']+)'/u.exec(url)[1]), ['H4:H4', 'H6:H6']);
+});
+
+test('batch saves respect Graph twenty-request limits and explicit retries update only remaining cells after partial success', async () => {
+    const values = Array.from({ length: 23 }, (_, index) => employee(`person${index}@example.test`));
+    const interleaved = values.flatMap((row, index) => [row, employee(`outside${index}@example.test`, 'Sim', '98765432000110')]);
+    const many = fixture({ values: interleaved });
+    await many.users.writeBookingPermissions(companyId, selection(values, false));
+    assert.deepEqual(many.writes.map(({ body }) => body.requests.length), [20, 3]);
+    let attempt = 0;
+    const partial = fixture({ values: [values[0], employee('outside@example.test', 'Sim', '98765432000110'), values[1]], batchResponses: requests => ({ responses: requests.map(({ id }, index) => ({ id, status: attempt++ === 0 && index === 0 ? 503 : 200 })) }) });
+    await assert.rejects(partial.users.writeBookingPermissions(companyId, selection(values.slice(0, 2), false)), /permission_save_failed/u);
+    assert.equal(partial.writes.length, 1);
+    await partial.users.writeBookingPermissions(companyId, selection(values.slice(0, 2), false));
+    assert.equal(partial.writes.length, 2);
+    assert.match(partial.writes[1].path, /range\(address='H4:H4'\)$/u);
+});
+
+test('invalid batch acknowledgments never claim a successful Save and no SDK retry or automatic replay occurs', async () => {
+    const values = [employee('a@example.test'), employee('b@example.test')];
+    for (const result of [undefined, {}, { responses: [] }, { responses: [{ id: '1', status: 200 }, { id: '1', status: 200 }] },
+        { responses: [{ id: '1', status: 200 }, { id: 'foreign', status: 200 }] },
+        { responses: [{ id: '1', status: 200 }, { id: '2', status: 429 }] }]) {
+        const f = fixture({ values: [values[0], employee('outside@example.test', 'Sim', '98765432000110'), values[1]], batchResponses: () => result });
+        await assert.rejects(f.users.writeBookingPermissions(companyId, selection(values, false)));
+        assert.equal(f.writes.length, 1);
     }
-    assert.ok(calls.some((path) => path.includes('usedRange(valuesOnly=true)')));
-    await users.writeBookingPermission(companyId, 'colleague@example.test', false);
-    assert.equal(writes.filter(({ path }) => path.endsWith('/columns')).length, 1);
-    assert.deepEqual(writes.at(-1).body, { values: [['Não']] });
 });
 
-test('column creation stops safely on occupied outside-table cells and recovers a lost append response without duplicating it', async () => {
-    const occupied = fixture({ usedAddress: 'USUÁRIOS!A1:L49' });
-    await assert.rejects(occupied.users.writeBookingPermission(companyId, defaultRow[4], true), /permission_column_occupied/u);
-    assert.equal(occupied.writes.length, 0);
-    const lost = fixture({ failPost: true });
-    await assert.rejects(lost.users.writeBookingPermission(companyId, defaultRow[4], true), /response lost/u);
-    assert.equal(lost.writes.length, 1);
-    await lost.users.writeBookingPermission(companyId, defaultRow[4], false);
-    assert.equal(lost.writes.filter(({ path }) => path.endsWith('/columns')).length, 1);
-    assert.deepEqual(lost.writes.at(-1).body, { values: [['Não']] });
-});
-
-test('permission changes reject cross-company, inactive and ambiguous identities before schema or data writes', async () => {
-    const inactive = [...defaultRow]; inactive[7] = 'Inativo';
-    for (const options of [{ values: [defaultRow, defaultRow] }, { values: [inactive] }]) {
-        const f = fixture(options);
-        await assert.rejects(f.users.writeBookingPermission(companyId, defaultRow[4], true), /employee_not_found/u);
+test('Save rejects partial lists, duplicate or foreign identities and malformed values before any mutation', async () => {
+    const values = [employee('a@example.test'), employee('b@example.test')];
+    for (const payload of [[{ email: values[0][4], allowed: false }], selection([values[0], values[0]], false),
+        [{ email: 'outside@example.test', allowed: false }, { email: values[1][4], allowed: false }]]) {
+        const f = fixture({ values });
+        await assert.rejects(f.users.writeBookingPermissions(companyId, payload), /(?:employee_not_found|invalid_permission)/u);
         assert.equal(f.writes.length, 0);
     }
-    const other = fixture();
-    await assert.rejects(other.users.writeBookingPermission('99999999000199', defaultRow[4], true), /employee_not_found/u);
-    assert.equal(other.writes.length, 0);
-    for (const [company, email, allowed] of [['invalid', defaultRow[4], true], [companyId, 'bad', true], [companyId, defaultRow[4], 'Sim']]) {
-        const f = fixture();
-        await assert.rejects(f.users.writeBookingPermission(company, email, allowed), /invalid_permission/u);
+    for (const payload of [undefined, {}, [{ email: 'bad', allowed: true }], [{ email: values[0][4], allowed: 'Sim' }], [{ email: values[0][4], allowed: true, row: 88 }]]) {
+        const f = fixture({ values });
+        await assert.rejects(f.users.writeBookingPermissions(companyId, payload), /invalid_permission/u);
         assert.equal(f.calls.length, 0);
     }
+    const duplicate = fixture({ values: [values[0], values[0]] });
+    await assert.rejects(duplicate.users.writeBookingPermissions(companyId, selection([values[0]], false)), /employee_not_found/u);
+    assert.equal(duplicate.writes.length, 0);
 });

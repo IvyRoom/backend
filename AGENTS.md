@@ -44,9 +44,9 @@ repository separately.
   managed availability in appointments B:C and adds
   missing dates through the end of next month, preserving manual entries and
   formulas.
-  User-operated administrator permission changes use only the matching employee's
-  CONTRATAR ATENDIMENTOS cell in users L, adding that column once when absent.
-  Blank permissions deny booking; card references remain in I:K.
+  User-operated administrator permission saves update only matching company
+  employees in users H, AUTORIZADO A CONTRATAR ATENDIMENTOS. Sim and blank values
+  allow booking by default; Não denies it. Card references remain in I:K.
   Reservations update the selected appointment row and send the requested
   confirmation/invitation to the authenticated user and contato. Automated checks
   use synthetic bookings/messages and never exercise those real writes. Keep

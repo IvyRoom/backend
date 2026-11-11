@@ -17,8 +17,9 @@ registration uses the Pagar.me test API
 and synchronizes reusable references by CNPJ. Sessions last one hour; login
 preloads the public scheduler context. Administrators can delete the selected
 company card through the trash action and register a new card afterward.
-Permissions are saved per employee in the users workbook's CONTRATAR ATENDIMENTOS
-column; blank permissions deny booking. The card-only form does not collect a
+Permissions are selected locally and persisted with Save in the users workbook's
+H column, AUTORIZADO A CONTRATAR ATENDIMENTOS. Sim/blank defaults to allowed;
+Não denies booking. Only changed permission cells are written. The card-only form does not collect a
 billing address, PAN or CVV on the backend.
 Reservations and nonattendance do not automatically charge a card, and actual
 duration remains a workbook entry.

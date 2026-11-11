@@ -72,10 +72,11 @@ trigger a preview deployment even while a PR is a draft.
    4174 unless `SUPPORT_SANDBOX_PORT` is configured. Use `127.0.0.1`, not localhost.
    Do not expose this listener through a tunnel or use the production entry point.
    Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
-5. Log in using an active workbook account. An account whose `TIPO DE ACESSO` is
+5. Log in using a listed workbook account. An account whose `TIPO DE ACESSO` is
    `Administrador` can register a card and enable individual employee booking
-   checkboxes in Configurações da Conta PJ. Until a verified card and explicit
-   employee permission exist, Agendamento shows the company administrator.
+   checkboxes in Configurações da Conta PJ, then click Save. Employees default to
+   allowed unless the workbook stores Não. Without a verified card or permission,
+   Agendamento shows the company administrator.
 6. Use the Pagar.me simulator card `4000000000000010`, CVV `123`, and a future
    expiry date, with synthetic cardholder details. Do not enter the real
    company card into this sandbox. It cannot prove a real issuer authorization.
@@ -104,19 +105,21 @@ for optional address fields; a later order/antifraud flow may require them.
 
 Verified workbook: drive item `01OSXVECRXPEMKXY4F5RH34SKSN35K757F`, table
 `{7C4EBF15-124A-4107-9867-F83E9C664B31}` (`BD`), sheet `USUÁRIOS`.
-Authentication verifies the exact A:K contract, optionally extended by the single
-L column CONTRATAR ATENDIMENTOS: CNPJ, RAZÃO SOCIAL,
-VALOR REFERÊNCIA, NOME COMPLETO, E-MAIL, SENHA, TIPO DE ACESSO, STATUS,
-PAGARME CUSTOMER ID, PAGARME CARD ID, PAGARME AMBIENTE. Header comparison trims
-whitespace. Any other header, index or range drift fails closed.
-Credential validation retrieves A:H and, when present, L separately. It does not
-read provider references for authentication. Only the literal Sim grants booking;
-blank/Não denies it. Administrator permission changes target one unique email in
-their own CNPJ. The first such user action adds L only when unused and verifies
-the new schema before writing the cell. No automated check changes the workbook.
-Passwords follow the existing workbook contract and never
-appear in responses or local metadata. Inactive, missing, or duplicate email
-matches fail.
+Authentication verifies the exact eleven-column A:K contract: CNPJ, RAZÃO SOCIAL,
+VALOR REFERÊNCIA, NOME COMPLETO, E-MAIL, SENHA, TIPO DE ACESSO,
+AUTORIZADO A CONTRATAR ATENDIMENTOS, PAGARME CUSTOMER ID, PAGARME CARD ID,
+PAGARME AMBIENTE. Header comparison trims whitespace. Other schema drift fails closed.
+Credential validation retrieves only A:H, never provider references. H replaced
+STATUS: listed, uniquely identified users can log in; Não prevents booking rather
+than login. Sim and blank permission values default to allowed. Passwords never
+appear in responses or local metadata; missing/duplicate email matches fail.
+
+Checkbox edits remain local until Save submits the complete active-company list.
+The server validates every target against the fresh authorization directory and
+uses its trusted adapter snapshot, avoiding another schema/directory read. Only
+changed H cells are patched; multiple cells share Graph batches of up to twenty.
+SDK retries are disabled, all subresponses are checked, and an uncertain save
+keeps the draft available for an explicit retry. No column is created or renamed.
 
 The server explicitly sends `options.verify_card: true` when creating a card.
 Only a successful response to that request with an `active`, unexpired card can
@@ -141,9 +144,9 @@ registration-status column remains in this workbook contract. The masked card
 display is fetched from Pagar.me. A missing company or changed schema blocks
 synchronization instead of adding rows or columns.
 
-On 2026-11-11, read-only verification confirmed USUÁRIOS!A3:K49 with 46 data
-rows and L unused. The optional permission column is initialized on the first
-administrator checkbox change. The six legacy raw/masked-card columns were removed previously.
+On 2026-11-11, fresh read-only verification confirmed USUÁRIOS!A3:K49 with 46 data
+rows, H named AUTORIZADO A CONTRATAR ATENDIMENTOS and all 46 values Sim. There is
+no L permission column. The six legacy raw/masked-card columns were removed previously.
 
 Workbook references mirror the reusable provider wallet IDs for reporting and
 backup. They are never supplied by the browser, exposed by the card API, read for
@@ -253,7 +256,7 @@ Unavailable days do not advance the discount. Price and availability are checked
 again on reservation; stale quotes require reselection. A global claim queue
 prevents different dates from accepting incompatible concurrent quotes.
 
-A verified, active and unexpired company card plus an explicit employee booking
+A verified, active and unexpired company card plus an allowed employee booking
 permission are required for calendar access and new reservations. Revocation is
 rechecked server-side even with an existing session or cached calendar. Initial context/calendar reads cache provider readiness for up
 to 60 seconds, while still reading local verification/pending state. Explicit

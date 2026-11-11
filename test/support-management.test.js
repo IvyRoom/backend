@@ -45,9 +45,10 @@ async function fixture(t, overrides = {}) {
         async readUsers() { calls.push(['readUsers']); return state.users; },
         async writeCompanyCard(company, details, references) { calls.push(['writeCompanyCard', company, structuredClone(details), structuredClone(references)]); },
         async clearCompanyCard(company) { calls.push(['clearCompanyCard', company]); },
-        async writeBookingPermission(companyId, email, allowed) {
-            calls.push(['writeBookingPermission', companyId, email, allowed]);
-            state.users.find((person) => person.companyId === companyId && person.email.toLowerCase() === email).bookingAllowed = allowed;
+        async writeBookingPermissions(companyId, employees, directory) {
+            calls.push(['writeBookingPermissions', companyId, structuredClone(employees)]);
+            assert.equal(directory, state.users);
+            for (const { email, allowed } of employees) state.users.find((person) => person.companyId === companyId && person.email.toLowerCase() === email).bookingAllowed = allowed;
         },
     };
     const cardStore = {
@@ -1353,14 +1354,43 @@ test('administrator permission changes derive the company and reject malformed, 
     const companyId = seedCompanyPayment(f);
     const token = await f.login();
     const memberToken = await f.login(colleague);
-    await expectError(await f.request('permissions', { method: 'PATCH', token: memberToken, body: { email: colleague.email, allowed: true } }), 403, 'administrator_required');
-    for (const body of [undefined, [], null, {}, { email: colleague.email, allowed: 'Sim' }, { email: 'bad', allowed: true }, { email: colleague.email, allowed: true, companyId }]) {
+    await expectError(await f.request('permissions', { method: 'PATCH', token: memberToken, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: true }] } }), 403, 'administrator_required');
+    for (const body of [undefined, [], null, {}, { email: colleague.email, allowed: 'Sim' }, { email: 'bad', allowed: true }, { email: colleague.email, allowed: true, companyId },
+        { employees: null }, { employees: {} }, { employees: [null] }, { employees: [[]] },
+        { employees: [{ email: colleague.email, allowed: 'Sim' }] }, { employees: [{ email: 'bad', allowed: true }] },
+        { employees: [{ email: colleague.email, allowed: true, row: 99 }] },
+        { employees: [{ email: admin.email, allowed: true }, { email: admin.email.toUpperCase(), allowed: false }] },
+        { employees: [], companyId }]) {
         await expectError(await f.request('permissions', { method: 'PATCH', token, body }), 400, 'invalid_request');
     }
-    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: otherAdmin.email, allowed: true } }), 404, 'employee_not_found');
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: otherAdmin.email, allowed: true }] } }), 404, 'employee_not_found');
     f.state.users.push({ ...f.state.users[1] });
-    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: true } }), 404, 'employee_not_found');
-    assert.equal(f.calls.some(([kind]) => kind === 'writeBookingPermission'), false);
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: true }] } }), 404, 'employee_not_found');
+    assert.equal(f.calls.some(([kind]) => kind === 'writeBookingPermissions'), false);
+});
+
+test('Save validates the full current employee list and reuses only its freshly authorized directory', async (t) => {
+    const f = await fixture(t);
+    const companyId = seedCompanyPayment(f);
+    f.state.users.push({ ...f.state.users[1], email: 'inactive@example.test', status: 'Inativo' });
+    const token = await f.login();
+    for (const employees of [[], [{ email: colleague.email, allowed: false }], [
+        { email: admin.email, allowed: true }, { email: colleague.email, allowed: true }, { email: 'inactive@example.test', allowed: true },
+    ]]) {
+        await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees } }), 404, 'employee_not_found');
+    }
+    assert.equal(f.calls.some(([kind]) => kind === 'writeBookingPermissions'), false);
+    const before = f.calls.length;
+    const employees = [{ email: admin.email.toUpperCase(), allowed: false }, { email: colleague.email, allowed: false }];
+    const response = await f.request('permissions', { method: 'PATCH', token, body: { employees } });
+    assert.equal(response.status, 200);
+    assert.deepEqual(f.calls.slice(before).map(([kind]) => kind), ['readUsers', 'writeBookingPermissions']);
+    assert.deepEqual(f.calls.at(-1), ['writeBookingPermissions', companyId, [
+        { email: admin.email, allowed: false }, { email: colleague.email, allowed: false },
+    ]]);
+    assert.ok((await response.json()).employees.every(({ allowed }) => allowed === false));
+    f.state.users[0].role = 'Usuário';
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees } }), 403, 'administrator_required');
 });
 
 test('permission changes take effect for an existing session and revoke booking before provider or workbook effects', async (t) => {
@@ -1369,9 +1399,9 @@ test('permission changes take effect for an existing session and revoke booking 
     const token = await f.login();
     const memberToken = await f.login(colleague);
     assert.equal((await (await f.request('calendar', { token: memberToken })).json()).canBook, true);
-    const result = await (await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } })).json();
+    const result = await (await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: false }] } })).json();
     assert.equal(result.employees.find((person) => person.email === colleague.email).allowed, false);
-    assert.deepEqual(f.calls.filter(([kind]) => kind === 'writeBookingPermission'), [['writeBookingPermission', companyId, colleague.email, false]]);
+    assert.deepEqual(f.calls.filter(([kind]) => kind === 'writeBookingPermissions'), [['writeBookingPermissions', companyId, [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: false }]]]);
     const calendar = await (await f.request('calendar', { token: memberToken })).json();
     assert.equal(calendar.paymentMethodRegistered, true);
     assert.equal(calendar.canBook, false);
@@ -1393,13 +1423,13 @@ test('permissions cannot change during a company card operation and failed saves
     f.pagarme.deleteCard = async () => { started(); await new Promise((resolve) => { release = resolve; }); return { deleted: true }; };
     const deleting = f.request('card', { method: 'DELETE', token, body: deleteRequest });
     await entered;
-    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } }), 409, 'permission_busy');
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: false }] } }), 409, 'permission_busy');
     release();
     assert.equal((await deleting).status, 200);
-    f.users.writeBookingPermission = async () => { throw new Error('private Graph response'); };
-    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } }), 503, 'permission_save_failed');
-    f.users.writeBookingPermission = async () => {};
-    assert.equal((await f.request('permissions', { method: 'PATCH', token, body: { email: colleague.email, allowed: false } })).status, 200);
+    f.users.writeBookingPermissions = async () => { throw new Error('private Graph response'); };
+    await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: false }] } }), 503, 'permission_save_failed');
+    f.users.writeBookingPermissions = async () => {};
+    assert.equal((await f.request('permissions', { method: 'PATCH', token, body: { employees: [{ email: admin.email, allowed: true }, { email: colleague.email, allowed: false }] } })).status, 200);
 });
 
 test('addressless registration still requires explicit Pagar.me verification', async (t) => {
