@@ -188,7 +188,10 @@ salt; it never stores raw bearer tokens or passwords. Corrupt session storage
 blocks startup rather than silently resetting it. Browser sessionStorage holds the
 token and a public scheduler-context cache bound to that token and expiry. Login
 preloads configuration, masked card and calendar, avoiding serial requests during
-navigation; reused context refreshes in the background. Logout, HTTP 401 and
+navigation; reused context refreshes in the background. Successful card registration
+or synchronization starts a fresh calendar read immediately. While refreshing,
+the previous payment-settings warning is hidden; superseded reads cannot restore
+stale eligibility or overwrite a newer result. Logout, HTTP 401 and
 expiry clear or invalidate the cached context. Companies are grouped by the 14 CNPJ
 digits. Renaming RAZÃO SOCIAL preserves identity; changing the CNPJ invalidates
 the session. Sessions minted against the previous company-label identity require
