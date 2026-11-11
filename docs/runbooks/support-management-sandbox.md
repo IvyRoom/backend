@@ -157,6 +157,10 @@ Workbook references mirror the reusable provider wallet IDs for reporting and
 backup. They are never supplied by the browser, exposed by the card API, read for
 authentication, or imported as verification evidence. For a missing CNPJ-keyed
 local record, agreeing sandbox workbook references can recover the wallet IDs.
+Reference lookup reads contiguous I:K ranges for the matching CNPJ together,
+avoiding one Graph request per employee without reading another company's cells.
+Without a registered card, Agendamento shows the pending account-settings warning
+to every company user and does not load reservable dates.
 Only an exact customer/card match in an existing local record preserves its
 verification evidence and pending state. Workbook IDs alone remain unverified;
 conflicting or ambiguous references fail closed.

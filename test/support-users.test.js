@@ -29,8 +29,9 @@ function fixture({ metadata = columns, range, values = [defaultRow], companyValu
                         address: `USUÁRIOS!A3:${metadata.length === 12 ? 'L' : 'K'}${values.length + 3}`, columnCount: metadata.length, rowCount: values.length + 1,
                     };
                     if (/address='A4:A\d+'/u.test(path)) return { values: companyValues ?? values.map((row) => [row[0]]) };
-                    const reference = /address='I(\d+):K\d+'/u.exec(path);
-                    if (reference) return { values: referenceRows[reference[1]] ?? [['', '', '']] };
+                    const reference = /address='I(\d+):K(\d+)'/u.exec(path);
+                    if (reference) return { values: Array.from({ length: Number(reference[2]) - Number(reference[1]) + 1 },
+                        (_, index) => referenceRows[Number(reference[1]) + index] ?? [['', '', '']]).flat() };
                     return { values };
                 },
                 async update(body) {
@@ -207,13 +208,55 @@ test('company reference lookup reads only matching references and accepts agreei
     other[0] = '98.765.432/0001-10';
     const { users, calls } = fixture({
         values: [defaultRow, other, defaultRow, defaultRow],
-        referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 6: [['', '', '']], 7: [[' cus_Test1 ', 'card_Test1', ' sandbox ']] },
+        referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 5: [['cus_Other', 'card_Other', 'production']],
+            6: [['', '', '']], 7: [[' cus_Test1 ', 'card_Test1', ' sandbox ']] },
     });
     assert.deepEqual(await users.readCompanyCardReferences(companyId), cardReferences);
     assert.match(calls[2], /A4:A7/u);
-    assert.deepEqual(calls.slice(3).map((path) => /address='([^']+)'/u.exec(path)[1]), ['I4:K4', 'I6:K6', 'I7:K7']);
+    assert.deepEqual(calls.slice(3).map((path) => /address='([^']+)'/u.exec(path)[1]), ['I4:K4', 'I6:K7']);
     assert.ok(calls.every((path) => !/A4:H/u.test(path)));
     assert.equal(await fixture().users.readCompanyCardReferences(companyId), null);
+});
+
+test('large company reference lookups use one read for adjacent employees whether their card is absent or only recorded on the last row', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    for (const registered of [false, true]) {
+        const { users, calls, writes } = fixture({
+            values: [other, ...Array.from({ length: 45 }, () => [...defaultRow])],
+            referenceRows: registered ? { 49: [['cus_Test1', 'card_Test1', 'sandbox']] } : {},
+        });
+        assert.deepEqual(await users.readCompanyCardReferences(companyId), registered ? cardReferences : null);
+        assert.equal(calls.length, 4, 'Employee count must not add a separate Graph read for each reference row');
+        assert.match(calls[3], /range\(address='I5:K49'\)\?\$select=values$/u);
+        assert.equal(writes.length, 0);
+    }
+});
+
+test('company reference lookup validates every populated row across separated matching ranges', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    for (const last of [
+        ['cus_Test1', 'card_Test2', 'sandbox'],
+        ['cus_Test1', '', 'sandbox'],
+        ['cus_Test1', 'card_Test1', 'production'],
+    ]) {
+        const { users, writes } = fixture({
+            values: [defaultRow, other, defaultRow, defaultRow],
+            referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 7: [last] },
+        });
+        await assert.rejects(users.readCompanyCardReferences(companyId), /(?:invalid|conflicting)_card_references/u);
+        assert.equal(writes.length, 0);
+    }
+});
+
+test('grouped reference lookups reject missing rows and malformed widths instead of accepting the first valid card', async () => {
+    for (const malformed of [[], [['', '']], [['', '', '', 'extra']], [['', '', ''], ['', '', '']]]) {
+        const { users, writes } = fixture({ values: [defaultRow, defaultRow],
+            referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 5: malformed } });
+        await assert.rejects(users.readCompanyCardReferences(companyId), /schema_mismatch/u);
+        assert.equal(writes.length, 0);
+    }
 });
 
 test('company reference lookup rejects partial, conflicting and non-sandbox data', async () => {

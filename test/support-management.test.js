@@ -211,6 +211,44 @@ test('preloaded context gates missing cards without reading the calendar or expo
     assert.equal(JSON.stringify(body).includes(otherAdmin.email), false);
 });
 
+test('a missing company card gates every role and permission using CNPJ rather than company labels', async (t) => {
+    for (const role of ['Administrador', 'Usuário']) {
+        for (const bookingAllowed of [true, false, undefined]) {
+            await t.test(`${role}, bookingAllowed ${bookingAllowed}`, async (t) => {
+                let calendarReads = 0;
+                const f = await fixture(t, { preload: true,
+                    appointments: { readDates: async () => { calendarReads++; return [{ date: '2027-02-01', status: '' }]; } },
+                    bookingStore: { pendingDates: async () => new Set() } });
+                const companyId = seedCompanyPayment(f);
+                const record = f.records.get(companyCode(companyId));
+                f.records.delete(companyCode(companyId));
+                const subject = f.state.users[1];
+                Object.assign(subject, { role, bookingAllowed, company: 'Empresa A, unidade consultiva' });
+                f.state.users[0].company = 'Empresa A, cadastro principal';
+                Object.assign(f.state.users[2], { company: subject.company, companyId: '98765432000110', name: 'Administradora de outra empresa' });
+                f.records.set(companyCode(f.state.users[2].companyId), record);
+                const expectedAdministrators = role === 'Administrador' ? `${admin.name}, ${subject.name}` : admin.name;
+                const response = await f.request('login', { method: 'POST', body: { email: subject.email, password: subject.password } });
+                assert.equal(response.status, 200);
+                const initial = await response.json();
+                const session = await (await f.request('session', { token: initial.token })).json();
+                const calendar = await (await f.request('calendar', { token: initial.token })).json();
+                for (const context of [initial.calendar, session.calendar, calendar]) {
+                    assert.equal(context.paymentMethodRegistered, false);
+                    assert.equal(context.canBook, false);
+                    assert.equal(context.administratorName, expectedAdministrators);
+                    assert.deepEqual(context.days, []);
+                }
+                assert.deepEqual(initial.card, { card: null });
+                assert.deepEqual(session.card, { card: null });
+                assert.equal(calendarReads, 0);
+                assert.ok(f.calls.every(([operation]) => ['readUsers', 'read'].includes(operation)));
+                assert.ok(f.calls.filter(([operation]) => operation === 'read').every(([, code]) => code === companyCode(companyId)));
+            });
+        }
+    }
+});
+
 test('calendar payment readiness is cached for sixty seconds while explicit card reads are fresh', async (t) => {
     const f = await fixture(t, { appointments: { readDates: async () => [{ date: '2027-02-01', status: '' }] },
         bookingStore: { pendingDates: async () => new Set() } });

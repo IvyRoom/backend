@@ -142,18 +142,26 @@ function createSupportUsersAdapter({ graphClient }) {
 
         async readCompanyCardReferences(companyId) {
             const rows = await readCompanyRows(companyId);
-            let references = null;
+            const ranges = [];
             for (const row of rows) {
-                const [[customerId, cardId, environment]] = await readRows(`I${row}:K${row}`, 1, 3);
-                const values = [customerId, cardId, environment].map((value) => String(value ?? '').trim());
-                if (values.every((value) => !value)) continue;
-                const current = { customerId: values[0], cardId: values[1], environment: values[2] };
-                validateCardReferences(current);
-                if (references && (references.customerId !== current.customerId
-                    || references.cardId !== current.cardId || references.environment !== current.environment)) {
-                    throw new Error('support_users.conflicting_card_references');
+                const previous = ranges.at(-1);
+                if (previous && previous.last + 1 === row) previous.last = row;
+                else ranges.push({ first: row, last: row });
+            }
+            let references = null;
+            for (const { first, last } of ranges) {
+                const records = await readRows(`I${first}:K${last}`, last - first + 1, 3);
+                for (const row of records) {
+                    const values = row.map((value) => String(value ?? '').trim());
+                    if (values.every((value) => !value)) continue;
+                    const current = { customerId: values[0], cardId: values[1], environment: values[2] };
+                    validateCardReferences(current);
+                    if (references && (references.customerId !== current.customerId
+                        || references.cardId !== current.cardId || references.environment !== current.environment)) {
+                        throw new Error('support_users.conflicting_card_references');
+                    }
+                    references = current;
                 }
-                references = current;
             }
             return references;
         },
