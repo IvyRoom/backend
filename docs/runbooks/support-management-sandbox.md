@@ -97,7 +97,9 @@ stays server-side. The public key is returned by `/support-management/api/config
 Browser tokenization goes straight to Pagar.me; only a single-use token reaches
 the backend. Wallet registration omits optional billing-address fields and keeps
 `verify_card: true`. PAN/CVV are never sent to Graph or saved by the app. The live
-card representation exists only during entry; saved cards remain masked. See the
+card representation remains visible and locked during registration, then clears
+when the request settles or the administrator leaves the form; saved cards remain
+masked. CVV validation runs on blur or submission, never while typing. See the
 [official card request model](https://github.com/pagarme/pagarme-nodejs-sdk/blob/main/doc/models/create-card-request.md)
 for optional address fields; a later order/antifraud flow may require them.
 
@@ -378,7 +380,9 @@ files or invent a verification marker during reconciliation.
 
 ## Company-card deletion
 
-The administrator's trash action asks for confirmation, with Cancelar focused.
+The administrator's trash action reveals inline Deletar Cartão and Cancelar
+buttons in the saved card heading, with Cancelar focused. Opening, cancelling,
+or dismissing these controls does not send a deletion request.
 `DELETE /support-management/api/card` accepts only the opaque
 `expectedCardRevision` of the displayed registration, never provider identifiers.
 It rechecks the workbook role and current revision, derives the selected company
