@@ -839,6 +839,25 @@ test('logout remains revoked after backend recreation', async (t) => {
     await second.close();
 });
 
+test('logout revokes only its bearer without workbook reads and remains available during a workbook outage', async (t) => {
+    const f = await fixture(t);
+    const token = await f.login();
+    const otherToken = await f.login(colleague);
+    let workbookReads = 0;
+    f.users.readUsers = async () => { workbookReads++; throw new Error('Synthetic workbook outage'); };
+    f.calls.length = 0;
+    assert.equal((await f.request('logout', { method: 'POST', token })).status, 204);
+    assert.equal((await f.request('logout', { method: 'POST', token })).status, 204);
+    await expectError(await f.request('logout', { method: 'POST' }), 401, 'session_expired');
+    await expectError(await f.request('logout', { method: 'POST', headers: { Authorization: 'Bearer malformed' } }), 401, 'session_expired');
+    assert.equal(workbookReads, 0);
+    assert.equal(f.calls.length, 0);
+    await expectError(await f.request('session', { token }), 401, 'session_expired');
+    assert.equal(workbookReads, 0);
+    f.users.readUsers = async () => f.state.users;
+    assert.equal((await f.request('session', { token: otherToken })).status, 200);
+});
+
 test('recreated backends still enforce fresh workbook presence, password, company and administrator access', async (t) => {
     for (const patch of [{ email: 'removed@example.test' }, { password: 'changed' }, { company: 'Empresa B' }, { role: 'Usuário' }]) {
         await t.test(Object.keys(patch)[0], async (t) => {

@@ -170,11 +170,14 @@ PSP customer information remain a separate milestone.
 
 One-hour opaque sessions survive local backend restarts and keep their original
 absolute expiry, returned as `expiresAt` for background expiry enforcement. The
-session timer is not displayed. Every protected
+session timer is not displayed. Every protected data
 request rechecks the current workbook company,
 password and role. There is no inactive-login state; permission Não only blocks
-booking. Logout and invalidation are persisted before they are
-acknowledged. The ignored local session store contains only token hashes,
+booking. Logout revokes only the supplied bearer in the local session store,
+without a workbook read. The browser clears its session and returns to login
+immediately while a keepalive request completes server-side revocation. Server
+revocation and invalidation are persisted before the API acknowledges them.
+The ignored local session store contains only token hashes,
 identity, password fingerprints, original expiry and a stable random fingerprint
 salt; it never stores raw bearer tokens or passwords. Corrupt session storage
 blocks startup rather than silently resetting it. Browser sessionStorage holds the

@@ -216,7 +216,9 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         },
         async logout(req, res) {
             try {
-                await sessionStore.delete(res.locals.supportTokenHash);
+                const token = (req.get('authorization') || '').match(/^Bearer ([A-Za-z0-9_-]{43})$/u)?.[1];
+                if (!token) return fail(res, 401, 'session_expired');
+                await sessionStore.delete(digest(token));
                 return res.status(204).end();
             } catch {
                 return fail(res, 503, 'session_unavailable');
