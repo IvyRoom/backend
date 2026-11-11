@@ -74,7 +74,7 @@ trigger a preview deployment even while a PR is a draft.
    Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
 5. Log in using a listed workbook account. An account whose `TIPO DE ACESSO` is
    `Administrador` can register a card and enable individual employee booking
-   checkboxes in Configurações da Conta PJ, then click Save. Employees default to
+   checkboxes in Configurações da Conta PJ, then click Salvar. Employees default to
    allowed unless the workbook stores Não. Without a verified card or permission,
    Agendamento shows the company administrator.
 6. Use the Pagar.me simulator card `4000000000000010`, CVV `123`, and a future
@@ -116,7 +116,10 @@ STATUS: listed, uniquely identified users can log in; Não prevents booking rath
 than login. Sim and blank permission values default to allowed. Passwords never
 appear in responses or local metadata; missing/duplicate email matches fail.
 
-Checkbox edits remain local until Save submits the complete active-company list.
+Checkbox edits remain local until Salvar submits the complete active-company list.
+The button and Salvamento pendente. warning appear only while the list has
+unsaved changes, remain during saving or a failed attempt, and disappear after
+a successful save or when the original selection is restored.
 The server validates every target against the fresh authorization directory and
 uses its trusted adapter snapshot, avoiding another schema/directory read. Only
 changed H cells are patched; multiple cells share Graph batches of up to twenty.
