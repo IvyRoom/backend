@@ -39,8 +39,8 @@ test('booking store construction and missing reads do not create storage', async
 test('valid booking stages survive reloads and pending dates exclude completed records', async (t) => {
     const root = await directory(t);
     const store = createSupportBookingStore(root);
-    for (const stage of ['workbook', 'event', 'confirmation', 'complete']) {
-        const value = record({ stage, ...(['confirmation', 'complete'].includes(stage)
+    for (const stage of ['workbook', 'event', 'confirmation', 'notification', 'complete']) {
+        const value = record({ stage, ...(['confirmation', 'notification', 'complete'].includes(stage)
             ? { eventId: 'provider-event-id', iCalUid: 'provider-calendar-uid' } : {}) });
         await store.write(value);
         assert.deepEqual(await createSupportBookingStore(root).read(ID), value);
@@ -77,6 +77,7 @@ test('journal rejects unsafe or malformed records before replacing an existing b
         record({ meetingUrl: 'https://attacker.invalid/meeting' }), record({ meetingUrl: 'https://user:password@teams.microsoft.com/meeting' }),
         record({ meetingUrl: null }), record({ meetingUrl: 42 }), record({ meetingUrl: `https://teams.microsoft.com/${'x'.repeat(4096)}` }),
         record({ createdAt: NaN }), record({ stage: 'unknown' }), record({ stage: 'confirmation' }),
+        record({ stage: 'notification' }), record({ stage: 'notification', eventId: 'event-only' }),
         record({ stage: 'complete', eventId: 'event-only' }), record({ eventId: 'event\r\nInjected' }),
         record({ iCalUid: 'uid\nInjected' }), record({ eventId: 'x'.repeat(2049) }), record({ iCalUid: 'x'.repeat(1025) })];
     for (const value of invalid) {

@@ -88,7 +88,8 @@ trigger a preview deployment even while a PR is a draft.
 8. For booking acceptance, select the intended date in Agendamento, review the
    rate, click Reservar Agenda, then accept the nonattendance term with Confirmar.
    Verify the reserved row, the 09:00–10:00 Teams meeting in contato's calendar,
-   the user's invitation and the user's separate confirmation email. This is a
+   the user's invitation, the user's separate confirmation email and contato's
+   empty-body booking alert. This is a
    real reservation and notification test.
 9. Stop the server with Ctrl+C when finished.
 
@@ -321,12 +322,16 @@ Atendimento Consultivo: followed by the user's full name, holding 09:00–10:00
 in the contato mailbox's calendar in Brasília time. Contato is the organizer and
 the authenticated user is the attendee; Graph sends the native invitation.
 Only a valid returned Teams URL permits the separate user-only confirmation
-email, which includes the first name, date/time, link and existing Machado
-signature. It has no ICS attachment, avoiding a duplicate invitation. Mail API
+email, which includes the first name, date/time, a Teams link labeled “Clique
+aqui” and the existing Machado signature. It has no ICS attachment, avoiding a
+duplicate invitation. Contato receives one ordinary email with an empty body and
+subject `Atendimento Consultivo Agendado - <full user name> - <DD/MM/YYYY>`.
+When contato is the booking user, it receives only this alert, without the user
+instructions or a duplicate self-invitation. Mail API
 acceptance is not proof of final inbox delivery.
 
 Each request UUID has an atomic ignored `reservation_<UUID>.json` journal:
-workbook → event → confirmation → complete. Replaying a completed request does not
+workbook → event → confirmation → notification → complete. Replaying a completed request does not
 reserve again or resend anything. A pending journal blocks its date even after
 restart. External writes have SDK automatic retries disabled. An uncertain row
 write requires review; an event/mail failure reports the date reserved with
@@ -345,12 +350,18 @@ same UUID, using the exact stored identity/date/price:
    with the existing `eventPayload(record)` helper and the same transactionId;
    persist the returned references before proceeding. Never create a second event
    just because the previous response was lost.
-3. At confirmation stage, inspect Sent Items for the matching date/user/Teams link. If
-   already sent, mark complete. Otherwise, after establishing it was not sent,
-   make one explicit `sendConfirmation(confirmation(record))` attempt and mark
-   complete only after acceptance. Both payload helpers are exported from
-   `domains/support-bookings.js`; use the same notification adapter and test
-   configuration. An ambiguous outcome stays pending for review.
+3. At confirmation stage, if `confirmation(record)` returns `null` for contato,
+   advance to notification without sending user instructions. Otherwise, inspect
+   Sent Items for the matching date/user/Teams link. If already sent, advance to
+   notification. Otherwise, after establishing it was not sent, make one explicit
+   `sendConfirmation(confirmation(record))` attempt and persist notification only
+   after acceptance. An ambiguous outcome stays pending for review.
+4. At notification stage, inspect Sent Items for the exact contato alert subject.
+   If already sent, mark complete. Otherwise, after establishing it was not sent,
+   make one explicit `sendConfirmation(contactNotification(record))` attempt and
+   mark complete only after acceptance. An ambiguous outcome stays pending.
+   The payload helpers are exported from `domains/support-bookings.js`; use the
+   same notification adapter and test configuration.
 
 No automatic recovery worker or cancellation/rescheduling UI is included.
 

@@ -149,8 +149,8 @@ test('calendar routes authorize freshly and verify the card before reserving wit
     assert.equal(response.status, 200);
     assert.equal(f.calls.filter(([operation]) => operation === 'readUsers').length - userReadsBeforeReservation, 1,
         'An uncontended booking must reuse its freshly authorized directory');
-    assert.equal(notifications.length, 2);
-    const [invite, mail] = notifications;
+    assert.equal(notifications.length, 3);
+    const [invite, mail, notification] = notifications;
     assert.equal(invite.subject, `Atendimento Consultivo: ${admin.name}`);
     assert.deepEqual(invite.start, { dateTime: '2027-02-01T09:00:00', timeZone: 'E. South America Standard Time' });
     assert.deepEqual(invite.end, { dateTime: '2027-02-01T10:00:00', timeZone: 'E. South America Standard Time' });
@@ -162,6 +162,14 @@ test('calendar routes authorize freshly and verify the card before reserving wit
     assert.ok(mail.body.content.includes('01/02/2027 às 09:00 (horário de Brasília)'));
     assert.ok(mail.body.content.includes('https://teams.microsoft.com/meet/synthetic'));
     assert.ok(mail.body.content.includes('ASSINATURA_E-MAIL.jpg'));
+    assert.deepEqual(notification, {
+        subject: `Atendimento Consultivo Agendado - ${admin.name} - 01/02/2027`,
+        body: { contentType: 'Text', content: '' },
+        toRecipients: [{ emailAddress: { address: 'contato@machadogestao.com' } }],
+    });
+    assert.deepEqual(await (await f.request('reservations', { method: 'POST', token,
+        body: { ...reservation, acknowledged: true } })).json(), { date: dates[0].date, reserved: true });
+    assert.equal(notifications.length, 3, 'Replaying the completed request cannot send a second contato alert');
     assert.equal(bookings.get(reservation.requestId).acknowledgedAt, 1_800_000_000_000);
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].available, false);
     assert.ok(f.calls.every(([type]) => ['readUsers', 'read', 'getCard'].includes(type)));

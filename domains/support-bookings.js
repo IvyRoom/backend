@@ -41,12 +41,20 @@ function appointmentDateTime(booking) {
 }
 
 function confirmation(booking) {
+    if (normalize(booking.email) === CONTACT) return null;
     if (typeof booking.meetingUrl !== 'string' || !booking.meetingUrl) throw new Error('Teams link unavailable');
     const firstName = booking.name.trim().split(/\s+/u)[0];
     const meetingUrl = escapeHtml(booking.meetingUrl);
     return { subject: CONFIRMATION_SUBJECT,
-        body: { contentType: 'HTML', content: `<p>Prezado(a) ${escapeHtml(firstName)},</p><p>Seu atendimento consultivo junto a nosso diretor está agendado para ${escapeHtml(appointmentDateTime(booking))}.</p><p>Por favor confirme sua presença no invite do calendário.</p><p>O link de acesso ao encontro é: <a href="${meetingUrl}">${meetingUrl}</a></p><p>Atenciosamente,</p><p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>` },
+        body: { contentType: 'HTML', content: `<p>Prezado(a) ${escapeHtml(firstName)},</p><p>Seu atendimento consultivo junto a nosso diretor está agendado para ${escapeHtml(appointmentDateTime(booking))}.</p><p>Por favor confirme sua presença no invite do calendário.</p><p><a href="${meetingUrl}">Clique aqui</a> para acessar o encontro via Microsoft Teams.</p><p>Atenciosamente,</p><p><img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" /></p>` },
         toRecipients: [{ emailAddress: { address: normalize(booking.email) } }],
+    };
+}
+
+function contactNotification(booking) {
+    return { subject: `Atendimento Consultivo Agendado - ${booking.name} - ${booking.date.split('-').reverse().join('/')}`,
+        body: { contentType: 'Text', content: '' },
+        toRecipients: [{ emailAddress: { address: CONTACT } }],
     };
 }
 
@@ -156,7 +164,11 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                 const event = await bookingNotifications.createEvent(eventPayload(record));
                 record = { ...record, ...event, stage: 'confirmation' };
                 await bookingStore.write(record);
-                await bookingNotifications.sendConfirmation(confirmation(record));
+                const message = confirmation(record);
+                if (message) await bookingNotifications.sendConfirmation(message);
+                record = { ...record, stage: 'notification' };
+                await bookingStore.write(record);
+                await bookingNotifications.sendConfirmation(contactNotification(record));
                 await bookingStore.write({ ...record, stage: 'complete' });
                 return res.json({ date, reserved: true });
             } catch {
@@ -172,4 +184,4 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
     };
 }
 
-module.exports = { createSupportBookingHandlers, calendarDays, eventPayload, confirmation };
+module.exports = { createSupportBookingHandlers, calendarDays, eventPayload, confirmation, contactNotification };

@@ -88,7 +88,9 @@ function fixture({ rows = WEEKDAYS.map((date) => ({ date, status: '' })), record
                 await call('event', payload);
                 return { eventId: 'graph-event-id', iCalUid: 'provider-calendar-uid@example.invalid', ...(meetingUrl ? { meetingUrl } : {}) };
             },
-            async sendConfirmation(message) { await call('mail', message); },
+            async sendConfirmation(message) {
+                await call(message.toRecipients[0].emailAddress.address === CONTACT ? 'notification' : 'mail', message);
+            },
         },
     });
     return { calls, stored, handlers, calendarRows,
@@ -471,7 +473,7 @@ test('successful reservation creates one 09:00–10:00 Brasília Teams invitatio
     assert.equal(app.calls[1].type, 'cards:fresh');
     assert.deepEqual(new Set(app.calls.slice(2, 4).map(({ type }) => type)), new Set(['dates', 'pending']));
     assert.deepEqual(app.calls.slice(4).map(({ type }) => type), ['write:workbook',
-        'reserve', 'write:event', 'event', 'write:confirmation', 'mail', 'write:complete']);
+        'reserve', 'write:event', 'event', 'write:confirmation', 'mail', 'write:notification', 'notification', 'write:complete']);
     assert.deepEqual(app.calls.find(({ type }) => type === 'reserve').payload, {
         date: WEEKDAYS[0], companyId: COMPANY_ID, name: USER.name, hourlyRate: 1000,
     });
@@ -493,10 +495,16 @@ test('successful reservation creates one 09:00–10:00 Brasília Teams invitatio
     assert.match(mail.body.content, /^<p>Prezado\(a\) João,<\/p>/u);
     assert.ok(mail.body.content.includes('<p>Seu atendimento consultivo junto a nosso diretor está agendado para 10/11/2026 às 09:00 (horário de Brasília).</p>'));
     assert.ok(mail.body.content.includes('<p>Por favor confirme sua presença no invite do calendário.</p>'));
-    assert.ok(mail.body.content.includes('<p>O link de acesso ao encontro é: <a href='));
+    assert.ok(mail.body.content.includes('>Clique aqui</a> para acessar o encontro via Microsoft Teams.</p>'));
     assert.ok(mail.body.content.includes('<p>Atenciosamente,</p>'));
     assert.ok(mail.body.content.includes('<img src="https://plataforma-backend-v3.azurewebsites.net/img/ASSINATURA_E-MAIL.jpg" width="600" />'));
     assert.equal(mail.attachments, undefined, 'Graph event invitations must not be duplicated by an ICS attachment');
+    assert.deepEqual(app.calls.find(({ type }) => type === 'notification').payload, {
+        subject: 'Atendimento Consultivo Agendado - João da Silva - 10/11/2026',
+        body: { contentType: 'Text', content: '' },
+        toRecipients: [{ emailAddress: { address: CONTACT } }],
+    });
+    assert.equal(app.calls.filter(({ type }) => type === 'notification').length, 1);
     assert.deepEqual(app.stored.get(ID), savedRecord({ stage: 'complete', acknowledgedAt: NOW, eventId: 'graph-event-id',
         iCalUid: 'provider-calendar-uid@example.invalid', meetingUrl: MEETING_URL }));
 });
@@ -523,12 +531,14 @@ test('the exact Teams join URL is stored once and linked safely without a second
     assert.equal(app.stored.get(ID).acknowledgedAt, NOW);
     const mail = app.calls.find(({ type }) => type === 'mail').payload;
     assert.ok(mail.body.content.includes(`href="${MEETING_URL.replace(/&/gu, '&amp;')}"`));
-    assert.ok(mail.body.content.includes(`>${MEETING_URL.replace(/&/gu, '&amp;')}</a>`));
+    assert.ok(mail.body.content.includes(`href="${MEETING_URL.replace(/&/gu, '&amp;')}">Clique aqui</a> para acessar o encontro via Microsoft Teams.</p>`));
+    assert.ok(!mail.body.content.includes(`>${MEETING_URL.replace(/&/gu, '&amp;')}</a>`));
     assert.equal(mail.attachments, undefined);
     assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 1);
     assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
     assert.equal(app.calls.filter(({ type }) => type === 'event').length, 1);
     assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 1);
+    assert.equal(app.calls.filter(({ type }) => type === 'notification').length, 1);
 });
 
 test('a created event without its Teams URL leaves notification pending and never sends incomplete confirmation or replays the invite', async () => {
@@ -553,12 +563,22 @@ test('notification HTML escapes the first name, full name and company without a 
     assert.equal(mail.attachments, undefined);
 });
 
-test('contact booking keeps one confirmation recipient and avoids inviting its organizer to itself', async () => {
-    const app = fixture({ user: { ...USER, email: CONTACT.toUpperCase() } });
-    assert.equal((await app.reserve()).statusCode, 200);
+test('contact booking sends exactly one empty-body alert without a user confirmation or duplicate self-invite', async () => {
+    const app = fixture({ user: { ...USER, email: CONTACT.toUpperCase() }, faults: { mail: new Error('Must not send') } });
+    assert.deepEqual((await app.reserve()).body, { date: WEEKDAYS[0], reserved: true });
     assert.deepEqual(app.calls.find(({ type }) => type === 'event').payload.attendees, []);
-    assert.deepEqual(app.calls.find(({ type }) => type === 'mail').payload.toRecipients,
-        [{ emailAddress: { address: CONTACT } }]);
+    assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 0);
+    assert.deepEqual(app.calls.filter(({ type }) => type === 'notification').map(({ payload }) => payload), [{
+        subject: 'Atendimento Consultivo Agendado - João da Silva - 10/11/2026',
+        body: { contentType: 'Text', content: '' },
+        toRecipients: [{ emailAddress: { address: CONTACT } }],
+    }]);
+    assert.equal(app.stored.get(ID).stage, 'complete');
+    assert.equal(confirmation(savedRecord({ email: ` ${CONTACT.toUpperCase()} ` })), null);
+    await app.reserve();
+    assert.equal(app.calls.filter(({ type }) => type === 'event').length, 1);
+    assert.equal(app.calls.filter(({ type }) => type === 'mail').length, 0);
+    assert.equal(app.calls.filter(({ type }) => type === 'notification').length, 1);
 });
 
 test('a completed legacy request replay succeeds without payment lookup or repeated external writes', async () => {
@@ -569,7 +589,7 @@ test('a completed legacy request replay succeeds without payment lookup or repea
 });
 
 test('unfinished journal replays never repeat an ambiguous external write', async () => {
-    for (const stage of ['workbook', 'event', 'confirmation']) {
+    for (const stage of ['workbook', 'event', 'confirmation', 'notification']) {
         const app = fixture({ card: null, records: [savedRecord({ stage })] });
         const res = await app.reserve();
         if (stage === 'workbook') assertError(res, 409, 'reservation_review_required');
@@ -628,10 +648,11 @@ test('a definite failure before the workbook mutation permits a safe retry', asy
 });
 
 test('post-reservation failures retain the booking and never resend on an idempotent replay', async (t) => {
-    for (const [failure, remainingStage, eventCount, mailCount] of [
-        ['write:event', 'workbook', 0, 0], ['event', 'event', 1, 0],
-        ['write:confirmation', 'event', 1, 0], ['mail', 'confirmation', 1, 1],
-        ['write:complete', 'confirmation', 1, 1],
+    for (const [failure, remainingStage, eventCount, mailCount, notificationCount] of [
+        ['write:event', 'workbook', 0, 0, 0], ['event', 'event', 1, 0, 0],
+        ['write:confirmation', 'event', 1, 0, 0], ['mail', 'confirmation', 1, 1, 0],
+        ['write:notification', 'confirmation', 1, 1, 0], ['notification', 'notification', 1, 1, 1],
+        ['write:complete', 'notification', 1, 1, 1],
     ]) {
         await t.test(failure, async () => {
             const app = fixture({ faults: { [failure]: new Error('synthetic interruption') } });
@@ -643,6 +664,7 @@ test('post-reservation failures retain the booking and never resend on an idempo
             assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 1);
             assert.equal(app.calls.filter(({ type }) => type === 'event').length, eventCount);
             assert.equal(app.calls.filter(({ type }) => type === 'mail').length, mailCount);
+            assert.equal(app.calls.filter(({ type }) => type === 'notification').length, notificationCount);
         });
     }
 });

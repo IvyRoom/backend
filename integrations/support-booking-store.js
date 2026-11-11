@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const { MAX_AVAILABILITY_DATES } = require('../domains/support-availability');
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
-const STAGES = ['workbook', 'event', 'confirmation', 'complete'];
+const STAGES = ['workbook', 'event', 'confirmation', 'notification', 'complete'];
 
 function validateBooking(value) {
     const keys = ['id', 'date', 'companyId', 'email', 'name', 'company', 'priceCents', 'createdAt', 'stage', 'eventId', 'iCalUid', 'acknowledgedAt', 'meetingUrl'];
@@ -27,7 +27,7 @@ function validateBooking(value) {
         || !STAGES.includes(value.stage)
         || (value.eventId !== undefined && (typeof value.eventId !== 'string' || !value.eventId || value.eventId.length > 2048 || /[\r\n]/u.test(value.eventId)))
         || (value.iCalUid !== undefined && (typeof value.iCalUid !== 'string' || !value.iCalUid || value.iCalUid.length > 1024 || /[\r\n]/u.test(value.iCalUid)))
-        || (['confirmation', 'complete'].includes(value.stage) && (!value.eventId || !value.iCalUid))) {
+        || (['confirmation', 'notification', 'complete'].includes(value.stage) && (!value.eventId || !value.iCalUid))) {
         throw new Error('Invalid support booking record');
     }
     return { ...value };
