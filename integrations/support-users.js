@@ -53,7 +53,7 @@ function createSupportUsersAdapter({ graphClient }) {
             const permission = String(row[7] ?? '').trim();
             return { companyId, company: String(row[1]), referenceRate: row[2],
                 name: String(row[3]), email: String(row[4]), password: String(row[5]),
-                role: String(row[6]), status: 'Ativo', bookingAllowed: !permission || permission === 'Sim' };
+                role: String(row[6]), bookingAllowed: !permission || permission === 'Sim' };
         });
         snapshots.set(users, rows.map((row, index) => ({ row: index + 4,
             companyId: normalizeCompanyId(row[0]), email: String(row[4]).trim().toLowerCase(),

@@ -19,7 +19,7 @@ const WEEKDAYS = ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-
 const MASKED_CARD = { brand: 'Visa', lastFour: '1111' };
 const MEETING_URL = 'https://teams.microsoft.com/l/meetup-join/synthetic-meeting?context=example&tenant=example';
 const USER = { companyId: COMPANY_ID, company: 'Empresa de Consultoria', name: 'João da Silva',
-    email: 'USER@example.invalid', referenceRate: 1000, bookingAllowed: true, status: 'Ativo' };
+    email: 'USER@example.invalid', referenceRate: 1000, bookingAllowed: true };
 
 function savedRecord(overrides = {}) {
     return { id: ID, date: WEEKDAYS[0], companyId: COMPANY_ID, company: USER.company,
@@ -309,15 +309,15 @@ test('calendar read failures return a stable unavailable response without writes
 });
 
 test('calendar without a company card returns administrator context and does not read or synchronize availability', async () => {
-    const administrator = { ...USER, name: 'Ana', status: 'Ativo', role: 'Administrador' };
+    const administrator = { ...USER, name: 'Ana', role: 'Administrador' };
     const directory = [administrator, { ...administrator }, { ...administrator, name: 'Beto' },
-        { ...administrator, name: 'Inactive', status: 'Inativo' },
+        { ...administrator, name: 'Cora' },
         { ...administrator, name: 'Colleague', role: 'Usuário' },
         { ...administrator, name: 'Other company', companyId: '99999999000199' }];
     const app = fixture({ card: null, directory, syncAvailability: true });
     const res = await app.calendar();
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { days: [], canBook: false, paymentMethodRegistered: false, administratorName: 'Ana, Beto',
+    assert.deepEqual(res.body, { days: [], canBook: false, paymentMethodRegistered: false, administratorName: 'Ana, Beto, Cora',
         userEmail: USER.email, today: '2026-11-09' });
     assert.deepEqual(app.calls.map(({ type }) => type), ['cards:cached']);
     assert.deepEqual(app.calls[0].payload.options, { cached: true });

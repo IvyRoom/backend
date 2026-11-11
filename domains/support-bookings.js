@@ -104,7 +104,7 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
     }
     async function getCalendarContext(user, directory = []) {
         const card = await companyCards(user, { cached: true });
-        const administrators = directory.filter((person) => person.status === 'Ativo' && person.role === 'Administrador'
+        const administrators = directory.filter((person) => person.role === 'Administrador'
             && normalize(person.companyId || person.company) === normalize(user.companyId || user.company));
         const canBook = Boolean(card.card) && user.bookingAllowed === true;
         return { card, calendar: { days: canBook ? await readCalendar(user) : [], canBook,
@@ -147,7 +147,7 @@ function createSupportBookingHandlers({ appointments, bookingStore, bookingNotif
                 releaseCompany = claimCompany(user);
                 if (!releaseCompany) return fail(res, 409, 'card_busy');
                 const current = users ? (await users.readUsers()).filter((person) => normalize(person.email) === normalize(user.email)) : [user];
-                if (current.length !== 1 || current[0].status !== 'Ativo' || current[0].companyId !== user.companyId || current[0].password !== user.password || current[0].bookingAllowed !== true) return fail(res, 403, 'booking_permission_required');
+                if (current.length !== 1 || current[0].companyId !== user.companyId || current[0].password !== user.password || current[0].bookingAllowed !== true) return fail(res, 403, 'booking_permission_required');
                 if (!(await companyCards(user)).card) return fail(res, 403, 'payment_method_required');
                 const day = (await readCalendar(current[0])).find((entry) => entry.date === date);
                 if (!day?.available) return fail(res, 409, 'date_unavailable');

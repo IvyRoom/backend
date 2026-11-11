@@ -68,7 +68,7 @@ test('support users reads identity, stable company and reference price without p
     const { users, calls } = fixture();
     assert.deepEqual(await users.readUsers(), [{
         companyId, company: 'Empresa teste', referenceRate: 1000, name: 'Pessoa teste',
-        email: 'admin@example.test', password: 'private-password', role: 'Administrador', status: 'Ativo', bookingAllowed: true,
+        email: 'admin@example.test', password: 'private-password', role: 'Administrador', bookingAllowed: true,
     }]);
     assert.equal(calls.length, 3);
     assert.match(calls[0], /\/tables\/\{7C4EBF15-124A-4107-9867-F83E9C664B31\}\/columns\?\$select=index,name$/u);
@@ -291,7 +291,7 @@ test('H permission defaults to Sim while explicit Não and invalid values deny b
     const f = fixture({ values });
     const directory = await f.users.readUsers();
     assert.deepEqual(directory.map(({ bookingAllowed }) => bookingAllowed), [true, false, true, true, false]);
-    assert.ok(directory.every(({ status }) => status === 'Ativo'));
+    assert.ok(directory.every(user => !Object.hasOwn(user, 'status')));
     assert.equal(f.calls.length, 3);
     assert.ok(f.calls.every(path => !/address='[IL]/u.test(path)));
     const old = columns.map((column, index) => index === 7 ? { ...column, name: 'STATUS' } : column);

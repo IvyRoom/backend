@@ -46,8 +46,8 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
     function companyPermissions(user, directory) {
         return { employees: directory.filter((person) => companyIdentity(person) === companyIdentity(user)).map((person) => ({
             email: normalize(person.email), name: person.name,
-            allowed: person.bookingAllowed === true && person.status === 'Ativo',
-            active: person.status === 'Ativo' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(person.email)
+            allowed: person.bookingAllowed === true,
+            active: /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(person.email)
                 && directory.filter((entry) => normalize(entry.email) === normalize(person.email)).length === 1,
         })) };
     }
@@ -73,7 +73,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
 
     function readUser(email, directory) {
         const matches = directory.filter((user) => normalize(user.email) === normalize(email));
-        return matches.length === 1 && matches[0].status === 'Ativo' && normalize(matches[0].company) ? matches[0] : null;
+        return matches.length === 1 && normalize(matches[0].company) ? matches[0] : null;
     }
 
     async function sweep() {

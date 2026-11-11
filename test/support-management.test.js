@@ -15,7 +15,7 @@ const { createSupportCardStore } = require('../integrations/support-card-store')
 const { openSupportSessionStore, createMemorySupportSessionStore } = require('../integrations/support-session-store');
 const { createTestApp, startLoopback } = require('./app-test-support');
 
-const admin = { company: 'Empresa A', name: 'Administradora teste', email: 'admin@example.test', password: 'test-password', role: 'Administrador', status: 'Ativo', bookingAllowed: true };
+const admin = { company: 'Empresa A', name: 'Administradora teste', email: 'admin@example.test', password: 'test-password', role: 'Administrador', bookingAllowed: true };
 const colleague = { ...admin, name: 'Colega teste', email: 'colleague@example.test', role: 'Usuário' };
 const otherAdmin = { ...admin, company: 'Empresa B', email: 'other@example.test' };
 const verification = 'pagarme_verify_card_v1';
@@ -150,7 +150,7 @@ test('calendar routes authorize freshly and verify the card before reserving wit
     assert.equal(bookings.get(reservation.requestId).acknowledgedAt, 1_800_000_000_000);
     assert.equal((await (await f.request('calendar', { token })).json()).days[0].available, false);
     assert.ok(f.calls.every(([type]) => ['readUsers', 'read', 'getCard'].includes(type)));
-    f.state.users[0].status = 'Inativo';
+    f.state.users.shift();
     await expectError(await f.request('calendar', { token }), 401, 'session_expired');
 });
 
@@ -188,7 +188,7 @@ test('preloaded login supplies safe initial context once and session refresh kee
     assert.equal(current.calendar.administratorName, 'não informado');
     assert.equal(f.calls.filter(([operation]) => operation === 'readUsers').length, 2);
     assert.equal(f.calls.filter(([operation]) => operation === 'getCard').length, 1);
-    f.state.users[0].status = 'Inativo';
+    f.state.users.shift();
     await expectError(await f.request('session', { token: body.token }), 401, 'session_expired');
     assert.equal(calendarReads, 2);
 });
@@ -709,17 +709,30 @@ test('ambiguous local or unavailable workbook references fail closed without pro
     }
 });
 
-test('invalid credentials, inactive users and ambiguous emails fail without provider calls', async (t) => {
-    for (const variant of ['wrong-password', 'inactive', 'duplicate', 'missing-company']) {
+test('invalid credentials, missing users and ambiguous emails fail without provider calls', async (t) => {
+    for (const variant of ['wrong-password', 'missing-user', 'duplicate', 'missing-company']) {
         await t.test(variant, async (t) => {
             const f = await fixture(t);
-            if (variant === 'inactive') f.state.users[0].status = 'Inativo';
+            if (variant === 'missing-user') f.state.users.shift();
             if (variant === 'duplicate') f.state.users.push({ ...admin });
             if (variant === 'missing-company') f.state.users[0].company = ' ';
             await expectError(await f.request('login', { method: 'POST', body: { email: admin.email, password: variant === 'wrong-password' ? 'wrong' : admin.password } }), 401, 'invalid_credentials');
             assert.ok(f.calls.every(([operation]) => operation === 'readUsers'));
         });
     }
+});
+
+test('a listed user with booking permission Não can log in without a login-status field', async (t) => {
+    const f = await fixture(t);
+    f.state.users[0].bookingAllowed = false;
+    assert.equal(Object.hasOwn(f.state.users[0], 'status'), false);
+    const response = await f.request('login', { method: 'POST', body: { email: admin.email, password: admin.password } });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.user.bookingAllowed, false);
+    assert.equal(Object.hasOwn(result.user, 'status'), false);
+    assert.equal((await f.request('session', { token: result.token })).status, 200);
+    assert.ok(f.calls.every(([operation]) => operation === 'readUsers'));
 });
 
 test('login throttles requests and opens again after its window', async (t) => {
@@ -788,8 +801,8 @@ test('logout remains revoked after backend recreation', async (t) => {
     await second.close();
 });
 
-test('recreated backends still enforce fresh workbook status, password, company and administrator access', async (t) => {
-    for (const patch of [{ status: 'Inativo' }, { password: 'changed' }, { company: 'Empresa B' }, { role: 'Usuário' }]) {
+test('recreated backends still enforce fresh workbook presence, password, company and administrator access', async (t) => {
+    for (const patch of [{ email: 'removed@example.test' }, { password: 'changed' }, { company: 'Empresa B' }, { role: 'Usuário' }]) {
         await t.test(Object.keys(patch)[0], async (t) => {
             const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'support-session-access-'));
             t.after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -839,8 +852,8 @@ test('session persistence failures are sanitized instead of escaping async handl
     }
 });
 
-test('current workbook status, password and company changes revoke an existing session', async (t) => {
-    for (const patch of [{ status: 'Inativo' }, { password: 'changed' }, { company: 'Empresa B' }]) {
+test('current workbook presence, password and company changes revoke an existing session', async (t) => {
+    for (const patch of [{ email: 'removed@example.test' }, { password: 'changed' }, { company: 'Empresa B' }]) {
         await t.test(Object.keys(patch)[0], async (t) => {
             const f = await fixture(t);
             const token = await f.login();
@@ -1336,13 +1349,13 @@ test('card reference store survives reload, replaces records and refuses invalid
 test('company permissions list only authenticated company employees and never private workbook fields', async (t) => {
     const f = await fixture(t);
     seedCompanyPayment(f);
-    f.state.users.push({ ...f.state.users[1], name: 'Inativo', email: 'inactive@example.test', status: 'Inativo' });
+    f.state.users.push({ ...f.state.users[1], name: 'Invalid email', email: 'invalid-email', bookingAllowed: false });
     const token = await f.login();
     const result = await (await f.request('permissions', { token })).json();
     assert.deepEqual(result.employees, [
         { name: admin.name, email: admin.email, allowed: true, active: true },
         { name: colleague.name, email: colleague.email, allowed: true, active: true },
-        { name: 'Inativo', email: 'inactive@example.test', allowed: false, active: false },
+        { name: 'Invalid email', email: 'invalid-email', allowed: false, active: false },
     ]);
     assert.ok(!JSON.stringify(result).includes(admin.password));
     const memberToken = await f.login(colleague);
@@ -1372,10 +1385,10 @@ test('administrator permission changes derive the company and reject malformed, 
 test('Save validates the full current employee list and reuses only its freshly authorized directory', async (t) => {
     const f = await fixture(t);
     const companyId = seedCompanyPayment(f);
-    f.state.users.push({ ...f.state.users[1], email: 'inactive@example.test', status: 'Inativo' });
+    f.state.users.push({ ...f.state.users[1], email: 'invalid-email' });
     const token = await f.login();
     for (const employees of [[], [{ email: colleague.email, allowed: false }], [
-        { email: admin.email, allowed: true }, { email: colleague.email, allowed: true }, { email: 'inactive@example.test', allowed: true },
+        { email: admin.email, allowed: true }, { email: colleague.email, allowed: true }, { email: 'foreign@example.test', allowed: true },
     ]]) {
         await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees } }), 404, 'employee_not_found');
     }
@@ -1388,7 +1401,7 @@ test('Save validates the full current employee list and reuses only its freshly 
     assert.deepEqual(f.calls.at(-1), ['writeBookingPermissions', companyId, [
         { email: admin.email, allowed: false }, { email: colleague.email, allowed: false },
     ]]);
-    assert.ok((await response.json()).employees.every(({ allowed }) => allowed === false));
+    assert.ok((await response.json()).employees.filter(({ active }) => active).every(({ allowed }) => allowed === false));
     f.state.users[0].role = 'Usuário';
     await expectError(await f.request('permissions', { method: 'PATCH', token, body: { employees } }), 403, 'administrator_required');
 });

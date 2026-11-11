@@ -163,7 +163,8 @@ One-hour opaque sessions survive local backend restarts and keep their original
 absolute expiry, returned as `expiresAt` for background expiry enforcement. The
 session timer is not displayed. Every protected
 request rechecks the current workbook company,
-password, status and role. Logout and invalidation are persisted before they are
+password and role. There is no inactive-login state; permission Não only blocks
+booking. Logout and invalidation are persisted before they are
 acknowledged. The ignored local session store contains only token hashes,
 identity, password fingerprints, original expiry and a stable random fingerprint
 salt; it never stores raw bearer tokens or passwords. Corrupt session storage
