@@ -272,8 +272,8 @@ delete its intent to bypass the review.
 
 The first three vacant weekdays use 100% of the authenticated user's VALOR
 REFERÊNCIA. Prices then decrease linearly from the third through the tenth vacant
-weekday, where they reach 75%; later days stay at 75%. There are seven equal
-discount steps, each 25/7 percentage points of the reference price. Prices round to cents.
+weekday, where they reach 80%; later days stay at 80%. There are seven equal
+discount steps, each 20/7 percentage points of the reference price. Prices round to cents.
 Unavailable days do not advance the discount. Price and availability are checked
 again on reservation; stale quotes require reselection. A global claim queue
 prevents different dates from accepting incompatible concurrent quotes.

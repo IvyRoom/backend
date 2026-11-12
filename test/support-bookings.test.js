@@ -282,13 +282,29 @@ test('national and Curitiba holidays remain visible and unavailable without cons
     }
 });
 
-test('the first three available dates keep the reference rate, then prices decrease to 75 percent on the tenth', () => {
+test('the first three available dates keep the reference rate, then prices decrease to 80 percent on the tenth', () => {
     const result = calendarDays(WEEKDAYS.map((date) => ({ date, status: '' })), 1000, NOW);
-    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 100000, 100000, 96429, 92857,
-        89286, 85714, 82143, 78571, 75000, 75000, 75000, 75000]);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, 100000, 100000, 97143, 94286,
+        91429, 88571, 85714, 82857, 80000, 80000, 80000, 80000]);
     assert.deepEqual(result.map(({ pricePosition }) => pricePosition), [0, 0, 0, 1 / 7, 2 / 7,
         3 / 7, 4 / 7, 5 / 7, 6 / 7, 1, 1, 1, 1]);
-    assert.equal(result[9].priceCents, result[0].priceCents * 0.75);
+    assert.equal(result[9].priceCents, result[0].priceCents * 0.8);
+});
+
+test('a company reference of 1250 decreases to 1000 at the tenth available date and stays there', () => {
+    const result = calendarDays(WEEKDAYS.map((date) => ({ date, status: '' })), 1250, NOW);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [125000, 125000, 125000,
+        121429, 117857, 114286, 110714, 107143, 103571, 100000, 100000, 100000, 100000]);
+});
+
+test('the server rejects a quote from the previous discount curve before reserving and accepts the current quote', async () => {
+    const app = fixture({ user: { ...USER, referenceRate: 1250 } });
+    const oldQuote = { date: WEEKDAYS[3], priceCents: 120536, requestId: ID, acknowledged: true };
+    assertError(await app.reserve(oldQuote), 409, 'price_changed');
+    assert.equal(app.calls.filter(({ type }) => ['reserve', 'event', 'mail', 'notification'].includes(type)).length, 0);
+    assert.equal(app.stored.size, 0);
+    assert.deepEqual((await app.reserve({ ...oldQuote, priceCents: 121429 })).body, { date: WEEKDAYS[3], reserved: true });
+    assert.equal(app.calls.find(({ type }) => type === 'reserve').payload.hourlyRate, 1214.29);
 });
 
 test('all nonblank statuses and journal-pending dates are unavailable and do not consume discount steps', () => {
@@ -296,7 +312,7 @@ test('all nonblank statuses and journal-pending dates are unavailable and do not
     const rows = WEEKDAYS.slice(0, statuses.length).map((date, index) => ({ date, status: statuses[index] }));
     const result = calendarDays(rows, 1000, NOW, new Set([WEEKDAYS[5]]));
     assert.deepEqual(result.map(({ available }) => available), [true, false, false, false, true, false, true, false, true]);
-    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, null, null, null, 100000, null, 100000, null, 96429]);
+    assert.deepEqual(result.map(({ priceCents }) => priceCents), [100000, null, null, null, 100000, null, 100000, null, 97143]);
     assert.deepEqual(result.filter(({ available }) => available).map(({ pricePosition }) => pricePosition), [0, 0, 0, 1 / 7]);
     assert.ok(result.filter(({ available }) => !available).every(({ pricePosition }) => pricePosition === null));
 });
@@ -695,10 +711,10 @@ test('simultaneous different-date claims refresh the second price after the firs
         if (value.id === ID && value.stage === 'workbook') { entered(); await gate; }
     } });
     const initial = await app.calendar();
-    assert.deepEqual(initial.body.days.slice(0, 4).map(({ priceCents }) => priceCents), [100000, 100000, 100000, 96429]);
+    assert.deepEqual(initial.body.days.slice(0, 4).map(({ priceCents }) => priceCents), [100000, 100000, 100000, 97143]);
     const first = app.reserve();
     await started;
-    const second = app.reserve({ date: WEEKDAYS[3], priceCents: 96429, requestId: OTHER_ID, acknowledged: true });
+    const second = app.reserve({ date: WEEKDAYS[3], priceCents: 97143, requestId: OTHER_ID, acknowledged: true });
     await new Promise(setImmediate);
     assert.equal(app.calls.filter(({ type }) => type === 'read').length, 1);
     assert.equal(app.calls.filter(({ type }) => type === 'reserve').length, 0);

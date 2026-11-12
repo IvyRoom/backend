@@ -26,7 +26,7 @@ function calendarDays(rows, referenceRate, nowMs, pendingDates = new Set()) {
         .sort((a, b) => a.date.localeCompare(b.date)).map(({ date, status }) => {
             const available = appointmentAvailability(date, today) && !String(status || '').trim() && !pendingDates.has(date);
             const discountStep = available ? Math.min(Math.max(vacantRank++ - 2, 0), 7) : null;
-            return { date, available, priceCents: available ? Math.round(baseCents * (28 - discountStep) / 28) : null,
+            return { date, available, priceCents: available ? Math.round(baseCents * (35 - discountStep) / 35) : null,
                 pricePosition: available ? discountStep / 7 : null };
         });
 }
