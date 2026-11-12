@@ -7,7 +7,7 @@
     "support:sandbox": "node support-sandbox-server.js",
     "support:dev": "node scripts/support-dev.js",
     "support:test": "node scripts/support-test.js",
-    "test": "node --require ./test/deny-production-network.js --test"
+    "test": "node --require ./test/deny-production-network.js --test test/*.test.js"
   },
   "dependencies": {
     "@azure-rest/ai-vision-face": "^1.0.0-beta.3",

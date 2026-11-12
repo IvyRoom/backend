@@ -208,6 +208,31 @@ test('daily snapshots retain seven dates, omit locks and unknown files, and pres
     assert.equal(await fs.readFile(path.join(root, 'backups', '2026-11-09', 'sessions.json'), 'utf8'), '{"v":1}');
 });
 
+test('daily snapshots and retention accept a private directory reached through an ancestor alias', async t => {
+    const root = await directory(t);
+    const physical = path.join(root, 'physical');
+    const alias = path.join(root, 'alias');
+    await fs.mkdir(physical);
+    try { await fs.symlink(physical, alias, process.platform === 'win32' ? 'junction' : 'dir'); }
+    catch (error) {
+        if (['EPERM', 'EACCES'].includes(error.code)) { t.skip('Directory links require additional filesystem permission'); return; }
+        throw error;
+    }
+    const data = path.join(alias, 'data');
+    await fs.mkdir(data);
+    assert.notEqual(path.relative(await fs.realpath(data), data), '', 'The supplied ancestor alias must differ from its canonical path');
+    await fs.writeFile(path.join(data, 'sessions.json'), '{"v":1}');
+    let now;
+    const backup = createSupportBackup(data, () => now);
+    for (let day = 1; day <= 9; day++) {
+        now = Date.parse(`2026-11-${String(day).padStart(2, '0')}T15:00:00Z`);
+        await backup.ensure();
+    }
+    const canonicalBackups = path.join(physical, 'data', 'backups');
+    assert.deepEqual(await fs.readdir(canonicalBackups), ['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09']);
+    assert.equal(await fs.readFile(path.join(canonicalBackups, '2026-11-09', 'sessions.json'), 'utf8'), '{"v":1}');
+});
+
 test('a new Brasília day snapshots metadata before its first mutation', async t => {
     const root = await directory(t);
     let now = Date.parse('2026-11-01T15:00:00Z');

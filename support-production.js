@@ -125,7 +125,8 @@ function createSupportBackup(directory, now = Date.now) {
     let savedDate;
     async function snapshot(date) {
         await fs.mkdir(root, { recursive: true, mode: 0o700 });
-        if ((await fs.lstat(root)).isSymbolicLink() || path.relative(await fs.realpath(root), root) !== '') throw failure('invalid_backup_directory');
+        const expectedRoot = path.join(await fs.realpath(directory), 'backups');
+        if ((await fs.lstat(root)).isSymbolicLink() || path.relative(await fs.realpath(root), expectedRoot) !== '') throw failure('invalid_backup_directory');
         const target = path.join(root, date);
         if (!await fs.lstat(target).then(stat => {
             if (!stat.isDirectory() || stat.isSymbolicLink()) throw failure('invalid_backup_directory');

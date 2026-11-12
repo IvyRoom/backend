@@ -165,7 +165,7 @@ test('support pull requests run the guarded application suite without deployment
         /\b(?:git push|gh pr)\b/,
     ]) assert.doesNotMatch(workflow, forbidden);
     assert.equal(JSON.parse(readRepositoryFile('package.json')).scripts.test,
-        'node --require ./test/deny-production-network.js --test');
+        'node --require ./test/deny-production-network.js --test test/*.test.js');
 });
 
 test('production deployment serializes complete runs and installs the unchanged lock deterministically', () => {
@@ -217,7 +217,7 @@ test('production deployment serializes complete runs and installs the unchanged 
     const lock = JSON.parse(readRepositoryFile('package-lock.json'));
     assert.equal(packageManifest.engines.node, '24.x');
     assert.equal(lock.packages[''].engines.node, '24.x');
-    assert.equal(packageManifest.scripts.test, 'node --require ./test/deny-production-network.js --test');
+    assert.equal(packageManifest.scripts.test, 'node --require ./test/deny-production-network.js --test test/*.test.js');
 });
 
 test('Dependabot pull requests are validated without a production deployment path', () => {
