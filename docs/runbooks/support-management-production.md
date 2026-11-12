@@ -50,6 +50,11 @@ against the shared workbook.
 
 ## Existing data
 
+Hourly prices use each user's workbook reference rate for the first three
+available dates, then fall linearly to 80% on the tenth and remain there.
+The current R$1,250 reference therefore reaches R$1,000; unavailable dates do not
+advance the discount.
+
 BD - USUÁRIOS remains the single company/user table, with the same columns and
 password workflow. Login reads SENHA exactly as before; no password migration or
 new account-registration process is introduced. Restrict workbook access under
