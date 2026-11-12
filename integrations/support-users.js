@@ -9,7 +9,8 @@ const COLUMNS = [
     'TIPO DE ACESSO', 'AUTORIZADO A CONTRATAR ATENDIMENTOS', 'PAGARME CUSTOMER ID', 'PAGARME CARD ID', 'PAGARME AMBIENTE',
 ];
 
-function createSupportUsersAdapter({ graphClient }) {
+function createSupportUsersAdapter({ graphClient, environment = 'sandbox' }) {
+    if (!['sandbox', 'production'].includes(environment)) throw new Error('support_users.invalid_environment');
     const snapshots = new WeakMap();
     async function readVerifiedTable() {
         const [columns, range] = await Promise.all([
@@ -71,8 +72,15 @@ function createSupportUsersAdapter({ graphClient }) {
         return rows;
     }
 
-    async function writeCompanyReferences(companyId, values) {
+    async function writeCompanyReferences(companyId, values, { replacing = false } = {}) {
         const ranges = contiguousRanges(await readCompanyRows(companyId));
+        const existing = await Promise.all(ranges.map(({ first, last }) => readRows(`I${first}:K${last}`, last - first + 1, 3)));
+        for (const rows of existing) for (const row of rows) {
+            const current = cardReferences(row);
+            if (current && current.environment !== environment && !(replacing && environment === 'production' && current.environment === 'sandbox')) {
+                throw new Error('support_users.card_environment_mismatch');
+            }
+        }
         for (const { first, last } of ranges) {
             await graphClient.api(`${WORKSHEET_PATH}/range(address='I${first}:K${last}')`)
                 .middlewareOptions([new RetryHandlerOptions(0, 0, () => false)]).update({
@@ -132,8 +140,8 @@ function createSupportUsersAdapter({ graphClient }) {
 
         async writeCompanyCard(company, _card, references) {
             if (!normalizeCompanyId(company)) throw new Error('support_users.invalid_company');
-            validateCardReferences(references);
-            await writeCompanyReferences(company, [references.customerId, references.cardId, references.environment]);
+            validateCardReferences(references, environment);
+            await writeCompanyReferences(company, [references.customerId, references.cardId, references.environment], { replacing: true });
         },
 
         async clearCompanyCard(companyId) {
@@ -146,10 +154,8 @@ function createSupportUsersAdapter({ graphClient }) {
             for (const { first, last } of ranges) {
                 const records = await readRows(`I${first}:K${last}`, last - first + 1, 3);
                 for (const row of records) {
-                    const values = row.map((value) => String(value ?? '').trim());
-                    if (values.every((value) => !value)) continue;
-                    const current = { customerId: values[0], cardId: values[1], environment: values[2] };
-                    validateCardReferences(current);
+                    const current = cardReferences(row);
+                    if (!current) continue;
                     if (references && (references.customerId !== current.customerId
                         || references.cardId !== current.cardId || references.environment !== current.environment)) {
                         throw new Error('support_users.conflicting_card_references');
@@ -157,7 +163,7 @@ function createSupportUsersAdapter({ graphClient }) {
                     references = current;
                 }
             }
-            return references;
+            return references?.environment === environment ? references : null;
         },
     };
 }
@@ -178,13 +184,22 @@ function normalizeCompanyId(value) {
     return /^\d{14}$/u.test(digits) ? digits : '';
 }
 
-function validateCardReferences(references) {
+function cardReferences(row) {
+    const values = row.map((value) => String(value ?? '').trim());
+    if (values.every((value) => !value)) return null;
+    const references = { customerId: values[0], cardId: values[1], environment: values[2] };
+    validateCardReferences(references);
+    return references;
+}
+
+function validateCardReferences(references, environment) {
     if (!references || typeof references !== 'object' || Array.isArray(references)
         || Object.keys(references).some((key) => !['customerId', 'cardId', 'environment'].includes(key))
         || typeof references.customerId !== 'string' || typeof references.cardId !== 'string'
         || !/^cus_[A-Za-z0-9]{1,200}$/u.test(references.customerId)
         || !/^card_[A-Za-z0-9]{1,200}$/u.test(references.cardId)
-        || references.environment !== 'sandbox') {
+        || !['sandbox', 'production'].includes(references.environment)
+        || (environment !== undefined && references.environment !== environment)) {
         throw new Error('support_users.invalid_card_references');
     }
 }

@@ -20,11 +20,12 @@ const address = {
     line_1: '1, Rua de Teste, Centro', zip_code: '01001000', city: 'São Paulo', state: 'SP', country: 'BR',
 };
 
-function fixture(results) {
+function fixture(results, options = {}) {
     const calls = [];
     const adapter = createPagarmeAdapter({
         ...keys,
         now,
+        ...options,
         async fetchImpl(url, options) {
             calls.push({ url, options });
             assert.ok(results.length, 'Unexpected request');
@@ -46,6 +47,52 @@ test('constructs without requests and refuses absent or production keys', () => 
         assert.throws(() => createPagarmeAdapter(config), { code: 'pagarme.invalid_configuration' });
     }
     assert.equal(fixture([]).calls.length, 0);
+});
+
+test('production accepts documented sk_/pk_ keys and refuses test credentials without changing the default sandbox', () => {
+    const live = { environment: 'production', secretKey: 'sk_productionSynthetic', publicKey: 'pk_productionSynthetic' };
+    assert.equal(fixture([], live).calls.length, 0);
+    assert.equal(fixture([], { ...live, secretKey: 'sk_live_synthetic', publicKey: 'pk_live_synthetic' }).calls.length, 0);
+    for (const options of [
+        { ...live, environment: 'unknown' }, { ...live, environment: 'sandbox' },
+        { ...live, secretKey: keys.secretKey }, { ...live, publicKey: keys.publicKey },
+        { ...keys, environment: 'production' }, { ...live, environment: undefined },
+        { ...live, secretKey: 'sk_' }, { ...live, publicKey: 'pk_' },
+    ]) assert.throws(() => createPagarmeAdapter(options), { code: 'pagarme.invalid_configuration' });
+});
+
+test('production wallet registration verifies the tokenized card and keeps secret authentication server-side', async () => {
+    const live = { environment: 'production', secretKey: 'sk_productionSynthetic', publicKey: 'pk_productionSynthetic' };
+    const { adapter, calls } = fixture([{ ...card, live: true }], live);
+    assert.deepEqual(await adapter.createCard(customer.id, { token: 'token_Synthetic' }), { ...summary, verificationRequested: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, `https://api.pagar.me/core/v5/customers/${customer.id}/cards`);
+    assert.equal(calls[0].options.headers.Authorization, `Basic ${Buffer.from(`${live.secretKey}:`).toString('base64')}`);
+    assert.deepEqual(JSON.parse(calls[0].options.body), { token: 'token_Synthetic', options: { verify_card: true } });
+});
+
+test('opposite or malformed environment flags fail closed at both list envelope and item boundaries', async () => {
+    for (const environment of ['sandbox', 'production']) {
+        const live = environment === 'production';
+        const options = { environment, secretKey: `sk_${live ? 'live' : 'test'}_synthetic`, publicKey: `pk_${live ? 'live' : 'test'}_synthetic` };
+        for (const flag of ['live', 'livemode']) {
+            for (const value of [!live, String(live), null]) {
+                const badEnvelope = fixture([{ data: [], [flag]: value }], options);
+                await assert.rejects(badEnvelope.adapter.listCards(customer.id), { code: 'pagarme.request_failed' });
+                const badItem = fixture([{ data: [{ ...card, live, [flag]: value }] }], options);
+                await assert.rejects(badItem.adapter.listCards(customer.id), { code: 'pagarme.invalid_response' });
+                const badCard = fixture([{ ...card, live, [flag]: value }], options);
+                await assert.rejects(badCard.adapter.getCard(customer.id, card.id), { code: 'pagarme.request_failed' });
+                assert.equal(badEnvelope.calls.length, 1);
+                assert.equal(badItem.calls.length, 1);
+                assert.equal(badCard.calls.length, 1);
+            }
+        }
+        const omitted = { ...card };
+        delete omitted.live;
+        const noFlag = fixture([omitted], options);
+        assert.deepEqual(await noFlag.adapter.getCard(customer.id, card.id), summary);
+    }
 });
 
 test('looks up exact company code using fixed base and sandbox Basic auth', async () => {
@@ -128,7 +175,7 @@ test('documented card absence confirms deletion while GET exposes a fixed not-fo
         } });
         if (method === 'deleteCard') assert.deepEqual(await adapter.deleteCard(customer.id, card.id), { deleted: true });
         else await assert.rejects(adapter.getCard(customer.id, card.id), {
-            code: 'pagarme.card_not_found', message: 'Pagar.me sandbox operation failed', definiteRejection: true,
+            code: 'pagarme.card_not_found', message: 'Pagar.me operation failed', definiteRejection: true,
         });
         assert.equal(attempts, 1);
     }
@@ -143,7 +190,7 @@ test('deletion rejects unsafe identifiers before a request and never retries tra
     const failed = fixture([new Error('PRIVATE provider request body and credentials')]);
     await assert.rejects(failed.adapter.deleteCard(customer.id, card.id), (error) => {
         assert.equal(error.code, 'pagarme.request_failed');
-        assert.equal(error.message, 'Pagar.me sandbox operation failed');
+        assert.equal(error.message, 'Pagar.me operation failed');
         assert.equal(error.definiteRejection, undefined);
         assert.equal(error.cause, undefined);
         return true;
@@ -159,7 +206,7 @@ test('only confirmed matching sandbox deletion bodies are accepted and malformed
     ]) {
         const { adapter, calls } = fixture([value]);
         await assert.rejects(adapter.deleteCard(customer.id, card.id), (error) => {
-            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.message, 'Pagar.me operation failed');
             assert.equal(error.definiteRejection, undefined);
             assert.equal(error.cause, undefined);
             return true;
@@ -186,7 +233,7 @@ test('deletion distinguishes definite rejection from ambiguous HTTP failures wit
             const definite = [400, 401, 403, 412, 422].includes(status);
             assert.equal(error.code, definite ? 'pagarme.request_rejected' : 'pagarme.request_failed');
             assert.equal(error.definiteRejection === true, definite);
-            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.message, 'Pagar.me operation failed');
             assert.equal(error.cause, undefined);
             return true;
         });
@@ -229,7 +276,7 @@ test('successful creation without an active unexpired card remains ambiguous and
         const { adapter, calls } = fixture([result]);
         await assert.rejects(adapter.createCard(customer.id, { token: 'token_Synthetic', billingAddress: address }), error => {
             assert.equal(error.code, 'pagarme.invalid_response');
-            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.message, 'Pagar.me operation failed');
             assert.equal(error.definiteRejection, undefined);
             return true;
         });
@@ -264,7 +311,7 @@ test('refuses live and malformed provider objects without exposing provider cont
     ]) {
         const { adapter } = fixture([result]);
         await assert.rejects(adapter.getCard(customer.id, card.id), error => {
-            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.message, 'Pagar.me operation failed');
             return true;
         });
     }
@@ -275,7 +322,7 @@ test('refuses live and malformed provider objects without exposing provider cont
 test('does not retry an ambiguous write or expose the transport exception', async () => {
     const { adapter, calls } = fixture([new Error('private provider body and credentials')]);
     await assert.rejects(adapter.createCard(customer.id, { token: 'token_Synthetic', billingAddress: address }),
-        { code: 'pagarme.request_failed', message: 'Pagar.me sandbox operation failed' });
+        { code: 'pagarme.request_failed', message: 'Pagar.me operation failed' });
     assert.equal(calls.length, 1);
 });
 
@@ -320,7 +367,7 @@ test('only documented definite HTTP rejections permit clearing pending intent', 
             assert.equal(error.definiteRejection === true, definite);
             assert.equal(error.code, status === 412 ? 'pagarme.card_verification_failed'
                 : definite ? 'pagarme.request_rejected' : 'pagarme.request_failed');
-            assert.equal(error.message, 'Pagar.me sandbox operation failed');
+            assert.equal(error.message, 'Pagar.me operation failed');
             assert.equal(error.cause, undefined);
             return true;
         });

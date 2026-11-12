@@ -12,7 +12,7 @@ const companyId = '12345678000195';
 const defaultRow = ['12.345.678/0001-95', 'Empresa teste', 1000, 'Pessoa teste', 'admin@example.test', 'private-password', 'Administrador', 'Sim'];
 const cardReferences = { customerId: 'cus_Test1', cardId: 'card_Test1', environment: 'sandbox' };
 
-function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt, failAfterReferenceWriteAt, batchResponses, failPost } = {}) {
+function fixture({ metadata = columns, range, values = [defaultRow], companyValues, referenceRows = {}, failUpdateAt, failAfterReferenceWriteAt, batchResponses, failPost, environment = 'sandbox' } = {}) {
     metadata = structuredClone(metadata);
     values = structuredClone(values);
     const calls = [];
@@ -60,7 +60,7 @@ function fixture({ metadata = columns, range, values = [defaultRow], companyValu
             };
         },
     };
-    return { users: createSupportUsersAdapter({ graphClient }), calls, writes, values };
+    return { users: createSupportUsersAdapter({ graphClient, environment }), calls, writes, values };
 }
 
 test('support users adapter construction does not access Graph', () => {
@@ -68,6 +68,63 @@ test('support users adapter construction does not access Graph', () => {
     const adapter = createSupportUsersAdapter({ graphClient });
     assert.equal(typeof adapter.readUsers, 'function');
     assert.equal(typeof adapter.readCompanyCardReferences, 'function');
+    assert.throws(() => createSupportUsersAdapter({ graphClient, environment: 'unknown' }), /invalid_environment/u);
+});
+
+test('sandbox writes and deletions inspect every company block before touching production references', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    for (const clear of [false, true]) {
+        const f = fixture({ values: [defaultRow, other, defaultRow], referenceRows: {
+            4: [['cus_Test1', 'card_Test1', 'sandbox']], 6: [['cus_Live1', 'card_Live1', 'production']],
+        } });
+        const operation = clear ? f.users.clearCompanyCard(companyId) : f.users.writeCompanyCard(companyId, null, cardReferences);
+        await assert.rejects(operation, /card_environment_mismatch/u);
+        assert.equal(f.writes.length, 0, 'A later foreign block must prevent an earlier matching block from being overwritten');
+    }
+});
+
+test('production ignores sandbox references until explicit verified registration replaces the company rows', async () => {
+    const live = { customerId: 'cus_Live1', cardId: 'card_Live1', environment: 'production' };
+    const f = fixture({ environment: 'production', values: [defaultRow, defaultRow],
+        referenceRows: { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 5: [['cus_Test1', 'card_Test1', 'sandbox']] } });
+    assert.equal(await f.users.readCompanyCardReferences(companyId), null);
+    assert.equal(f.writes.length, 0);
+    await assert.rejects(f.users.clearCompanyCard(companyId), /card_environment_mismatch/u);
+    assert.equal(f.writes.length, 0);
+    await assert.rejects(f.users.writeCompanyCard(companyId, null, cardReferences), /invalid_card_references/u);
+    await f.users.writeCompanyCard(companyId, null, live);
+    assert.deepEqual(f.writes[0].body.values, [['cus_Live1', 'card_Live1', 'production'], ['cus_Live1', 'card_Live1', 'production']]);
+    assert.deepEqual(await f.users.readCompanyCardReferences(companyId), live);
+    await f.users.clearCompanyCard(companyId);
+    assert.deepEqual(f.writes[1].body.values, [['', '', ''], ['', '', '']]);
+});
+
+test('production deletion refuses mixed environments while an explicit pending registration can finish its own partial sync', async () => {
+    const other = [...defaultRow];
+    other[0] = '98.765.432/0001-10';
+    const live = { customerId: 'cus_Live1', cardId: 'card_Live1', environment: 'production' };
+    const f = fixture({ environment: 'production', values: [defaultRow, other, defaultRow], referenceRows: {
+        4: [['cus_Live1', 'card_Live1', 'production']], 6: [['cus_Test1', 'card_Test1', 'sandbox']],
+    } });
+    await assert.rejects(f.users.readCompanyCardReferences(companyId), /conflicting_card_references/u);
+    await assert.rejects(f.users.clearCompanyCard(companyId), /card_environment_mismatch/u);
+    assert.equal(f.writes.length, 0);
+    await f.users.writeCompanyCard(companyId, null, live);
+    assert.equal(f.writes.length, 2);
+    assert.deepEqual(await f.users.readCompanyCardReferences(companyId), live);
+});
+
+test('malformed company reference data prevents every mutation in both environments', async () => {
+    for (const environment of ['sandbox', 'production']) {
+        const references = { ...cardReferences, environment };
+        for (const clear of [false, true]) {
+            const f = fixture({ environment, values: [defaultRow, defaultRow],
+                referenceRows: { 5: [['cus_Unsafe', 'card_Unsafe', 'unknown']] } });
+            await assert.rejects(clear ? f.users.clearCompanyCard(companyId) : f.users.writeCompanyCard(companyId, null, references), /invalid_card_references/u);
+            assert.equal(f.writes.length, 0);
+        }
+    }
 });
 
 test('support users reads identity, stable company and reference price without provider references', async () => {
@@ -169,7 +226,7 @@ test('company card sync writes I:K only for matching CNPJ, regardless of company
     colleague[1] = 'Renamed company';
     const { users, calls, writes } = fixture({ values: [defaultRow, other, colleague] });
     await users.writeCompanyCard(companyId, { number: '4000000000000010', cvv: '123', holderName: '=ignored' }, cardReferences);
-    assert.equal(calls.length, 5);
+    assert.equal(calls.length, 7);
     assert.match(calls[2], /range\(address='A4:A6'\)\?\$select=values$/u);
     assert.deepEqual(writes.map(({ path, body }) => ({ address: path.match(/address='([^']+)'/u)[1], body })), [
         { address: 'I4:K4', body: { values: [['cus_Test1', 'card_Test1', 'sandbox']] } },
@@ -270,16 +327,17 @@ test('grouped reference lookups reject missing rows and malformed widths instead
     }
 });
 
-test('company reference lookup rejects partial, conflicting and non-sandbox data', async () => {
+test('company reference lookup rejects partial or conflicting data and ignores the other environment', async () => {
     for (const referenceRows of [
         { 4: [['cus_Test1', '', 'sandbox']] },
-        { 4: [['cus_Test1', 'card_Test1', 'production']] },
         { 4: [['cus_Test1', 'card_Test1', 'sandbox']], 5: [['cus_Test1', 'card_Test2', 'sandbox']] },
     ]) {
         const { users, writes } = fixture({ values: [defaultRow, defaultRow], referenceRows });
         await assert.rejects(users.readCompanyCardReferences(companyId), /(?:invalid|conflicting)_card_references/u);
         assert.equal(writes.length, 0);
     }
+    const foreign = fixture({ referenceRows: { 4: [['cus_Test1', 'card_Test1', 'production']] } });
+    assert.equal(await foreign.users.readCompanyCardReferences(companyId), null);
 });
 
 test('company card sync stops on a failed patch without retrying or appending', async () => {
@@ -354,7 +412,7 @@ for (const clear of [false, true]) {
         else await f.users.writeCompanyCard(companyId, { number: '4000000000000010', cvv: '123' }, cardReferences);
         const expected = clear ? ['', '', ''] : ['cus_Test1', 'card_Test1', 'sandbox'];
         assert.equal(f.writes.length, 1, 'Employee count must not add a separate Graph mutation for each row');
-        assert.equal(f.calls.length, 4);
+        assert.equal(f.calls.length, 5);
         assert.match(f.writes[0].path, /range\(address='I5:K34'\)$/u);
         assert.deepEqual(f.writes[0].body, { values: Array.from({ length: 30 }, () => [...expected]) });
         for (let row = 5; row <= 34; row++) assert.deepEqual(referenceRows[row], [expected]);

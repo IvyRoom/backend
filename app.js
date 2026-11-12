@@ -19,6 +19,7 @@ function createApp({
     graphClient,
     faceClient,
     platformRowAuthorization = {},
+    supportApp,
     now = () => new Date(),
     randomInt = (...args) => crypto.randomInt(...args),
     uuid = uuidv4,
@@ -35,6 +36,7 @@ function createApp({
     const azureFace = createAzureFaceAdapter({ faceClient });
 
     const app = express();
+    if (supportApp) app.use('/atendimentos/api', supportApp);
     app.use(cors());
     app.use(express.json());
     app.use('/img', express.static('img'));

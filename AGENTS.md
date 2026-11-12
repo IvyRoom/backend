@@ -39,7 +39,10 @@ repository separately.
   workbooks and Pagar.me test API. Authentication reads users A:H; approved card
   registration writes only reusable Pagar.me references/environment to I:K,
   never raw card data or CVV. Administrator-requested deletion revokes the
-  selected sandbox wallet card and clears the matching company references.
+  selected wallet card in the configured environment and clears the matching
+  company references. Production is explicitly enabled on the existing backend;
+  local development remains sandbox-only. Never mix metadata directories or let
+  sandbox operations overwrite production workbook references.
   Companies are identified by CNPJ. User-operated calendar access synchronizes
   managed availability in appointments B:C and adds
   missing dates through the end of next month, preserving manual entries and
@@ -235,11 +238,12 @@ affected consumer.
 
 ## Verification
 
-Support management is a sandbox-only exception: `support-sandbox-server.js`
-composes `support-app.js` on loopback with Pagar.me test keys. Its API is not
-registered in production `app.js` or `server.js`. Use synthetic dependencies for
-automated checks; actual sandbox testing is user-operated. Follow
-`docs/runbooks/support-management-sandbox.md` for setup and recovery.
+Support management uses `support-sandbox-server.js` on loopback with test keys.
+Its production API at `/atendimentos/api` is opt-in through `support-production.js`
+on the existing backend. Disabled support leaves all legacy middleware and routes
+unchanged. Use synthetic dependencies for automated checks; actual card and
+booking acceptance is user-operated. Follow the support-management sandbox and
+production runbooks for setup and recovery.
 
 Do not start the production server for documentation, syntax, or automated
 acceptance checks. HTTP tests must use `createApp` with synthetic dependencies

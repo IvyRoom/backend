@@ -121,7 +121,7 @@ if (require.main === module) {
     startSupportSandbox().then((instance) => {
         sandbox = instance;
         const { origin } = instance;
-        console.log(`Support sandbox: ${origin}/support-management/login/`);
+        console.log(`Support sandbox: ${origin}/atendimentos/login/`);
         if (shutdownRequested) shutdown();
         else if (process.connected) process.send({ type: 'support:ready', origin }, () => {});
     }).catch((error) => {

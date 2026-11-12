@@ -75,7 +75,7 @@ async function fixture(t, overrides = {}) {
     const origin = `http://127.0.0.1:${server.address().port}`;
     app = createSupportApp({ origin, users, cardStore, pagarme, publicKey: 'pk_test_synthetic', now: () => clock, ...overrides });
     async function request(route, { method = 'GET', token, body, headers = {} } = {}) {
-        return fetch(`${origin}/support-management/api/${route}`, {
+        return fetch(`${origin}/atendimentos/api/${route}`, {
             method,
             headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -1376,7 +1376,7 @@ test('sandbox enforces exact origin and host before dependencies and rejects non
     // Fetch overrides Host; use the native HTTP client for DNS-rebinding checks.
     for (const host of ['attacker.invalid', 'localhost']) {
         const status = await new Promise((resolve, reject) => {
-            const request = http.get(`${f.origin}/support-management/api/config`, { headers: { Host: host } }, (response) => {
+            const request = http.get(`${f.origin}/atendimentos/api/config`, { headers: { Host: host } }, (response) => {
                 response.resume();
                 resolve(response.statusCode);
             });
@@ -1394,7 +1394,7 @@ test('sandbox enforces exact origin and host before dependencies and rejects non
 test('sandbox rejects oversized or malformed JSON before workbook or provider access', async (t) => {
     const f = await fixture(t);
     for (const [body, status] of [['{malformed', 400], [JSON.stringify({ email: 'x'.repeat(9000) }), 413]]) {
-        await expectError(await fetch(`${f.origin}/support-management/api/login`, {
+        await expectError(await fetch(`${f.origin}/atendimentos/api/login`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
         }), status, 'invalid_request');
     }
@@ -1422,7 +1422,7 @@ test('sandbox and production retain separate route tables', async (t) => {
     assert.equal((await fetch(`${f.origin}/plataforma_v2/login-FaceID`, { method: 'POST' })).status, 404);
     const { app, ledger } = createTestApp();
     const production = await startLoopback(app, t);
-    assert.equal((await fetch(`${production.origin}/support-management/api/config`)).status, 404);
+    assert.equal((await fetch(`${production.origin}/atendimentos/api/config`)).status, 404);
     assert.equal(ledger.length, 0);
 });
 

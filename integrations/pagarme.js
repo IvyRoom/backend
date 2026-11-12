@@ -5,9 +5,11 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
 const DEFINITE_REJECTIONS = new Set([400, 401, 403, 404, 412, 422]);
 
-function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = Date.now }) {
-    if (!/^sk_test_[A-Za-z0-9_-]+$/u.test(secretKey || '') ||
-        !/^pk_test_[A-Za-z0-9_-]+$/u.test(publicKey || '') ||
+function createPagarmeAdapter({ secretKey, publicKey, environment = 'sandbox', fetchImpl = fetch, now = Date.now }) {
+    const secretPattern = environment === 'production' ? /^sk_(?!test_)[A-Za-z0-9_-]+$/u : /^sk_test_[A-Za-z0-9_-]+$/u;
+    const publicPattern = environment === 'production' ? /^pk_(?!test_)[A-Za-z0-9_-]+$/u : /^pk_test_[A-Za-z0-9_-]+$/u;
+    if (!['sandbox', 'production'].includes(environment) || !secretPattern.test(secretKey || '') ||
+        !publicPattern.test(publicKey || '') ||
         typeof fetchImpl !== 'function' || typeof now !== 'function') {
         throw failure('invalid_configuration');
     }
@@ -43,7 +45,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
         }
         try {
             const result = await response.json();
-            requireSandbox(result);
+            requireEnvironment(result, environment);
             return result;
         } catch {
             throw failure('request_failed');
@@ -55,7 +57,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
         for (let page = 1; page <= MAX_PAGES; page += 1) {
             const result = await request(`${path}?${query}size=${PAGE_SIZE}&page=${page}`);
             if (!Array.isArray(result.data)) throw failure('invalid_response');
-            result.data.forEach(requireSandbox);
+            result.data.forEach((value) => requireEnvironment(value, environment));
             values.push(...result.data);
             const hasNext = Boolean(result.paging?.next) || result.data.length === PAGE_SIZE;
             if (!hasNext) return values;
@@ -69,7 +71,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
             const customers = await list('/customers', `code=${encodeURIComponent(code)}&`);
             const matches = customers.filter(customer => customer.code === code);
             if (matches.length > 1) throw failure('ambiguous_customer');
-            return matches.length ? projectCustomer(matches[0], code) : null;
+            return matches.length ? projectCustomer(matches[0], code, environment) : null;
         },
 
         async createCompanyCustomer({ code, name }) {
@@ -80,13 +82,13 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
             return projectCustomer(await request('/customers', {
                 method: 'POST',
                 body: { code, name },
-            }), code);
+            }), code, environment);
         },
 
         async listCards(customerId) {
             requireId(customerId, 'cus');
             const cards = await list(`/customers/${customerId}/cards`);
-            return cards.map(projectCard);
+            return cards.map((value) => projectCard(value, environment));
         },
 
         async getCard(customerId, cardId) {
@@ -94,7 +96,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
             requireId(cardId, 'card');
             const card = await request(`/customers/${customerId}/cards/${cardId}`, { cardLookup: true });
             if (card.id !== cardId) throw failure('invalid_response');
-            return projectCard(card);
+            return projectCard(card, environment);
         },
 
         async deleteCard(customerId, cardId) {
@@ -122,7 +124,7 @@ function createPagarmeAdapter({ secretKey, publicKey, fetchImpl = fetch, now = D
                     // The v5 SDK documents authorization before saving with options.verify_card.
                     options: { verify_card: true },
                 },
-            }));
+            }), environment);
             const current = new Date(now());
             const year = card.expYear < 100 ? 2000 + card.expYear : card.expYear;
             if (card.status !== 'active' || !Number.isFinite(current.getTime()) ||
@@ -146,22 +148,22 @@ function requireCode(code) {
     if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{1,52}$/u.test(code)) throw failure('invalid_input');
 }
 
-function requireSandbox(value) {
+function requireEnvironment(value, environment) {
     if (!value || typeof value !== 'object' || Array.isArray(value) ||
-        (Object.hasOwn(value, 'live') && value.live !== false)) {
+        ['live', 'livemode'].some((key) => Object.hasOwn(value, key) && value[key] !== (environment === 'production'))) {
         throw failure('invalid_response');
     }
 }
 
-function projectCustomer(value, code) {
-    requireSandbox(value);
+function projectCustomer(value, code, environment) {
+    requireEnvironment(value, environment);
     requireId(value.id, 'cus');
     if (value.code !== code) throw failure('invalid_response');
     return { id: value.id, code: value.code };
 }
 
-function projectCard(value) {
-    requireSandbox(value);
+function projectCard(value, environment) {
+    requireEnvironment(value, environment);
     requireId(value.id, 'card');
     if (typeof value.brand !== 'string' || !/^[A-Za-z0-9 -]{1,32}$/u.test(value.brand) ||
         !/^\d{4}$/u.test(value.last_four_digits || '') ||
@@ -199,7 +201,7 @@ function projectAddress(value) {
 }
 
 function failure(code) {
-    const error = new Error('Pagar.me sandbox operation failed');
+    const error = new Error('Pagar.me operation failed');
     error.code = `pagarme.${code}`;
     return error;
 }

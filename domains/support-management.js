@@ -33,7 +33,8 @@ function validBillingAddress(address) {
         && /^\d{8}$/.test(address.zip_code) && /^[A-Z]{2}$/.test(address.state) && address.country === 'BR';
 }
 
-function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, now = Date.now, sessionStore = createMemorySupportSessionStore(), bootstrap }) {
+function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey, environment = 'sandbox', now = Date.now, sessionStore = createMemorySupportSessionStore(), bootstrap }) {
+    if (!['sandbox', 'production'].includes(environment)) throw new Error('Invalid support environment');
     const attempts = new Map();
     const busyCompanies = new Set();
     const bookingCompanies = new Map();
@@ -104,7 +105,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         let record = await cardStore.read(code);
         if (!Object.keys(record).length && user.companyId && users.readCompanyCardReferences) {
             const references = await users.readCompanyCardReferences(user.companyId);
-            if (references) {
+            if (references?.environment === environment) {
                 const previous = cardStore.findByReferences ? await cardStore.findByReferences(references) : null;
                 record = previous ? { ...previous } : { customerId: references.customerId, cardId: references.cardId };
                 // Preserve local verification evidence across the CNPJ migration; workbook IDs alone cannot create it.
@@ -119,7 +120,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
     async function synchronizeWorkbook(code, record, company, card) {
         if (!hasVerification(record) || !usableCard(card)) throw new Error('Card verification required');
         await users.writeCompanyCard(company, card, {
-            customerId: record.customerId, cardId: record.cardId, environment: 'sandbox',
+            customerId: record.customerId, cardId: record.cardId, environment,
         });
         await cardStore.write(code, { customerId: record.customerId, cardId: record.cardId, cardRevision: cardRevision(record),
             verification: CARD_VERIFICATION, workbookSynced: true, workbookReferencesSynced: true });
@@ -147,7 +148,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         if (!bootstrap) return {};
         const permissions = user.role === 'Administrador' ? { permissions: companyPermissions(user, directory) } : {};
         try { return { ...await bootstrap(user, directory), ...permissions }; }
-        catch { return { config: { environment: 'sandbox', publicKey }, ...permissions }; }
+        catch { return { config: { environment, publicKey }, ...permissions }; }
     }
 
     async function finishCardDeletion(code, record, company) {
@@ -160,7 +161,7 @@ function createSupportManagementHandlers({ users, pagarme, cardStore, publicKey,
         claimCompany,
         companyPayment,
         config(req, res) {
-            return res.json({ environment: 'sandbox', publicKey });
+            return res.json({ environment, publicKey });
         },
         async login(req, res) {
             try {

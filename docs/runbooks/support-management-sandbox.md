@@ -3,9 +3,8 @@
 This version provides workbook-backed login, 09:00 Brasília-time Microsoft Teams
 reservations and administrator-managed company cards. Invitations hold
 09:00–10:00; actual duration remains a manual workbook entry. Reservations and
-nonattendance do not automatically charge a card. Production `app.js` and
-`server.js` do not expose these endpoints. Merging the frontend publishes static
-pages, but the functional sandbox is local and uses its own same-origin API.
+nonattendance do not automatically charge a card. Production support is opt-in on the existing backend; see the production runbook.
+The local sandbox uses its own same-origin API and accepts test keys only.
 
 ## Daily local cycle
 
@@ -68,7 +67,7 @@ trigger a preview deployment even while a PR is a draft.
    stop and arrange an approved hosted sandbox origin before card testing.
 
 4. From `backend`, run `npm run support:dev` and open
-   <http://127.0.0.1:4174/support-management/login/>. The startup URL uses port
+   <http://127.0.0.1:4174/atendimentos/login/>. The startup URL uses port
    4174 unless `SUPPORT_SANDBOX_PORT` is configured. Use `127.0.0.1`, not localhost.
    Do not expose this listener through a tunnel or use the production entry point.
    Use `npm run support:sandbox` when automatic backend restarts are unnecessary.
@@ -95,7 +94,7 @@ trigger a preview deployment even while a PR is a draft.
 
 Pagar.me uses the same API origin for test/live; this entry point accepts only
 `pk_test_` and `sk_test_` keys and rejects responses marked live. The secret key
-stays server-side. The public key is returned by `/support-management/api/config`.
+stays server-side. The public key is returned by `/atendimentos/api/config`.
 Browser tokenization goes straight to Pagar.me; only a single-use token reaches
 the backend. Wallet registration omits optional billing-address fields and keeps
 `verify_card: true`. PAN/CVV are never sent to Graph or saved by the app. The live
@@ -380,7 +379,7 @@ marker and `pending: "workbook"` before Graph updates begin. If a workbook updat
 fails, the card stays registered and the API returns `workbookSyncPending: true`;
 replacement remains blocked until
 synchronization succeeds. The administrator can retry through the card screen.
-`POST /support-management/api/card/sync` fetches the existing card from Pagar.me,
+`POST /atendimentos/api/card/sync` fetches the existing card from Pagar.me,
 patches the same workbook ranges, and records both `workbookSynced: true` and
 `workbookReferencesSynced: true`; it does not
 create a customer, card, order, or charge. Partial workbook updates are safe to
@@ -402,7 +401,7 @@ markers manually or promote an old card based on GET alone.
 
 Explicit registered-card reads and workbook sync fetch the current provider
 status and expiry. A deleted, expired, or status-less card is not displayed as
-registered and cannot update the workbook. `GET /support-management/api/card`
+registered and cannot update the workbook. `GET /atendimentos/api/card`
 never writes to Graph or requests authorization. Current workbook role and
 company are checked for every sync request, and a colleague cannot trigger it.
 
@@ -424,7 +423,7 @@ files or invent a verification marker during reconciliation.
 The administrator's trash action reveals inline Deletar Cartão and Cancelar
 buttons in the saved card heading, with Cancelar focused. Opening, cancelling,
 or dismissing these controls does not send a deletion request.
-`DELETE /support-management/api/card` accepts only the opaque
+`DELETE /atendimentos/api/card` accepts only the opaque
 `expectedCardRevision` of the displayed registration, never provider identifiers.
 It rechecks the workbook role and current revision, derives the selected company
 card locally, and persists `pending: "delete"` before one Pagar.me sandbox wallet DELETE.

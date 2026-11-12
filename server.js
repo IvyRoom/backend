@@ -91,11 +91,14 @@ function createProductionDependencies(environment, platformRowAuthorizationKey, 
 
     const faceCredential = new AzureKeyCredential(environment.AZURE_FACE_API_KEY);
     const faceClient = FaceClient(environment.AZURE_FACE_API_ENDPOINT, faceCredential);
+    const supportRuntime = environment.SUPPORT_MANAGEMENT_ENABLED && environment.SUPPORT_MANAGEMENT_ENABLED !== 'false'
+        ? require('./support-production').createSupportProductionRuntime({ environment, graphClient }) : undefined;
 
     return {
         appDependencies: {
             graphClient,
             faceClient,
+            ...(supportRuntime ? { supportApp: supportRuntime.middleware } : {}),
             platformRowAuthorization: {
                 authorize: createPlatformRowAuthorizer(platformRowAuthorizationKey),
                 createHandle: (rowIndex, nowMs) => createPlatformRowAuthorizationHandle(
@@ -106,6 +109,7 @@ function createProductionDependencies(environment, platformRowAuthorizationKey, 
             },
         },
         graphTokenLifecycle,
+        ...(supportRuntime ? { supportRuntime } : {}),
     };
 }
 
@@ -122,6 +126,7 @@ function startProductionServer({
     const {
         appDependencies,
         graphTokenLifecycle,
+        supportRuntime,
     } = createDependencies(environment, platformRowAuthorizationKey, runtimeHooks);
     const app = createApplication(appDependencies);
     const listener = app.listen(environment.PORT || 3000);
@@ -133,13 +138,28 @@ function startProductionServer({
         listener,
         stop(callback) {
             graphTokenLifecycle.stop();
+            if (supportRuntime) return listener.close(() => {
+                void supportRuntime.stop().then(() => callback?.()).catch(() => callback?.(new Error('Support shutdown failed')));
+            });
             return listener.close(callback);
         },
     };
 }
 
 // IISNode requires this file through its interceptor but preserves the application path in argv[1].
-if (require.main === module || isIisnodeEntryPoint()) startProductionServer();
+if (require.main === module || isIisnodeEntryPoint()) {
+    const running = startProductionServer();
+    if (process.env.SUPPORT_MANAGEMENT_ENABLED === 'true') {
+        let stopping = false;
+        const shutdown = () => {
+            if (stopping) return;
+            stopping = true;
+            running.stop((error) => { if (error) process.exitCode = 1; });
+        };
+        process.once('SIGINT', shutdown);
+        process.once('SIGTERM', shutdown);
+    }
+}
 
 module.exports = {
     createGraphTokenLifecycle,

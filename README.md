@@ -12,12 +12,12 @@ excluding weekends and national/Curitiba holidays while preserving manual blocks
 After a verified company card is registered and an administrator grants booking
 permission in Configurações da Conta PJ, selected employees can review the date and price
 in a popup, then confirm the booking terms and reserve a 09:00 Microsoft Teams
-appointment, with a three-hour calendar hold and confirmation email. Company-card
+appointment, with a 09:00–10:00 calendar hold and confirmation email. Company-card
 registration uses the Pagar.me test API
 and synchronizes reusable references by CNPJ. Sessions last one hour; login
 preloads the public scheduler context. Administrators can delete the selected
 company card through the trash action and register a new card afterward.
-Permissions are selected locally and persisted with Save in the users workbook's
+Permissions are selected locally and persisted with Salvar in the users workbook's
 H column, AUTORIZADO A CONTRATAR ATENDIMENTOS. Sim/blank defaults to allowed;
 Não denies booking. Only changed permission cells are written. The card-only form does not collect a
 billing address, PAN or CVV on the backend.
@@ -27,6 +27,12 @@ Run `npm run support:test` for isolated checks; real bookings are user-operated.
 Keep checkpoint commits local until Lucas explicitly requests publication.
 See [the sandbox runbook](docs/runbooks/support-management-sandbox.md) for test-key
 and permitted-origin setup. `npm run support:sandbox` remains the unwatched runner.
+The public pages are `/atendimentos/login/` and `/atendimentos/agendamento/`.
+The existing backend can optionally serve the live `/atendimentos/api` API; see
+[production setup](docs/runbooks/support-management-production.md). It stays
+disabled until explicitly configured. Card charges and tax documents belong to
+future Internal Apps tools. Login continues to use the existing workbook SENHA
+workflow, as requested by the owner.
 
 ## Main application areas
 
