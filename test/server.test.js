@@ -393,6 +393,23 @@ test('startup defaults to port 3000 and stops token lifecycle before closing lis
     ]);
 });
 
+test('enabled support storage stops after the listener drains and before the shutdown callback', async () => {
+    const events = [];
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    const instance = startProductionServer({ environment: { PLATFORM_ROW_AUTHORIZATION_KEY_BASE64: SIGNING_KEY_BASE64 },
+        loadEnvironment() {},
+        createDependencies: () => ({ appDependencies: {}, graphTokenLifecycle: { start() {}, stop() { events.push('tokens'); } },
+            supportRuntime: { async stop() { events.push('support'); await pending; events.push('released'); } } }),
+        createApplication: () => ({ listen: () => ({ close(callback) { events.push('listener'); callback(); } }) }),
+    });
+    instance.stop(error => { assert.equal(error, undefined); events.push('callback'); });
+    assert.deepEqual(events, ['tokens', 'listener', 'support']);
+    release();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(events, ['tokens', 'listener', 'support', 'released', 'callback']);
+});
+
 test('token success schedules expiry minus five minutes with a 60-second floor', async () => {
     const scheduler = createFakeScheduler();
     const accessTokens = [];
