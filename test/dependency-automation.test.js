@@ -101,6 +101,7 @@ test('repository workflows pin reviewed actions and bound each job with explicit
         ]],
         ['dependabot-validation.yml', ['actions/checkout', 'actions/setup-node']],
         ['face-sdk-version-check.yml', ['actions/checkout', 'actions/setup-node']],
+        ['support-management-validation.yml', ['actions/checkout', 'actions/setup-node']],
     ]);
     const workflowNames = fs.readdirSync(path.join(repositoryRoot, '.github/workflows'))
         .filter((name) => /\.ya?ml$/u.test(name)).sort();
@@ -131,6 +132,40 @@ test('repository workflows pin reviewed actions and bound each job with explicit
         assert.doesNotMatch(workflow, /^\s*(?:cache|cache-dependency-path):/m);
         assert.doesNotMatch(workflow, /\bpull_request_target\b|\bwrite-all\b/);
     }
+});
+
+test('support pull requests run the guarded application suite without deployment authority', () => {
+    const workflow = readRepositoryFile('.github/workflows/support-management-validation.yml');
+    const events = yamlMappingBlock(workflow, 0, 'on');
+    const pullRequest = yamlMappingBlock(workflow, 2, 'pull_request');
+    const jobs = yamlMappingBlock(workflow, 0, 'jobs');
+    const validation = yamlMappingBlock(workflow, 2, 'validate');
+    const permissions = yamlMappingBlock(validation, 4, 'permissions');
+    const concurrency = yamlMappingBlock(workflow, 0, 'concurrency');
+
+    assert.deepEqual(yamlDirectKeys(events, 2), ['pull_request']);
+    assert.match(pullRequest, /^      - main$/m);
+    assert.match(pullRequest, /^    types: \[opened, synchronize, reopened, ready_for_review\]$/m);
+    assert.deepEqual(Array.from(pullRequest.matchAll(/^      - '([^']+)'$/gm), ([, value]) => value), [
+        'support-*.js', 'domains/support-*.js', 'integrations/support-*.js', 'integrations/pagarme.js',
+        'app.js', 'server.js', 'package*.json', 'test/**', '.github/workflows/support-management-validation.yml',
+    ]);
+    assert.deepEqual(yamlDirectKeys(jobs, 2), ['validate']);
+    assert.deepEqual(yamlDirectKeys(permissions, 6), ['contents']);
+    assert.match(permissions, /^      contents: read$/m);
+    assert.match(validation, /^    runs-on: windows-latest$/m);
+    assert.match(validation, /^    timeout-minutes: 15$/m);
+    assert.match(concurrency, /^  group: support-management-validation-\$\{\{ github\.event\.pull_request\.number \}\}$/m);
+    assert.match(concurrency, /^  cancel-in-progress: true$/m);
+    assert.deepEqual(Array.from(validation.matchAll(/^        run: (.+)$/gm), ([, value]) => value), ['npm ci', 'npm test']);
+    for (const forbidden of [
+        /\b(?:secrets|vars|pull_request_target|workflow_dispatch)\b/,
+        /^\s*(?:if|environment|env|id-token):/m,
+        /\b(?:Azure|deploy|artifact)\b/i,
+        /\b(?:git push|gh pr)\b/,
+    ]) assert.doesNotMatch(workflow, forbidden);
+    assert.equal(JSON.parse(readRepositoryFile('package.json')).scripts.test,
+        'node --require ./test/deny-production-network.js --test');
 });
 
 test('production deployment serializes complete runs and installs the unchanged lock deterministically', () => {

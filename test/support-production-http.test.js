@@ -4,6 +4,8 @@ require('./deny-production-network');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs/promises');
+const os = require('node:os');
 const express = require('express');
 const { createSupportApp } = require('../support-app');
 const { createTestApp, startLoopback } = require('./app-test-support');
@@ -63,7 +65,21 @@ test('production support API mounts before broad legacy middleware and only perm
 });
 
 test('local source server serves the Portuguese pages and shared origin module without exposing English source routes', async (t) => {
-    const app = createSupportApp({ origin: 'http://127.0.0.1:4174', frontendDirectory: path.resolve(__dirname, '../../sistemas/apps/support-management') });
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'support-source-routes-'));
+    t.after(async () => {
+        const resolved = path.resolve(root);
+        assert.ok(resolved.startsWith(`${path.resolve(os.tmpdir())}${path.sep}`));
+        await fs.rm(resolved, { recursive: true, force: true });
+    });
+    const directory = path.join(root, 'apps', 'support-management');
+    for (const [name, source] of Object.entries({ 'login/index.html': '<h1>Login</h1>', 'scheduler/index.html': '<h1>Agendamento</h1>',
+        'modules/client.js': 'export const synthetic = true;', 'style.css': 'body { color: black; }',
+        '../shared/backend-origin.js': "export const BACKEND_ORIGIN = 'https://backend.example.invalid';" })) {
+        const file = path.resolve(directory, name);
+        await fs.mkdir(path.dirname(file), { recursive: true });
+        await fs.writeFile(file, source);
+    }
+    const app = createSupportApp({ origin: 'http://127.0.0.1:4174', frontendDirectory: directory });
     const wrapper = express();
     wrapper.use((req, res) => {
         req.headers.host = '127.0.0.1:4174';
